@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="description" content="Poligonal triangular de apoio no pátio interno do IFPE Recife — exercício educacional de topografia (AGLab) com ré, vante e fechamento angular.">
 <title>Poligonal Triangular | AG Topografia · IFPE</title>
 <style>
@@ -235,7 +235,7 @@
     display: block;
     width: 100%;
     height: auto;
-    touch-action: auto;
+    touch-action: pan-y;
   }
 
   /* Caption above canvas (legend for current step) */
@@ -1629,6 +1629,13 @@ function rerender() {
 
 window.addEventListener('resize', rerender);
 window.addEventListener('orientationchange', rerender);
+
+// Em modo tela cheia (ícone na tela inicial), a pinça do sistema pode fechar
+// a janela. Bloqueamos o zoom por gesto para evitar isso.
+document.addEventListener('gesturestart', function (e) { e.preventDefault(); }, { passive: false });
+document.addEventListener('touchmove', function (e) {
+  if (e.touches && e.touches.length > 1) e.preventDefault();
+}, { passive: false });
 
 // Theme toggle + initial theme (saved preference → OS preference → claro)
 document.getElementById('theme-toggle').addEventListener('click', () => {
