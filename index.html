@@ -78,9 +78,11 @@
     padding: 16px 12px 80px;
   }
 
-  /* Workspace: empilhado por padrão (retrato/estreito). Em paisagem com tela
-     larga, a caderneta vai para o lado do desenho. */
-  @media (orientation: landscape) and (min-width: 700px) {
+  /* Workspace: empilhado por padrão (telas estreitas). A partir de 700px de
+     largura — o que, num celular, só acontece na horizontal — a caderneta vai
+     para o lado do desenho. Usamos só a largura (e não "orientation"), que é
+     mais confiável em navegadores internos de apps e com rotação travada. */
+  @media (min-width: 700px) {
     .frame { max-width: 960px; }
     .workspace {
       display: grid;
@@ -233,7 +235,7 @@
     display: block;
     width: 100%;
     height: auto;
-    touch-action: pan-y pinch-zoom;
+    touch-action: auto;
   }
 
   /* Caption above canvas (legend for current step) */
