@@ -78,6 +78,19 @@
     padding: 16px 12px 80px;
   }
 
+  /* Workspace: empilhado por padrão (retrato/estreito). Em paisagem com tela
+     larga, a caderneta vai para o lado do desenho. */
+  @media (orientation: landscape) and (min-width: 900px) {
+    .frame { max-width: 960px; }
+    .workspace {
+      display: grid;
+      grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+      gap: 16px;
+      align-items: start;
+    }
+    .col-side .notebook { margin-top: 0; }
+  }
+
   .header {
     position: relative;
     border-bottom: 2px solid var(--ink);
@@ -220,7 +233,7 @@
     display: block;
     width: 100%;
     height: auto;
-    touch-action: pan-y;
+    touch-action: pan-y pinch-zoom;
   }
 
   /* Caption above canvas (legend for current step) */
@@ -599,6 +612,10 @@
     </button>
   </div>
 
+  <!-- Workspace: empilhado no retrato, lado a lado no modo paisagem -->
+  <div class="workspace">
+  <div class="col-main">
+
   <!-- Field -->
   <div class="field">
     <div class="field-header">
@@ -613,6 +630,9 @@
   <div class="actions" id="actions">
     <button class="primary-btn" id="start-btn">▶ Iniciar animação</button>
   </div>
+
+  </div><!-- /col-main -->
+  <div class="col-side">
 
   <!-- Notebook -->
   <div class="notebook">
@@ -678,6 +698,9 @@
     </div>
     <button class="primary-btn secondary" style="margin-top: 14px;" id="restart-btn">↺ Recomeçar</button>
   </div>
+
+  </div><!-- /col-side -->
+  </div><!-- /workspace -->
 
   <div class="footnote">
     <div class="aglab-card">
@@ -1603,6 +1626,7 @@ function rerender() {
 }
 
 window.addEventListener('resize', rerender);
+window.addEventListener('orientationchange', rerender);
 
 // Theme toggle + initial theme (saved preference → OS preference → claro)
 document.getElementById('theme-toggle').addEventListener('click', () => {
