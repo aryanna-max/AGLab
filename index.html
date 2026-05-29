@@ -1,0 +1,1631 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="Poligonal triangular de apoio no pátio interno do IFPE Recife — exercício educacional de topografia (AGLab) com ré, vante e fechamento angular.">
+<title>Poligonal Triangular | AG Topografia · IFPE</title>
+<style>
+  :root {
+    --paper: #f4f1ea;
+    --paper-2: #ebe6da;
+    --paper-3: #e0dac9;
+    --ink: #1a1815;
+    --ink-soft: #5a544c;
+    --ink-faint: #8a8377;
+    --line: #2a2723;
+    --accent: #b8401f;
+    --green: #4a6b3a;
+    --green-soft: #d8e4cc;
+    --red-soft: #f0d4cc;
+    --tree-dark: #3d5a30;
+    --tree-mid: #5a7548;
+    --tree-light: #7e9b6a;
+    --grass: #b8c89c;
+    --grass-light: #c6d3a8;
+    --pavement: #c8c0b0;
+    --pavement-edge: #9a9080;
+    --building: #a8a098;
+    --building-edge: #6a635a;
+    --water: #8aa4b0;
+    --water-edge: #5e7682;
+    --baliza: #d63838;
+    --apoio: #6b4a8a;
+    --tripod: #3a3128;
+    --re-line: #6b4a8a;
+    --vante-line: #c45a2a;
+  }
+
+  /* Modo escuro — paleta inspirada no painel AGLab (navy profundo + acentos) */
+  html[data-theme="dark"] {
+    color-scheme: dark;
+    --paper: #0f1620;
+    --paper-2: #16202c;
+    --paper-3: #1e2a38;
+    --ink: #e8edf2;
+    --ink-soft: #9fb0c0;
+    --ink-faint: #5d6b7a;
+    --line: #2c3a4a;
+    --accent: #ff7a4d;
+    --green: #8fc96a;
+    --green-soft: #1d3320;
+    --red-soft: #3a201a;
+    --pavement: #1a2330;
+    --re-line: #b08ad0;
+    --vante-line: #ff8a52;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    min-height: 100vh;
+    font-size: 16px;
+    line-height: 1.5;
+    background-image:
+      radial-gradient(circle at 10% 5%, rgba(184,64,31,0.04), transparent 35%),
+      radial-gradient(circle at 90% 95%, rgba(74,107,58,0.04), transparent 35%);
+    transition: background-color 0.2s, color 0.2s;
+  }
+
+  .frame {
+    max-width: 540px;
+    margin: 0 auto;
+    padding: 16px 12px 80px;
+  }
+
+  .header {
+    position: relative;
+    border-bottom: 2px solid var(--ink);
+    padding-bottom: 11px;
+    padding-right: 48px;
+    margin-bottom: 12px;
+  }
+
+  .header .eyebrow {
+    font-family: 'SF Mono', Menlo, Consolas, monospace;
+    font-size: 9.5px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    margin-bottom: 4px;
+  }
+
+  .header h1 {
+    font-weight: 800;
+    font-size: 26px;
+    line-height: 1;
+    letter-spacing: -0.025em;
+  }
+
+  .header h1 em {
+    font-style: italic;
+    font-weight: 400;
+    color: var(--accent);
+  }
+
+  .header h1 .dot {
+    color: #95c93f;
+    font-style: normal;
+    font-weight: 800;
+  }
+
+  /* Botão de tema (claro/escuro) */
+  .theme-toggle {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 40px;
+    height: 40px;
+    background: var(--paper-2);
+    border: 1px solid var(--line);
+    color: var(--ink);
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 18px;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s;
+  }
+
+  .theme-toggle:hover { background: var(--ink); color: var(--paper); }
+  .theme-toggle:active { transform: scale(0.94); }
+
+  .briefing {
+    background: var(--paper-2);
+    border-left: 3px solid var(--accent);
+    padding: 11px 13px;
+    margin-bottom: 12px;
+    font-size: 13.5px;
+    line-height: 1.5;
+  }
+
+  .briefing strong { font-weight: 600; }
+
+  /* Mode toggle */
+  .mode-toggle {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+    margin-bottom: 12px;
+  }
+
+  .mode-btn {
+    background: var(--paper-2);
+    border: 1px solid var(--line);
+    padding: 12px 10px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--ink);
+    cursor: pointer;
+    transition: all 0.15s;
+    text-align: left;
+    line-height: 1.15;
+    border-radius: 3px;
+  }
+
+  .mode-btn small {
+    display: block;
+    font-family: 'SF Mono', Menlo, Consolas, monospace;
+    font-size: 9px;
+    font-weight: 400;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    margin-top: 3px;
+  }
+
+  .mode-btn:hover, .mode-btn.active {
+    background: var(--ink);
+    color: var(--paper);
+    border-color: var(--ink);
+  }
+
+  .mode-btn:hover small, .mode-btn.active small { color: var(--paper-2); }
+
+  /* Field */
+  .field {
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 11px;
+    box-shadow: 0 4px 14px -8px rgba(0,0,0,0.2);
+    background: var(--pavement);
+  }
+
+  .field-header {
+    background: var(--paper);
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--line);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-family: 'SF Mono', Menlo, Consolas, monospace;
+    font-size: 9px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+  }
+
+  .field-header strong { color: var(--ink); font-weight: 600; }
+
+  #field-canvas {
+    display: block;
+    width: 100%;
+    height: auto;
+    touch-action: pan-y;
+  }
+
+  /* Caption above canvas (legend for current step) */
+  .canvas-caption {
+    background: var(--paper);
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--line);
+    font-size: 13px;
+    line-height: 1.35;
+    color: var(--ink);
+    text-align: center;
+    min-height: 38px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .canvas-caption strong { color: var(--accent); font-weight: 600; }
+  .canvas-caption em { font-style: italic; }
+
+  /* Action area (below canvas) */
+  .actions {
+    background: var(--paper-2);
+    border: 1px solid var(--line);
+    padding: 14px 14px;
+    margin-bottom: 11px;
+    border-radius: 3px;
+    min-height: 110px;
+  }
+
+  .step-prompt {
+    font-size: 14.5px;
+    line-height: 1.45;
+    color: var(--ink);
+    margin-bottom: 11px;
+  }
+
+  .step-prompt strong { font-weight: 600; }
+
+  .step-prompt .step-num {
+    font-family: 'SF Mono', Menlo, Consolas, monospace;
+    font-size: 9.5px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    display: block;
+    margin-bottom: 4px;
+  }
+
+  .options {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 6px;
+  }
+
+  .option-btn {
+    background: var(--paper);
+    border: 1.5px solid var(--line);
+    padding: 14px 8px;
+    font-family: 'SF Mono', Menlo, Consolas, monospace;
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--ink);
+    cursor: pointer;
+    transition: all 0.15s;
+    border-radius: 3px;
+  }
+
+  .option-btn:active { transform: scale(0.97); }
+
+  .option-btn:hover:not(:disabled) {
+    background: var(--ink);
+    color: var(--paper);
+  }
+
+  .option-btn.correct {
+    background: var(--green-soft);
+    border-color: var(--green);
+    color: var(--green);
+  }
+
+  .option-btn.wrong {
+    background: var(--red-soft);
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  .option-btn:disabled { cursor: default; }
+
+  /* Primary action button */
+  .primary-btn {
+    background: var(--accent);
+    color: var(--paper);
+    border: 1px solid var(--accent);
+    padding: 13px;
+    font-family: 'SF Mono', Menlo, Consolas, monospace;
+    font-size: 11.5px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    font-weight: 600;
+    cursor: pointer;
+    width: 100%;
+    border-radius: 3px;
+    transition: all 0.15s;
+  }
+
+  .primary-btn:active { transform: scale(0.98); }
+  .primary-btn:hover:not(:disabled) { background: var(--ink); border-color: var(--ink); }
+  .primary-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .primary-btn.secondary {
+    background: transparent;
+    color: var(--ink);
+    border-color: var(--ink);
+  }
+  .primary-btn.secondary:hover { background: var(--ink); color: var(--paper); }
+
+  .feedback {
+    background: var(--paper);
+    border-left: 3px solid var(--green);
+    padding: 9px 12px;
+    margin-top: 10px;
+    font-size: 13px;
+    line-height: 1.45;
+    color: var(--ink);
+    display: none;
+    border-radius: 0 3px 3px 0;
+  }
+
+  .feedback.visible { display: block; }
+  .feedback.error { border-left-color: var(--accent); }
+  .feedback strong { font-weight: 600; }
+
+  /* Notebook */
+  .notebook {
+    margin-top: 14px;
+    border: 1px solid var(--line);
+    background: var(--paper-2);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+
+  .notebook-head {
+    padding: 11px 13px;
+    background: var(--paper);
+    border-bottom: 1px solid var(--line);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-family: 'SF Mono', Menlo, Consolas, monospace;
+    font-size: 10.5px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--ink);
+  }
+
+  .notebook-head .count {
+    color: var(--ink-soft);
+    font-size: 9.5px;
+  }
+
+  .notebook-body {
+    overflow-x: auto;
+  }
+
+  .notebook-meta {
+    padding: 9px 13px 6px;
+    font-family: 'SF Mono', Menlo, Consolas, monospace;
+    font-size: 9.5px;
+    line-height: 1.7;
+    color: var(--ink-soft);
+  }
+
+  .notebook-meta strong { color: var(--ink); font-weight: 500; }
+
+  table.cad {
+    width: 100%;
+    min-width: 460px;
+    border-collapse: collapse;
+    font-family: 'SF Mono', Menlo, Consolas, monospace;
+    font-size: 11px;
+  }
+
+  table.cad thead th {
+    background: var(--paper-3);
+    color: var(--ink);
+    font-weight: 600;
+    text-align: center;
+    padding: 6px 4px;
+    border: 1px solid var(--line);
+    font-size: 8.5px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  table.cad tbody td {
+    padding: 6px 5px;
+    border: 1px solid var(--line);
+    background: var(--paper);
+    color: var(--ink);
+    text-align: center;
+  }
+
+  table.cad tbody td.station-cell {
+    background: var(--paper-3);
+    font-weight: 600;
+  }
+
+  table.cad tbody td.obs-re { color: var(--re-line); font-size: 9.5px; font-weight: 600; }
+  table.cad tbody td.obs-vante { color: var(--vante-line); font-size: 9.5px; font-weight: 600; }
+  table.cad tbody td.error-cell { color: var(--accent); font-weight: 700; }
+
+  table.cad tbody td.just-filled {
+    background: var(--green-soft);
+    animation: flash 0.7s;
+  }
+
+  @keyframes flash {
+    0% { background: var(--green); color: var(--paper); }
+    100% { background: var(--green-soft); color: var(--ink); }
+  }
+
+  table.cad tbody td.empty {
+    background: var(--paper-2);
+    color: var(--ink-faint);
+  }
+
+  /* Analysis panel */
+  .analysis {
+    margin-top: 14px;
+    background: var(--paper-2);
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    padding: 16px 18px;
+    display: none;
+  }
+
+  .analysis.visible { display: block; }
+
+  .analysis h3 {
+    font-weight: 600;
+    font-size: 17px;
+    margin-bottom: 12px;
+    line-height: 1.2;
+  }
+
+  .analysis h3 em { font-style: italic; color: var(--accent); font-weight: 400; }
+
+  .analysis-table {
+    font-family: 'SF Mono', Menlo, Consolas, monospace;
+    font-size: 12px;
+    line-height: 1.9;
+    color: var(--ink);
+    border-top: 1px dashed var(--ink-faint);
+    border-bottom: 1px dashed var(--ink-faint);
+    padding: 8px 0;
+    margin-bottom: 10px;
+  }
+
+  .analysis-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 1px 0;
+  }
+
+  .analysis-row.total {
+    font-weight: 700;
+    border-top: 1px dashed var(--ink-faint);
+    margin-top: 4px;
+    padding-top: 5px;
+  }
+
+  .analysis-row .label { color: var(--ink-soft); }
+  .analysis-row .val { color: var(--ink); font-weight: 600; }
+  .analysis-row.error-row .val { color: var(--accent); font-weight: 700; }
+
+  .analysis-note {
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--ink);
+    font-style: italic;
+    background: var(--paper);
+    padding: 10px 12px;
+    border-left: 2px solid var(--accent);
+    margin-top: 8px;
+  }
+
+  .analysis-note strong { font-weight: 600; font-style: normal; }
+
+  /* Footnote */
+  .footnote {
+    margin-top: 28px;
+    text-align: center;
+  }
+
+  .aglab-card {
+    display: inline-flex;
+    align-items: center;
+    gap: 11px;
+    background: #1a1815;
+    border-radius: 10px;
+    padding: 10px 16px;
+    margin: 0 auto 14px;
+  }
+
+  .aglab-card .mark {
+    width: 26px;
+    height: 26px;
+    border-radius: 5px;
+    background: linear-gradient(135deg, #5dd4e8 0%, #b8f255 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+    font-size: 10px;
+    color: #1a1815;
+    letter-spacing: -0.04em;
+  }
+
+  .aglab-card .meta {
+    text-align: left;
+  }
+
+  .aglab-card .name {
+    font-weight: 800;
+    font-size: 13px;
+    color: #b8f255;
+    letter-spacing: -0.01em;
+  }
+
+  .aglab-card .sub {
+    font-family: 'SF Mono', Menlo, Consolas, monospace;
+    font-size: 8.5px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: rgba(244,241,234,0.65);
+    margin-top: 2px;
+  }
+
+  .footnote-tech {
+    padding-top: 10px;
+    border-top: 1px dashed var(--ink-faint);
+    font-family: 'SF Mono', Menlo, Consolas, monospace;
+    font-size: 9px;
+    line-height: 1.7;
+    color: var(--ink-soft);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .footnote-tech strong { color: var(--ink); font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="frame">
+
+  <header class="header">
+    <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Mudar para modo escuro" title="Mudar para modo escuro">☾</button>
+    <div class="eyebrow">AGlab · Educacional · IFPE Campus Recife</div>
+    <h1>poligonal <em>triangular</em><span class="dot">.</span></h1>
+  </header>
+
+  <div class="briefing">
+    <strong>Cenário:</strong> Pátio interno do IFPE Recife. Levantamento por poligonal de apoio com três estações: <strong>E0</strong>, <strong>E1</strong>, <strong>E2</strong>. Equipamento começa em E1, faz ré em E0, e a poligonal fecha de volta em E0. Cada estação ocupada tem uma <strong>ré</strong> para a anterior e uma <strong>vante</strong> para a próxima.
+  </div>
+
+  <!-- Mode toggle -->
+  <div class="mode-toggle">
+    <button class="mode-btn active" data-mode="ver">
+      ▶ Ver desenho
+      <small>Animação</small>
+    </button>
+    <button class="mode-btn" data-mode="eu">
+      ✏ Eu faço
+      <small>Você decide</small>
+    </button>
+  </div>
+
+  <!-- Field -->
+  <div class="field">
+    <div class="field-header">
+      <span><strong>Pátio interno</strong> · IFPE Recife</span>
+      <span id="field-meta">3 estações · ~30 m</span>
+    </div>
+    <div class="canvas-caption" id="caption">Pronto para iniciar.</div>
+    <canvas id="field-canvas" width="540" height="360"></canvas>
+  </div>
+
+  <!-- Action area -->
+  <div class="actions" id="actions">
+    <button class="primary-btn" id="start-btn">▶ Iniciar animação</button>
+  </div>
+
+  <!-- Notebook -->
+  <div class="notebook">
+    <div class="notebook-head">
+      <span>Caderneta de campo</span>
+      <span class="count" id="nb-count">0 / 6 visadas</span>
+    </div>
+    <div class="notebook-body">
+      <div class="notebook-meta">
+        <strong>Levantamento:</strong> Pátio interno IFPE · <strong>Equipamento:</strong> Estação Total<br>
+        <strong>Operador:</strong> [aluno] · <strong>Data:</strong> hoje
+      </div>
+      <table class="cad">
+        <thead>
+          <tr>
+            <th>Estação</th>
+            <th>Pto. visado</th>
+            <th>Âng. Horiz.</th>
+            <th>Dist. Horiz.</th>
+            <th>Observação</th>
+          </tr>
+        </thead>
+        <tbody id="cad-body">
+          <tr>
+            <td colspan="5" class="empty" style="padding: 22px; font-style: italic;">As visadas serão registradas conforme você avança…</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Analysis panel (shown after completion) -->
+  <div class="analysis" id="analysis">
+    <h3>Fechamento <em>angular</em></h3>
+    <div class="analysis-table">
+      <div class="analysis-row">
+        <span class="label">Ângulo interno em E1</span>
+        <span class="val" id="ang-e1">—</span>
+      </div>
+      <div class="analysis-row">
+        <span class="label">Ângulo interno em E2</span>
+        <span class="val" id="ang-e2">—</span>
+      </div>
+      <div class="analysis-row">
+        <span class="label">Ângulo interno em E0</span>
+        <span class="val" id="ang-e0">—</span>
+      </div>
+      <div class="analysis-row total">
+        <span class="label">Σ medida</span>
+        <span class="val" id="ang-sum">—</span>
+      </div>
+      <div class="analysis-row">
+        <span class="label">Σ esperada (triângulo)</span>
+        <span class="val">180°00'00"</span>
+      </div>
+      <div class="analysis-row error-row">
+        <span class="label">Erro angular</span>
+        <span class="val" id="ang-err">—</span>
+      </div>
+    </div>
+    <div class="analysis-note">
+      <strong>Mesmo fazendo tudo certo, sempre há erro.</strong> A precisão do aparelho, a centragem do prisma, a temperatura — tudo soma. Um erro de +3" é pequeno e plausível para uma poligonal principal. Calcular se está dentro da tolerância da NBR 13133 é a próxima aula.
+    </div>
+    <button class="primary-btn secondary" style="margin-top: 14px;" id="restart-btn">↺ Recomeçar</button>
+  </div>
+
+  <div class="footnote">
+    <div class="aglab-card">
+      <div class="mark">AG</div>
+      <div class="meta">
+        <div class="name">AGLab</div>
+        <div class="sub">Educacional · por Aryanna Gonzaga</div>
+      </div>
+    </div>
+    <div class="footnote-tech">
+      <strong>Coordenadas reais do pátio interno do IFPE Campus Recife</strong><br>
+      NBR 13133:2021 · Tolerância angular Tabela K.1 · © 2026
+    </div>
+  </div>
+
+</div>
+
+<script>
+'use strict';
+
+// ============================================================================
+// REAL DATA from KML coordinates (Pátio IFPE)
+// Local meters relative to E0
+// ============================================================================
+const stations = {
+  E0: { localX: 0.000,  localY: 0.000,   label: 'E0' },
+  E1: { localX: 16.227, localY: -24.408, label: 'E1' },
+  E2: { localX: 32.149, localY: 3.503,   label: 'E2' },
+};
+
+// Real distances (m) calculated from coordinates
+const distances = {
+  'E0-E1': 29.31,
+  'E1-E2': 32.13,
+  'E2-E0': 32.34,
+};
+
+// Real internal angles (calculated from coordinates - sum is exactly 180°)
+// We INJECT +3" error at E0 (closure point) for pedagogical purpose
+const angles = {
+  E1: { d: 63, m: 19, s: 16.92, label: '63°19\'17"' },     // real
+  E2: { d: 54, m: 4,  s: 39.35, label: '54°04\'39"' },     // real
+  E0: { d: 62, m: 36, s: 6.72,  label: '62°36\'07"' },     // real (62°36'04") + 3"
+  // Sum = 180°00'03" (with +3" closure error)
+};
+
+const closureError = '+3"';
+const sumLabel = '180°00\'03"';
+
+// Notebook rows (built progressively)
+const notebookSequence = [
+  { station: 'E1', target: 'E0', ang: '00°00\'00"', dist: '29,31 m', obs: 'ré',     obsClass: 'obs-re' },
+  { station: 'E1', target: 'E2', ang: angles.E1.label, dist: '32,13 m', obs: 'vante',  obsClass: 'obs-vante' },
+  { station: 'E2', target: 'E1', ang: '00°00\'00"', dist: '32,13 m', obs: 'ré',     obsClass: 'obs-re' },
+  { station: 'E2', target: 'E0', ang: angles.E2.label, dist: '32,34 m', obs: 'vante',  obsClass: 'obs-vante' },
+  { station: 'E0', target: 'E2', ang: '00°00\'00"', dist: '32,34 m', obs: 'ré',     obsClass: 'obs-re' },
+  { station: 'E0', target: 'E1', ang: angles.E0.label, dist: '29,31 m', obs: 'vante (fechamento)', obsClass: 'obs-vante', errorCell: true },
+];
+
+// ============================================================================
+// EXERCISE FLOW (10 phases — used by both modes)
+// ============================================================================
+// Each phase represents an instant in the field.
+// "stationOccupied" = where the tripod currently sits
+// "tracedRe" = ré line drawn (from station to)
+// "tracedVante" = vante line drawn (from station to) WITH angle arc
+// "completedSegments" = list of solid segments in the polygon already drawn
+// ============================================================================
+
+const phases = [
+  { // 0
+    caption: '<strong>Equipamento em E1</strong> · instala o tripé',
+    stationOccupied: 'E1',
+    tracedRe: null,
+    tracedVante: null,
+    angleAtVertex: null,
+    notebookIdx: -1, // no row added yet
+  },
+  { // 1
+    caption: '<strong>Ré em E0</strong> · zera o ângulo horizontal',
+    stationOccupied: 'E1',
+    tracedRe: 'E0',
+    tracedVante: null,
+    angleAtVertex: null,
+    notebookIdx: 0,
+  },
+  { // 2
+    caption: '<strong>Vante para E2</strong> · ângulo medido <em>63°19\'17"</em>',
+    stationOccupied: 'E1',
+    tracedRe: 'E0',
+    tracedVante: 'E2',
+    angleAtVertex: { vertex: 'E1', from: 'E0', to: 'E2', angle: 63.321367 },
+    notebookIdx: 1,
+  },
+  { // 3
+    caption: '<strong>Caminha para E2</strong> · muda de estação',
+    stationOccupied: 'E2',
+    tracedRe: null,
+    tracedVante: null,
+    completedSegments: ['E1-E2'],
+    angleAtVertex: null,
+    notebookIdx: 1,
+  },
+  { // 4
+    caption: '<strong>Ré em E1</strong> · orienta a nova estação',
+    stationOccupied: 'E2',
+    tracedRe: 'E1',
+    tracedVante: null,
+    completedSegments: ['E1-E2'],
+    angleAtVertex: null,
+    notebookIdx: 2,
+  },
+  { // 5
+    caption: '<strong>Vante para E0</strong> · ângulo medido <em>54°04\'39"</em>',
+    stationOccupied: 'E2',
+    tracedRe: 'E1',
+    tracedVante: 'E0',
+    completedSegments: ['E1-E2'],
+    angleAtVertex: { vertex: 'E2', from: 'E1', to: 'E0', angle: 54.077598 },
+    notebookIdx: 3,
+  },
+  { // 6
+    caption: '<strong>Caminha para E0</strong> · muda de estação',
+    stationOccupied: 'E0',
+    tracedRe: null,
+    tracedVante: null,
+    completedSegments: ['E1-E2', 'E2-E0'],
+    angleAtVertex: null,
+    notebookIdx: 3,
+  },
+  { // 7
+    caption: '<strong>Ré em E2</strong>',
+    stationOccupied: 'E0',
+    tracedRe: 'E2',
+    tracedVante: null,
+    completedSegments: ['E1-E2', 'E2-E0'],
+    angleAtVertex: null,
+    notebookIdx: 4,
+  },
+  { // 8
+    caption: '<strong>Vante para E1</strong> · fechamento — <em>62°36\'07"</em>',
+    stationOccupied: 'E0',
+    tracedRe: 'E2',
+    tracedVante: 'E1',
+    completedSegments: ['E1-E2', 'E2-E0'],
+    angleAtVertex: { vertex: 'E0', from: 'E2', to: 'E1', angle: 62.601867 }, // with +3" error
+    notebookIdx: 5,
+  },
+  { // 9
+    caption: '<strong>Poligonal fechada</strong> · soma dos ângulos: 180°00\'03" — erro +3"',
+    stationOccupied: 'E0',
+    tracedRe: null,
+    tracedVante: null,
+    completedSegments: ['E1-E2', 'E2-E0', 'E0-E1'],
+    angleAtVertex: null,
+    showAllAngles: true,
+    notebookIdx: 5,
+  },
+];
+
+// ============================================================================
+// "EU FAÇO" MODE — sequence of decisions matching the phases
+// Each decision asks: "where does the equipment go / look?"
+// Answer must be one of E0, E1, E2
+// ============================================================================
+const decisions = [
+  { prompt: 'Onde a equipe instala o <strong>primeiro tripé</strong>?', correct: 'E1', advanceTo: 0 },
+  { prompt: 'Em E1, para qual estação se faz a <strong>ré</strong>?', correct: 'E0', advanceTo: 1 },
+  { prompt: 'Em E1, para qual estação se faz a <strong>vante</strong>?', correct: 'E2', advanceTo: 2 },
+  { prompt: 'A equipe muda o equipamento. Para qual estação?', correct: 'E2', advanceTo: 3 },
+  { prompt: 'Em E2, para qual estação se faz a <strong>ré</strong>?', correct: 'E1', advanceTo: 4 },
+  { prompt: 'Em E2, para qual estação se faz a <strong>vante</strong>?', correct: 'E0', advanceTo: 5 },
+  { prompt: 'A equipe muda o equipamento. Para qual estação?', correct: 'E0', advanceTo: 6 },
+  { prompt: 'Em E0, para qual estação se faz a <strong>ré</strong>?', correct: 'E2', advanceTo: 7 },
+  { prompt: 'Em E0, para qual estação se faz a <strong>vante</strong>? <em>(fechamento)</em>', correct: 'E1', advanceTo: 8 },
+];
+
+// ============================================================================
+// THEMES — palettes for the canvas scene (claro / escuro)
+// The DOM chrome is themed via CSS custom properties; the canvas can't read
+// those at draw time, so it pulls colors from this palette instead. `T` always
+// points at the active palette and is swapped by applyTheme().
+// ============================================================================
+const themes = {
+  light: {
+    pavement:     '#cfc5b3',
+    buildingFill: '#b8b0a4',
+    buildingEdge: '#6a635a',
+    buildingHatch:'rgba(106,99,90,0.3)',
+    buildingLabel:'#5a544c',
+    grass:        '#c6d3a8',
+    grassDot:     'rgba(90,117,72,0.18)',
+    pathFill:     '#d8d0bc',
+    pathEdge:     '#a89d88',
+    pondRing:     '#bcb09c',
+    pondRingEdge: '#857a68',
+    water:        '#8aa4b0',
+    waterHi:      'rgba(180,200,210,0.4)',
+    waterHi0:     'rgba(180,200,210,0)',
+    pondEdge:     '#5e7682',
+    treeShadow:   'rgba(40,50,30,0.18)',
+    treeDark:     '#3d5a30',
+    treeMid:      '#5a7548',
+    treeLight:    '#7e9b6a',
+    ink:          '#1a1815',
+    pill:         'rgba(244,241,234,0.92)',
+    accent:       '#b8401f',
+    accentHalo:   'rgba(184,64,31,0.18)',
+    tripod:       '#3a3128',
+    reLine:       '#6b4a8a',
+    vante:        '#c45a2a',
+  },
+  dark: {
+    pavement:     '#0e151e',
+    buildingFill: '#1c2733',
+    buildingEdge: '#33475a',
+    buildingHatch:'rgba(120,150,180,0.12)',
+    buildingLabel:'#7d8fa0',
+    grass:        '#16241c',
+    grassDot:     'rgba(120,180,110,0.10)',
+    pathFill:     '#222e3a',
+    pathEdge:     '#33475a',
+    pondRing:     '#1a2836',
+    pondRingEdge: '#33475a',
+    water:        '#163039',
+    waterHi:      'rgba(120,200,220,0.18)',
+    waterHi0:     'rgba(120,200,220,0)',
+    pondEdge:     '#2f6b7a',
+    treeShadow:   'rgba(0,0,0,0.30)',
+    treeDark:     '#1e3320',
+    treeMid:      '#2e4a30',
+    treeLight:    '#456b42',
+    ink:          '#e8edf2',
+    pill:         'rgba(16,24,34,0.85)',
+    accent:       '#ff7a4d',
+    accentHalo:   'rgba(255,122,77,0.20)',
+    tripod:       '#c0cbd6',
+    reLine:       '#b08ad0',
+    vante:        '#ff8a52',
+  },
+};
+
+let T = themes.light;
+
+function applyTheme(name) {
+  if (!themes[name]) name = 'light';
+  T = themes[name];
+  document.documentElement.setAttribute('data-theme', name);
+  try { localStorage.setItem('aglab-theme', name); } catch (e) { /* storage indisponível */ }
+
+  const btn = document.getElementById('theme-toggle');
+  if (btn) {
+    const goingDark = (name !== 'dark'); // ação do botão = o tema para o qual ele leva
+    btn.textContent = name === 'dark' ? '☀' : '☾';
+    const lbl = goingDark ? 'Mudar para modo escuro' : 'Mudar para modo claro';
+    btn.setAttribute('aria-label', lbl);
+    btn.title = lbl;
+  }
+  rerender();
+}
+
+// ============================================================================
+// CANVAS SETUP
+// ============================================================================
+const canvas = document.getElementById('field-canvas');
+const ctx = canvas.getContext('2d');
+let cdim = { w: 0, h: 0 };
+
+function setupCanvas() {
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  // Largura: usa a medida do layout; se falhar, usa a largura do container pai ou 540
+  let w = rect.width;
+  if (!w || w < 10) {
+    const parent = canvas.parentElement;
+    w = (parent && parent.getBoundingClientRect().width) || 540;
+  }
+  // Altura: SEMPRE proporção fixa (2:3) — nunca confia em rect.height, que varia
+  const h = Math.round(w * (360 / 540));
+  // Define o tamanho de buffer (pixels reais) e o tamanho CSS (pixels lógicos)
+  canvas.width = Math.round(w * dpr);
+  canvas.height = Math.round(h * dpr);
+  canvas.style.width = w + 'px';
+  canvas.style.height = h + 'px';
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  cdim.w = w;
+  cdim.h = h;
+}
+
+// Map local meters to canvas pixels
+// Local coords: E0 at (0,0), E1 at (16, -24), E2 at (32, 3)
+// We want to fit them with margin
+function getXY(stationKey) {
+  const s = stations[stationKey];
+  // Bounding box of stations in local coords
+  // X: 0 to 32  → range 32
+  // Y: -24 to 3 → range 27
+  const margin = 80;
+  const drawW = cdim.w - margin * 2;
+  const drawH = cdim.h - margin * 2;
+
+  // Normalize to [0, 1]
+  const nx = (s.localX - 0) / 32;
+  const ny = (s.localY - (-24)) / 27; // 0 = bottom (E1), 1 = top (E2)
+
+  // Note: canvas Y grows downward, but local Y growing means going north.
+  // We invert: nx → canvas X, (1 - ny) → canvas Y so that E2 (north) is at top.
+  const x = margin + nx * drawW;
+  const y = margin + (1 - ny) * drawH;
+  return { x, y };
+}
+
+// ============================================================================
+// DRAWING — IFPE courtyard scene
+// ============================================================================
+function drawScene(state) {
+  state = state || {};
+  ctx.clearRect(0, 0, cdim.w, cdim.h);
+
+  // === Background pavement (around the courtyard) ===
+  ctx.fillStyle = T.pavement;
+  ctx.fillRect(0, 0, cdim.w, cdim.h);
+
+  // === Blocos A (north / top) e B (south / bottom) ===
+  drawBlock('Bloco A', 0, 30);
+  drawBlock('Bloco B', cdim.h - 50, cdim.h - 30);
+
+  // === Inner courtyard area (between Blocos A and B) ===
+  const courtTop = 50;
+  const courtBottom = cdim.h - 50;
+  const courtMid = (courtTop + courtBottom) / 2;
+  const courtCenterX = cdim.w / 2;
+
+  // Grass background
+  ctx.fillStyle = T.grass;
+  ctx.fillRect(0, courtTop, cdim.w, courtBottom - courtTop);
+
+  // Subtle grass texture (small dots)
+  ctx.fillStyle = T.grassDot;
+  for (let i = 0; i < 100; i++) {
+    const px = (i * 47) % cdim.w;
+    const py = courtTop + ((i * 31) % (courtBottom - courtTop));
+    ctx.beginPath();
+    ctx.arc(px, py, 0.8, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // === Paths: cross pattern (north-south + east-west, meeting at the pond) ===
+  ctx.fillStyle = T.pathFill;
+  // Horizontal path (full width, around mid-height)
+  const hPathY = courtMid;
+  const hPathH = 18;
+  ctx.fillRect(0, hPathY - hPathH/2, cdim.w, hPathH);
+  ctx.strokeStyle = T.pathEdge;
+  ctx.lineWidth = 0.5;
+  ctx.strokeRect(0, hPathY - hPathH/2, cdim.w, hPathH);
+
+  // Vertical path (from Bloco A down to Bloco B, through center)
+  const vPathW = 16;
+  ctx.fillStyle = T.pathFill;
+  ctx.fillRect(courtCenterX - vPathW/2, courtTop, vPathW, courtBottom - courtTop);
+  ctx.strokeRect(courtCenterX - vPathW/2, courtTop, vPathW, courtBottom - courtTop);
+
+  // === Central pond (oval) ===
+  const pondCX = courtCenterX;
+  const pondCY = courtMid;
+  const pondRX = 78;
+  const pondRY = 42;
+
+  // Pond ring (concrete edge - lighter)
+  ctx.fillStyle = T.pondRing;
+  ctx.beginPath();
+  ctx.ellipse(pondCX, pondCY, pondRX + 8, pondRY + 8, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = T.pondRingEdge;
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  // Water
+  ctx.fillStyle = T.water;
+  ctx.beginPath();
+  ctx.ellipse(pondCX, pondCY, pondRX, pondRY, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // Water gradient highlight
+  const waterGrad = ctx.createRadialGradient(pondCX - 20, pondCY - 12, 5, pondCX, pondCY, pondRX);
+  waterGrad.addColorStop(0, T.waterHi);
+  waterGrad.addColorStop(1, T.waterHi0);
+  ctx.fillStyle = waterGrad;
+  ctx.beginPath();
+  ctx.ellipse(pondCX, pondCY, pondRX, pondRY, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // Pond edge dark line
+  ctx.strokeStyle = T.pondEdge;
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  ctx.ellipse(pondCX, pondCY, pondRX, pondRY, 0, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // === Trees in the corners of the courtyard ===
+  // Trees near each corner of the inner courtyard
+  drawTree(45, courtTop + 25, 14);
+  drawTree(cdim.w - 45, courtTop + 25, 14);
+  drawTree(45, courtBottom - 25, 14);
+  drawTree(cdim.w - 45, courtBottom - 25, 14);
+  // A couple smaller scattered ones
+  drawTree(cdim.w * 0.18, courtMid - 60, 9);
+  drawTree(cdim.w * 0.82, courtMid + 60, 9);
+
+  // === Compass (top right) ===
+  drawCompass(cdim.w - 28, 70);
+
+  // === Now overlay the topographic content (lines, angles, stations) ===
+
+  // Completed polygon segments (solid ink lines, finished)
+  if (state.completedSegments) {
+    state.completedSegments.forEach(seg => {
+      const [a, b] = seg.split('-');
+      drawSegment(getXY(a), getXY(b), { color: T.ink, width: 2.2, dashed: false });
+    });
+  }
+
+  // All-angles overlay (final phase)
+  if (state.showAllAngles) {
+    drawAngleArc(getXY('E1'), getXY('E0'), getXY('E2'), angles.E1.label, T.ink);
+    drawAngleArc(getXY('E2'), getXY('E1'), getXY('E0'), angles.E2.label, T.ink);
+    drawAngleArc(getXY('E0'), getXY('E2'), getXY('E1'), angles.E0.label, T.accent);
+  }
+
+  // Ré line (dashed purple, from current station to ré target)
+  if (state.tracedRe && state.stationOccupied) {
+    const from = getXY(state.stationOccupied);
+    const to = getXY(state.tracedRe);
+    drawSegment(from, to, { color: T.reLine, width: 1.8, dashed: true });
+    // Label "ré" near midpoint, over a pill for readability
+    const mx = (from.x + to.x) / 2;
+    const my = (from.y + to.y) / 2;
+    pillBehind(mx - 11, my - 7.5, 22, 13);
+    ctx.fillStyle = T.reLine;
+    ctx.font = 'italic 600 10px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('ré', mx, my + 3);
+  }
+
+  // Vante line (solid orange, from current station to vante target) + angle arc
+  if (state.tracedVante && state.stationOccupied) {
+    const from = getXY(state.stationOccupied);
+    const to = getXY(state.tracedVante);
+    drawSegmentWithArrow(from, to, { color: T.vante, width: 2.2 });
+  }
+
+  // Angle arc at the current vertex (between ré and vante)
+  if (state.angleAtVertex) {
+    const v = getXY(state.angleAtVertex.vertex);
+    const fromP = getXY(state.angleAtVertex.from);
+    const toP = getXY(state.angleAtVertex.to);
+    const isClosure = state.angleAtVertex.vertex === 'E0';
+    const angleLabel = angles[state.angleAtVertex.vertex].label;
+    drawAngleArc(v, fromP, toP, angleLabel, isClosure ? T.accent : T.ink);
+  }
+
+  // Station markers (E0, E1, E2)
+  ['E0', 'E1', 'E2'].forEach(key => {
+    const xy = getXY(key);
+    const isOccupied = state.stationOccupied === key;
+    drawStation(xy, key, isOccupied);
+  });
+}
+
+// One building strip (Bloco A / Bloco B) with roof hatching + italic label.
+function drawBlock(label, topY, labelY) {
+  ctx.fillStyle = T.buildingFill;
+  ctx.fillRect(0, topY, cdim.w, 50);
+  ctx.strokeStyle = T.buildingEdge;
+  ctx.lineWidth = 1;
+  ctx.strokeRect(0, topY, cdim.w, 50);
+  // hatching (roof tiles)
+  ctx.strokeStyle = T.buildingHatch;
+  ctx.lineWidth = 0.5;
+  for (let x = 0; x < cdim.w; x += 18) {
+    ctx.beginPath();
+    ctx.moveTo(x, topY);
+    ctx.lineTo(x, topY + 50);
+    ctx.stroke();
+  }
+  ctx.fillStyle = T.buildingLabel;
+  ctx.font = 'italic 10px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(label, cdim.w / 2, labelY);
+}
+
+// White/dark pill behind a label, for legibility over the scene.
+function pillBehind(x, y, w, h) {
+  ctx.fillStyle = T.pill;
+  ctx.fillRect(x, y, w, h);
+}
+
+function drawTree(cx, cy, r) {
+  // shadow
+  ctx.fillStyle = T.treeShadow;
+  ctx.beginPath();
+  ctx.ellipse(cx + 2, cy + r * 0.7, r * 0.85, r * 0.35, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // foliage layered
+  ctx.fillStyle = T.treeDark;
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = T.treeMid;
+  ctx.beginPath();
+  ctx.arc(cx - r * 0.2, cy - r * 0.15, r * 0.85, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = T.treeLight;
+  ctx.beginPath();
+  ctx.arc(cx - r * 0.35, cy - r * 0.3, r * 0.4, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function drawCompass(cx, cy) {
+  ctx.save();
+  ctx.fillStyle = T.pill;
+  ctx.strokeStyle = T.ink;
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.arc(cx, cy, 16, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  // North arrow
+  ctx.fillStyle = T.ink;
+  ctx.beginPath();
+  ctx.moveTo(cx, cy - 11);
+  ctx.lineTo(cx - 4, cy);
+  ctx.lineTo(cx + 4, cy);
+  ctx.closePath();
+  ctx.fill();
+  ctx.font = '600 9px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText('N', cx, cy + 10);
+  ctx.restore();
+}
+
+function drawStation(xy, label, isOccupied) {
+  if (isOccupied) {
+    // Halo (bigger, accent)
+    ctx.fillStyle = T.accentHalo;
+    ctx.beginPath();
+    ctx.arc(xy.x, xy.y, 22, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Tripod legs
+    ctx.strokeStyle = T.tripod;
+    ctx.lineWidth = 2;
+    for (let i = 0; i < 3; i++) {
+      const ang = (Math.PI / 2) + (i * Math.PI * 2 / 3);
+      ctx.beginPath();
+      ctx.moveTo(xy.x, xy.y);
+      ctx.lineTo(xy.x + Math.cos(ang) * 11, xy.y + Math.sin(ang) * 11);
+      ctx.stroke();
+    }
+    // Instrument body
+    ctx.fillStyle = T.accent;
+    ctx.fillRect(xy.x - 6, xy.y - 10, 12, 9);
+    ctx.strokeStyle = T.ink;
+    ctx.lineWidth = 1;
+    ctx.strokeRect(xy.x - 6, xy.y - 10, 12, 9);
+    // Lens
+    ctx.fillStyle = T.ink;
+    ctx.fillRect(xy.x - 1.5, xy.y - 7, 3, 3);
+  } else {
+    // Just a marker (small filled circle inside ring)
+    ctx.fillStyle = T.pill;
+    ctx.beginPath();
+    ctx.arc(xy.x, xy.y, 8, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = T.ink;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.fillStyle = T.ink;
+    ctx.beginPath();
+    ctx.arc(xy.x, xy.y, 3, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Label (offset based on position so it doesn't collide)
+  ctx.font = '700 13px monospace';
+  ctx.textAlign = 'left';
+  // Offset depends on which station — try to keep labels readable
+  let lx = xy.x + 14, ly = xy.y + 5;
+  if (label === 'E0') { lx = xy.x - 26; ly = xy.y + 5; }
+
+  // Pill behind label for readability
+  const txtW = ctx.measureText(label).width;
+  pillBehind(lx - 2, ly - 11, txtW + 4, 14);
+
+  ctx.fillStyle = T.ink;
+  ctx.fillText(label, lx, ly);
+}
+
+function drawSegment(from, to, opts) {
+  ctx.save();
+  ctx.strokeStyle = opts.color || T.ink;
+  ctx.lineWidth = opts.width || 2;
+  if (opts.dashed) ctx.setLineDash([6, 4]);
+  ctx.beginPath();
+  ctx.moveTo(from.x, from.y);
+  ctx.lineTo(to.x, to.y);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawSegmentWithArrow(from, to, opts) {
+  drawSegment(from, to, opts);
+  // Arrowhead near target (offset back)
+  const ang = Math.atan2(to.y - from.y, to.x - from.x);
+  const offset = 18;
+  const tx = to.x - Math.cos(ang) * offset;
+  const ty = to.y - Math.sin(ang) * offset;
+  const headLen = 8;
+  ctx.fillStyle = opts.color;
+  ctx.beginPath();
+  ctx.moveTo(tx, ty);
+  ctx.lineTo(tx - Math.cos(ang - Math.PI/6) * headLen, ty - Math.sin(ang - Math.PI/6) * headLen);
+  ctx.lineTo(tx - Math.cos(ang + Math.PI/6) * headLen, ty - Math.sin(ang + Math.PI/6) * headLen);
+  ctx.closePath();
+  ctx.fill();
+}
+
+function drawAngleArc(vertex, fromPt, toPt, label, color) {
+  // Compute angles from vertex to each ray
+  const angFrom = Math.atan2(fromPt.y - vertex.y, fromPt.x - vertex.x);
+  const angTo = Math.atan2(toPt.y - vertex.y, toPt.x - vertex.x);
+
+  const r = 26;
+
+  // Normalize the sweep from "from" to "to" into [0, 2π).
+  let start = angFrom;
+  let end = angTo;
+  let diff = ((end - start) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2);
+
+  // Always draw the smaller arc — i.e. the interior angle (< 180°). If the
+  // forward sweep is the reflex side, flip direction so we keep the interior.
+  if (diff > Math.PI) {
+    [start, end] = [end, start];
+    diff = Math.PI * 2 - diff;
+  }
+
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 1.8;
+  ctx.beginPath();
+  ctx.arc(vertex.x, vertex.y, r, start, end, false);
+  ctx.stroke();
+
+  // Label position: at the midpoint of the arc, slightly outside
+  const midAng = start + diff / 2;
+  const lx = vertex.x + Math.cos(midAng) * (r + 14);
+  const ly = vertex.y + Math.sin(midAng) * (r + 14);
+
+  // Pill behind label
+  ctx.font = '600 11px monospace';
+  ctx.textAlign = 'center';
+  const w = ctx.measureText(label).width + 6;
+  pillBehind(lx - w/2, ly - 8, w, 13);
+  ctx.fillStyle = color;
+  ctx.fillText(label, lx, ly + 3);
+  ctx.restore();
+}
+
+// ============================================================================
+// STATE & FLOW CONTROL
+// ============================================================================
+let mode = 'ver'; // 'ver' or 'eu'
+let currentPhaseIdx = -1;
+let euDecisionIdx = 0;
+let isAnimating = false;
+let euAnswered = false;
+
+function setMode(newMode) {
+  mode = newMode;
+  document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+  document.querySelector('.mode-btn[data-mode="' + newMode + '"]').classList.add('active');
+  reset();
+}
+
+document.querySelectorAll('.mode-btn').forEach(btn => {
+  btn.addEventListener('click', () => setMode(btn.dataset.mode));
+});
+
+function reset() {
+  currentPhaseIdx = -1;
+  euDecisionIdx = 0;
+  isAnimating = false;
+  euAnswered = false;
+  clearNotebook();
+  document.getElementById('analysis').classList.remove('visible');
+
+  if (mode === 'ver') {
+    setCaption('Pronto para iniciar a animação.');
+    drawScene({});
+    document.getElementById('actions').innerHTML =
+      '<button class="primary-btn" id="start-btn">▶ Iniciar animação</button>';
+    document.getElementById('start-btn').addEventListener('click', runAnimation);
+  } else {
+    setCaption('Você vai escolher cada movimento. Comece pelo passo 1.');
+    drawScene({});
+    renderEuStep();
+  }
+}
+
+function setCaption(html) {
+  document.getElementById('caption').innerHTML = html;
+}
+
+// ============================================================================
+// VER MODE — auto-animation
+// ============================================================================
+async function runAnimation() {
+  if (isAnimating) return;
+  isAnimating = true;
+  document.getElementById('start-btn').disabled = true;
+
+  for (let i = 0; i < phases.length; i++) {
+    currentPhaseIdx = i;
+    const phase = phases[i];
+    setCaption(phase.caption);
+    drawScene(phase);
+    syncNotebook(phase.notebookIdx);
+    await sleep(1500);
+  }
+
+  isAnimating = false;
+  showAnalysis();
+  document.getElementById('actions').innerHTML =
+    '<button class="primary-btn secondary" id="replay-btn">↺ Ver de novo</button>';
+  document.getElementById('replay-btn').addEventListener('click', () => {
+    reset();
+  });
+}
+
+function sleep(ms) {
+  return new Promise(r => setTimeout(r, ms));
+}
+
+// ============================================================================
+// EU FAÇO MODE — step-by-step decisions
+// ============================================================================
+function renderEuStep() {
+  if (euDecisionIdx >= decisions.length) {
+    // Done
+    currentPhaseIdx = phases.length - 1;
+    drawScene(phases[currentPhaseIdx]);
+    setCaption('<strong>Poligonal concluída.</strong> Veja o fechamento abaixo.');
+    syncNotebook(phases[currentPhaseIdx].notebookIdx);
+    showAnalysis();
+    document.getElementById('actions').innerHTML =
+      '<button class="primary-btn secondary" id="restart-eu-btn">↺ Recomeçar</button>';
+    document.getElementById('restart-eu-btn').addEventListener('click', reset);
+    return;
+  }
+
+  const dec = decisions[euDecisionIdx];
+  euAnswered = false;
+
+  const html = `
+    <div class="step-prompt">
+      <span class="step-num">Passo ${euDecisionIdx + 1} de ${decisions.length}</span>
+      ${dec.prompt}
+    </div>
+    <div class="options">
+      <button class="option-btn" data-val="E0">E0</button>
+      <button class="option-btn" data-val="E1">E1</button>
+      <button class="option-btn" data-val="E2">E2</button>
+    </div>
+    <div class="feedback" id="eu-feedback"></div>
+  `;
+
+  document.getElementById('actions').innerHTML = html;
+  document.querySelectorAll('.option-btn').forEach(btn => {
+    btn.addEventListener('click', () => handleEuAnswer(btn.dataset.val, btn, dec));
+  });
+}
+
+function handleEuAnswer(value, btn, dec) {
+  if (euAnswered) return;
+
+  if (value === dec.correct) {
+    euAnswered = true;
+    btn.classList.add('correct');
+    document.querySelectorAll('.option-btn').forEach(b => b.disabled = true);
+
+    const fb = document.getElementById('eu-feedback');
+    fb.className = 'feedback visible';
+    fb.innerHTML = '<strong>Correto.</strong> ' + getEuExplanation(euDecisionIdx);
+
+    // Update scene to corresponding phase
+    const phase = phases[dec.advanceTo];
+    currentPhaseIdx = dec.advanceTo;
+    drawScene(phase);
+    setCaption(phase.caption);
+    syncNotebook(phase.notebookIdx);
+
+    // Continue button
+    setTimeout(() => {
+      const cont = document.createElement('button');
+      cont.className = 'primary-btn';
+      cont.style.marginTop = '10px';
+      cont.textContent = euDecisionIdx === decisions.length - 1
+        ? 'Ver fechamento →'
+        : 'Próximo passo →';
+      cont.addEventListener('click', () => {
+        euDecisionIdx++;
+        renderEuStep();
+      });
+      document.getElementById('actions').appendChild(cont);
+    }, 400);
+  } else {
+    btn.classList.add('wrong');
+    btn.disabled = true;
+    const fb = document.getElementById('eu-feedback');
+    fb.className = 'feedback visible error';
+    fb.innerHTML = getEuWrongHint(euDecisionIdx, value);
+  }
+}
+
+function getEuExplanation(idx) {
+  const explanations = [
+    'A poligonal começa com o equipamento em E1.',
+    'A ré orienta o aparelho em um ponto conhecido — aqui é E0.',
+    'Da ré, gira-se no sentido horário e mira-se a próxima estação: E2.',
+    'A próxima estação a ocupar é E2.',
+    'Em E2, a ré é a estação anterior — E1. Isso amarra o levantamento.',
+    'A vante de E2 é a próxima estação na sequência: E0.',
+    'A última estação a ocupar é E0 — onde a poligonal vai fechar.',
+    'Em E0, a ré agora é E2 (a estação anterior).',
+    'A vante de fechamento volta para E1 — onde tudo começou.',
+  ];
+  return '<em>' + explanations[idx] + '</em>';
+}
+
+function getEuWrongHint(idx, value) {
+  const hints = [
+    '<strong>Não.</strong> O exercício prevê iniciar em <strong>E1</strong>.',
+    '<strong>Não.</strong> A ré em E1 vai para <strong>E0</strong> (ponto de apoio inicial).',
+    '<strong>Não.</strong> A vante de E1 vai para a próxima estação: <strong>E2</strong>.',
+    '<strong>Não.</strong> A próxima estação a ocupar é <strong>E2</strong>.',
+    '<strong>Não.</strong> A ré em E2 é a estação anterior: <strong>E1</strong>.',
+    '<strong>Não.</strong> A vante de E2 é a próxima estação: <strong>E0</strong>.',
+    '<strong>Não.</strong> Falta ocupar <strong>E0</strong> para fechar a poligonal.',
+    '<strong>Não.</strong> A ré em E0 é a estação anterior: <strong>E2</strong>.',
+    '<strong>Não.</strong> O fechamento volta para a primeira estação ocupada: <strong>E1</strong>.',
+  ];
+  return hints[idx];
+}
+
+// ============================================================================
+// NOTEBOOK
+// ============================================================================
+function clearNotebook() {
+  const tbody = document.getElementById('cad-body');
+  tbody.innerHTML = '<tr><td colspan="5" class="empty" style="padding: 22px; font-style: italic;">As visadas serão registradas conforme você avança…</td></tr>';
+  document.getElementById('nb-count').textContent = '0 / 6 visadas';
+}
+
+let lastNotebookIdx = -1;
+function syncNotebook(targetIdx) {
+  if (targetIdx < 0) {
+    clearNotebook();
+    lastNotebookIdx = -1;
+    return;
+  }
+  if (targetIdx === lastNotebookIdx) return;
+
+  const tbody = document.getElementById('cad-body');
+  tbody.innerHTML = '';
+
+  let lastStation = null;
+  for (let i = 0; i <= targetIdx; i++) {
+    const row = notebookSequence[i];
+    const isJust = (i === targetIdx);
+    const stationCell = (row.station !== lastStation) ? row.station : '';
+    lastStation = row.station;
+
+    const tr = document.createElement('tr');
+    const justClass = isJust ? ' just-filled' : '';
+    const errorClass = row.errorCell ? ' error-cell' : '';
+
+    tr.innerHTML =
+      '<td class="station-cell">' + stationCell + '</td>' +
+      '<td' + justClass + '>' + row.target + '</td>' +
+      '<td' + justClass + errorClass + '>' + row.ang + '</td>' +
+      '<td' + justClass + '>' + row.dist + '</td>' +
+      '<td class="' + row.obsClass + justClass + '">' + row.obs + '</td>';
+    tbody.appendChild(tr);
+  }
+
+  document.getElementById('nb-count').textContent = (targetIdx + 1) + ' / 6 visadas';
+  lastNotebookIdx = targetIdx;
+}
+
+// ============================================================================
+// ANALYSIS PANEL
+// ============================================================================
+function showAnalysis() {
+  document.getElementById('ang-e1').textContent = angles.E1.label;
+  document.getElementById('ang-e2').textContent = angles.E2.label;
+  document.getElementById('ang-e0').textContent = angles.E0.label;
+  document.getElementById('ang-sum').textContent = sumLabel;
+  document.getElementById('ang-err').textContent = closureError;
+  document.getElementById('analysis').classList.add('visible');
+}
+
+document.getElementById('restart-btn').addEventListener('click', reset);
+
+// ============================================================================
+// INIT
+// ============================================================================
+function rerender() {
+  setupCanvas();
+  if (currentPhaseIdx >= 0 && currentPhaseIdx < phases.length) {
+    drawScene(phases[currentPhaseIdx]);
+  } else {
+    drawScene({});
+  }
+}
+
+window.addEventListener('resize', rerender);
+
+// Theme toggle + initial theme (saved preference → OS preference → claro)
+document.getElementById('theme-toggle').addEventListener('click', () => {
+  const cur = document.documentElement.getAttribute('data-theme');
+  applyTheme(cur === 'dark' ? 'light' : 'dark');
+});
+
+(function initTheme() {
+  let saved = null;
+  try { saved = localStorage.getItem('aglab-theme'); } catch (e) { /* storage indisponível */ }
+  const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  applyTheme(saved || (prefersDark ? 'dark' : 'light'));
+})();
+
+setupCanvas();
+reset();
+
+// Defesas em camada para garantir render em qualquer contexto de abertura
+requestAnimationFrame(rerender);
+window.addEventListener('load', rerender);
+setTimeout(rerender, 100);
+setTimeout(rerender, 400);
+setTimeout(rerender, 1000);
+</script>
+</body>
+</html>
