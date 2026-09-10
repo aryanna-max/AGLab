@@ -267,8 +267,10 @@ function Chamada({ userId, turmas, online, setPending, showToast, goConferir }) 
   const [confirmA, setConfirmA] = useState(null)
   const [busy, setBusy] = useState(false)
   const [q, setQ] = useState('')
+  const [hit, setHit] = useState('')
   const videoRef = useRef(null), canvasRef = useRef(null), streamRef = useRef(null)
   const scanRef = useRef(false), lastRef = useRef({ t: '', at: 0 }), confT = useRef(null)
+  const hitT = useRef(null), audioRef = useRef(null), lastScanRef = useRef(0)
   const t = turmas.find(x => x.id === tid)
 
   // abre/garante a chamada do dia
@@ -288,9 +290,43 @@ function Chamada({ userId, turmas, online, setPending, showToast, goConferir }) 
   const counts = (() => { const tot = t ? t.alunos.length : 0; let p = 0; if (t) t.alunos.forEach(a => { if (present[a.id]) p++ }); return { tot, p, f: tot - p } })()
 
   function doFlash(msg, cls) { setFlash({ msg, cls }) }
-  function showConfirm(aluno, statusText, miss) {
-    setConfirmA({ aluno, statusText, miss }); if (confT.current) clearTimeout(confT.current)
+  function showConfirm(aluno, statusText, kind) {
+    setConfirmA({ aluno, statusText, kind }); if (confT.current) clearTimeout(confT.current)
     confT.current = setTimeout(() => setConfirmA(null), 4000)
+  }
+
+  /* ---- sinal de leitura: pisca o quadro e apita ----
+     O visual é o principal: o iPhone não tem vibração para web, e com o
+     aparelho no silencioso o som não sai. O pisca funciona sempre. */
+  function pulse(kind) {
+    setHit(kind)
+    if (hitT.current) clearTimeout(hitT.current)
+    hitT.current = setTimeout(() => setHit(''), 320)
+    beep(kind)
+  }
+  // o contexto de áudio precisa nascer dentro de um toque do usuário (iOS)
+  function unlockAudio() {
+    try {
+      const AC = window.AudioContext || window.webkitAudioContext
+      if (!AC) return
+      if (!audioRef.current) audioRef.current = new AC()
+      if (audioRef.current.state === 'suspended') audioRef.current.resume()
+    } catch (e) {}
+  }
+  function beep(kind) {
+    const ctx = audioRef.current
+    if (!ctx || ctx.state !== 'running') return
+    try {
+      const o = ctx.createOscillator(), g = ctx.createGain()
+      o.type = 'sine'
+      o.frequency.value = kind === 'ok' ? 880 : kind === 'dup' ? 587 : 300
+      const t0 = ctx.currentTime
+      g.gain.setValueAtTime(0.0001, t0)
+      g.gain.exponentialRampToValueAtTime(0.3, t0 + 0.01)
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.16)
+      o.connect(g); g.connect(ctx.destination)
+      o.start(t0); o.stop(t0 + 0.18)
+    } catch (e) {}
   }
 
   async function mark(alunoId) {
@@ -311,24 +347,29 @@ function Chamada({ userId, turmas, online, setPending, showToast, goConferir }) 
     if (text === lastRef.current.t && now - lastRef.current.at < 1500) return
     lastRef.current = { t: text, at: now }
     const p = parsePayload(text)
-    if (!p) { doFlash('QR não reconhecido.', 'err'); return }
-    if (!t) { doFlash('Selecione uma turma.', 'err'); return }
-    if (p.turmaId !== tid) { doFlash('Esse QR é de outra turma.', 'err'); return }
+    if (!p) { doFlash('QR não reconhecido.', 'err'); pulse('err'); return }
+    if (!t) { doFlash('Selecione uma turma.', 'err'); pulse('err'); return }
+    if (p.turmaId !== tid) { doFlash('Esse QR é de outra turma.', 'err'); pulse('err'); return }
     const aluno = t.alunos.find(a => a.id === p.alunoId)
-    if (!aluno) { doFlash('Aluno não está nesta turma.', 'err'); return }
-    if (present[aluno.id]) { doFlash('Já registrado', 'dup'); showConfirm(aluno, '✓ Já registrado', false); return }
-    mark(aluno.id); doFlash('Presença registrada', 'ok'); showConfirm(aluno, '✓ Presença confirmada', false)
+    if (!aluno) { doFlash('Aluno não está nesta turma.', 'err'); pulse('err'); return }
+    if (present[aluno.id]) { doFlash('Já registrado', 'dup'); pulse('dup'); showConfirm(aluno, '✓ Já registrado', 'dup'); return }
+    mark(aluno.id); doFlash('Presença registrada', 'ok'); pulse('ok'); showConfirm(aluno, '✓ Presença confirmada', 'ok')
   }
 
-  function loop() {
+  function loop(ts) {
     if (!scanRef.current) return
+    requestAnimationFrame(loop)
+    // decodifica ~12x por segundo em vez de a cada quadro. O olho não nota
+    // diferença ao apontar o QR, e sobra CPU (e bateria) no celular.
+    if (ts && ts - lastScanRef.current < 80) return
+    lastScanRef.current = ts || 0
     const d = decodeFromVideo(videoRef.current, canvasRef.current)
     if (d) onDecoded(d)
-    requestAnimationFrame(loop)
   }
   function startCam() {
     if (!t) { alert('Selecione uma turma.'); return }
     if (!navigator.mediaDevices?.getUserMedia) { alert('Sem acesso à câmera. Use a marcação manual tocando nos nomes.'); return }
+    unlockAudio()   // precisa acontecer dentro do toque, senão o iOS não libera o som
     navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
       .then(s => { streamRef.current = s; setScanning(true) })
       .catch(e => {
@@ -375,13 +416,20 @@ function Chamada({ userId, turmas, online, setPending, showToast, goConferir }) 
       </div>
 
       {scanning && <div style={{ marginTop: 12 }}>
-        <div className="videowrap"><video ref={videoRef} playsInline muted /><div className="scanline" /></div>
+        <div className="videowrap">
+          <video ref={videoRef} playsInline muted />
+          <div className="scanline" />
+          <div className={'hitflash' + (hit ? ' on ' + hit : '')} />
+          {confirmA && <div className={'confirm-over ' + (confirmA.kind || 'ok')}>
+            <Avatar a={confirmA.aluno} big />
+            <div className="co-txt">
+              <div className="co-nome">{confirmA.aluno.nome}</div>
+              {confirmA.aluno.matricula && <div className="co-mat">Mat. {confirmA.aluno.matricula}</div>}
+              <div className="co-status">{confirmA.statusText}</div>
+            </div>
+          </div>}
+        </div>
         <div className={'flash ' + flash.cls}>{flash.msg}</div>
-      </div>}
-
-      {confirmA && <div className={'confirm' + (confirmA.miss ? ' miss' : '')}>
-        <Avatar a={confirmA.aluno} big />
-        <div><div className="confirm-name">{confirmA.aluno.nome}</div><div className="confirm-meta">{confirmA.aluno.matricula ? 'Matrícula ' + confirmA.aluno.matricula : ''}</div><div className="confirm-status">{confirmA.statusText}</div></div>
       </div>}
 
       <div className="count-strip" style={{ marginTop: 14 }}>

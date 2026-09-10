@@ -30,12 +30,18 @@ export function qrDataUrl(text, size = 150) {
   return cv ? cv.toDataURL('image/png') : null
 }
 
-export function decodeFromVideo(video, canvas) {
+// maxSide reduz o quadro antes de decodificar. QR lê de sobra a 640 px, e
+// isso corta o número de pixels em várias vezes — é o que mantém a leitura
+// fluida no celular, sem esquentar o aparelho.
+export function decodeFromVideo(video, canvas, maxSide = 640) {
   if (!video || !canvas) return null
   if (video.readyState !== video.HAVE_ENOUGH_DATA) return null
-  const w = video.videoWidth, h = video.videoHeight
-  if (!w || !h) return null
-  canvas.width = w; canvas.height = h
+  const vw = video.videoWidth, vh = video.videoHeight
+  if (!vw || !vh) return null
+  const esc = Math.min(1, maxSide / Math.max(vw, vh))
+  const w = Math.round(vw * esc), h = Math.round(vh * esc)
+  // só redimensiona quando muda: alterar o canvas realoca o buffer
+  if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h }
   const ctx = canvas.getContext('2d', { willReadFrequently: true })
   ctx.drawImage(video, 0, 0, w, h)
   try {

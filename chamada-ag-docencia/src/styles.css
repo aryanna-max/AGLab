@@ -44,7 +44,32 @@ input,select,textarea{width:100%;font:inherit;color:var(--ink);background:var(--
 .count-strip .c.ok .n{color:var(--ok)} .count-strip .c.miss .n{color:var(--miss)}
 .videowrap{position:relative;background:#000;border-radius:12px;overflow:hidden;max-width:420px;margin:0 auto}
 video{width:100%;display:block}
+/* limita a altura da câmera para que contadores e lista caibam na mesma tela */
+.videowrap video{max-height:46vh;object-fit:cover}
 .scanline{position:absolute;left:8%;right:8%;top:50%;height:2px;background:var(--brand2);opacity:.85;box-shadow:0 0 12px var(--brand2)}
+
+/* pisca o quadro a cada leitura — sinal que funciona no silencioso */
+.hitflash{position:absolute;inset:0;pointer-events:none;opacity:0;transition:opacity .28s ease-out}
+.hitflash.on{opacity:1;transition:none}
+.hitflash.ok{box-shadow:inset 0 0 0 8px var(--ok);background:rgba(18,122,62,.22)}
+.hitflash.dup{box-shadow:inset 0 0 0 8px #b8860b;background:rgba(184,134,11,.22)}
+.hitflash.err{box-shadow:inset 0 0 0 8px var(--miss);background:rgba(180,35,24,.22)}
+
+/* confirmação sobre a própria câmera: não exige rolar a tela */
+.confirm-over{position:absolute;left:0;right:0;bottom:0;display:flex;align-items:center;gap:12px;padding:12px;color:#fff;
+  background:linear-gradient(to top,rgba(0,0,0,.92),rgba(0,0,0,.7) 62%,rgba(0,0,0,0));animation:sobe .16s ease-out}
+@keyframes sobe{from{transform:translateY(14px);opacity:0}to{transform:translateY(0);opacity:1}}
+.confirm-over .confirm-photo{width:78px;height:78px;border-radius:12px;flex:0 0 auto;overflow:hidden;background:#222;
+  border:3px solid var(--ok);font-size:26px;color:#ddd;display:flex;align-items:center;justify-content:center;font-weight:800}
+.confirm-over.dup .confirm-photo{border-color:#d9a520}
+.confirm-over.miss .confirm-photo{border-color:var(--miss)}
+.confirm-over .confirm-photo img{width:100%;height:100%;object-fit:cover;display:block}
+.co-txt{min-width:0}
+.co-nome{font-size:19px;font-weight:800;line-height:1.15}
+.co-mat{font-size:12.5px;opacity:.8;margin-top:2px}
+.co-status{font-size:14px;font-weight:800;margin-top:4px;color:#57d18a}
+.confirm-over.dup .co-status{color:#f0c14b}
+.confirm-over.miss .co-status{color:#ff7a70}
 .flash{text-align:center;font-weight:700;min-height:22px;margin:10px 0 2px}
 .flash.ok{color:var(--ok)}.flash.dup{color:var(--muted)}.flash.err{color:var(--miss)}
 ul.people{list-style:none;margin:8px 0 0;padding:0;max-height:360px;overflow:auto}
