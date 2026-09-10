@@ -275,6 +275,15 @@ export async function leiturasDaSessao(sessaoId) {
   return data
 }
 
+/* ---------- radar: batimentos dos alunos da turma ---------- */
+export async function vivos(turmaId) {
+  const { data, error } = await supabase.from('presenca_viva')
+    .select('aluno_id,lat,lon,acuracia_m,modo,visto_em,alunos!inner(turma_id)')
+    .eq('alunos.turma_id', turmaId)
+  if (error) throw error
+  return data
+}
+
 /* ---------- resumo ---------- */
 export async function resumoTurma(turmaId) {
   const { data: chs, error } = await supabase

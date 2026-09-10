@@ -172,3 +172,18 @@ table.matrix td.P{color:var(--ok);font-weight:700}table.matrix td.F{color:var(--
 .pf-tit{font-weight:800;font-size:16px;color:var(--ok)}
 .presenca-fixa.fora .pf-tit{color:#d9a520}
 .pf-sub{font-size:13px;color:var(--muted);margin-top:3px}
+
+/* radar da professora */
+.radar-wrap{max-width:520px;margin:12px auto 0}
+.radar{width:100%;height:auto;display:block}
+.radar-lab{font-size:11px;fill:var(--muted)}
+.radar-eu{fill:var(--brand2);stroke:#fff;stroke-width:2}
+.bol .bol-anel{fill:none;stroke:var(--line);stroke-width:3}
+.bol.aceso .bol-anel{stroke:var(--ok);stroke-width:3.5}
+.bol .bol-fundo{fill:var(--chip)}
+.bol .bol-ini{font-size:14px;font-weight:800;fill:var(--muted)}
+.bol .bol-nome{font-size:11px;fill:var(--ink);font-weight:600}
+.bol.apagado image,.bol.apagado .bol-fundo{opacity:.45}
+.bol.apagado .bol-nome{fill:var(--muted)}
+.bol-pulso{fill:none;stroke:var(--ok);stroke-width:2;opacity:.6;transform-origin:0 0;animation:pulso 1.6s ease-out infinite}
+@keyframes pulso{0%{transform:scale(.8);opacity:.7}100%{transform:scale(1.35);opacity:0}}

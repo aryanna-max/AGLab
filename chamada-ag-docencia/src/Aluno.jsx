@@ -48,6 +48,14 @@ function contextoDoAparelho() {
   }
 }
 
+// batimento para o radar da professora: uma linha por aluno, atualizada no lugar
+async function ping(id, pp, modo) {
+  try {
+    await supabase.rpc('ping_posicao', { p_matricula: id?.matricula || '', p_aluno_id: id?.alunoId || null,
+      p_lat: pp.lat, p_lon: pp.lon, p_acuracia: pp.acc, p_modo: modo })
+  } catch (e) {}
+}
+
 async function postar(item) {
   const { data, error } = await supabase.rpc('enviar_leitura', {
     p_codigo: item.codigo || '', p_matricula: item.matricula || '',
@@ -163,6 +171,16 @@ export default function Aluno() {
     return () => { window.removeEventListener('online', on); window.removeEventListener('offline', off); clearInterval(it) }
   }, [])
   useEffect(() => () => pararGPS(), [])
+
+  // enquanto a tela de medição está aberta, avisa a professora onde está (a cada 20 s)
+  const posRef = useRef(null); useEffect(() => { posRef.current = pos }, [pos])
+  useEffect(() => {
+    if (tela !== 'medir' && tela !== 'chamada-ok') return
+    const bate = () => { const pp = posRef.current, id = identRef.current; if (pp && id && navigator.onLine) ping(id, pp, tela === 'chamada-ok' ? 'chamada' : 'gps') }
+    const it = setInterval(bate, 20000)
+    const primeiro = setTimeout(bate, 2500)
+    return () => { clearInterval(it); clearTimeout(primeiro) }
+  }, [tela])
 
   function fixarPresenca(d, codigo, fora) {
     const p = { data: hojeISO(), codigo, hora: d.hora, local: d.local, turma: aula?.turma || identRef.current?.turma || '', fora: !!fora }

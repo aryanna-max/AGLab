@@ -4,6 +4,7 @@ import * as store from './lib/store'
 import { qrDataUrl, decodeFromVideo, parsePayload, QR_PREFIX } from './lib/qr'
 import { PERC, M0452, paraUTM25S, distanciaUTM, grausMinSeg, metros, vezesPiorQuePerc } from './lib/geo'
 import { gravarPerfil } from './Escolha.jsx'
+import Radar from './Radar.jsx'
 
 /* ---------- utils ---------- */
 const todayISO = () => { const d = new Date(); const m = String(d.getMonth() + 1).padStart(2, '0'); const dd = String(d.getDate()).padStart(2, '0'); return `${d.getFullYear()}-${m}-${dd}` }
@@ -122,7 +123,7 @@ function Main({ session }) {
       <div className="lgpd"><b>Dentro da lei (LGPD).</b> Dados no seu banco privado em São Paulo, só a sua conta acessa. As fotos servem para você conferir na tela — sem biometria. Guarde o termo de consentimento assinado dos alunos.</div>
 
       <nav className="tabs">
-        {[['chamada', 'Chamada'], ['turmas', 'Turmas & Fotos'], ['conferir', 'Conferir faltantes'], ['resumo', 'Resumo / Exportar'], ['posicao', 'Posição · GNSS']].map(([k, l]) =>
+        {[['chamada', 'Chamada'], ['turmas', 'Turmas & Fotos'], ['conferir', 'Conferir faltantes'], ['resumo', 'Resumo / Exportar'], ['posicao', 'Posição · GNSS'], ['radar', 'Radar']].map(([k, l]) =>
           <button key={k} className={tab === k ? 'active' : ''} onClick={() => setTab(k)}>{l}</button>)}
       </nav>
 
@@ -133,6 +134,7 @@ function Main({ session }) {
             {tab === 'turmas' && <TurmasFotos turmas={turmas} refresh={refresh} showToast={showToast} online={online} />}
             {tab === 'conferir' && <Conferir userId={userId} turmas={turmas} online={online} setPending={setPending} showToast={showToast} />}
             {tab === 'resumo' && <Resumo turmas={turmas} showToast={showToast} />}
+            {tab === 'radar' && <Radar userId={userId} turmas={turmas} online={online} showToast={showToast} />}
             {tab === 'posicao' && <><ColetaTurma userId={userId} turmas={turmas} online={online} showToast={showToast} /><Posicao userId={userId} online={online} showToast={showToast} /></>}
           </>}
 
