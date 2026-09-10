@@ -217,17 +217,24 @@ export async function listarLeituras(limite = 60) {
 }
 
 /* ---------- sessão de coleta (aula prática) ---------- */
+function hojeISO() {
+  const d = new Date(); const m = String(d.getMonth() + 1).padStart(2, '0'); const dd = String(d.getDate()).padStart(2, '0')
+  return `${d.getFullYear()}-${m}-${dd}`
+}
+
+// A sessão nasce amarrada à chamada de hoje: o registro do aluno vira presença.
 export async function abrirSessao(userId, turmaId, codigo, titulo, tempo) {
+  const ch = await ensureChamada(userId, turmaId, hojeISO())
   const { data, error } = await supabase.from('sessoes_coleta')
-    .insert({ owner_id: userId, turma_id: turmaId, codigo: codigo.toUpperCase(), titulo, tempo: tempo || null })
-    .select('id,codigo,aberta,criada_em,expira_em,tempo').single()
+    .insert({ owner_id: userId, turma_id: turmaId, codigo: codigo.toUpperCase(), titulo, tempo: tempo || null, chamada_id: ch.id })
+    .select('id,codigo,aberta,criada_em,expira_em,tempo,chamada_id').single()
   if (error) throw error
   return data
 }
 
 export async function sessoesAbertas(turmaId) {
   const { data, error } = await supabase.from('sessoes_coleta')
-    .select('id,codigo,titulo,aberta,criada_em,expira_em,tempo')
+    .select('id,codigo,titulo,aberta,criada_em,expira_em,tempo,chamada_id')
     .eq('turma_id', turmaId).order('criada_em', { ascending: false }).limit(5)
   if (error) throw error
   return data

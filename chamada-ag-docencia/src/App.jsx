@@ -464,6 +464,10 @@ function ColetaTurma({ userId, turmas, online, showToast }) {
     return { k, n: ls.length, med }
   })
   const alunosDistintos = new Set(linhas.map(l => l.aluno_id)).size
+  const presentesColeta = new Set(linhas.filter(l => l.rotulo === 'registro').map(l => l.aluno_id)).size
+  // o campus inteiro cabe em ~250 m da PERC; acima disso a leitura veio de fora
+  const LONGE_M = 400
+  const foraDoCampus = l => l.dist_perc_m != null && l.dist_perc_m > LONGE_M
 
   return (
     <div className="panel">
@@ -497,8 +501,9 @@ function ColetaTurma({ userId, turmas, online, showToast }) {
           <div className="cb-link">{linkAluno}</div>
         </div>
         <div className="count-strip" style={{ marginTop: 12 }}>
-          <div className="c ok"><div className="n">{linhas.length}</div><div className="l">leituras</div></div>
+          <div className="c ok"><div className="n">{presentesColeta}</div><div className="l">presentes pela coleta</div></div>
           <div className="c"><div className="n">{alunosDistintos}</div><div className="l">alunos</div></div>
+          <div className="c"><div className="n">{linhas.length}</div><div className="l">leituras</div></div>
         </div>
 
         <div className="scrollx" style={{ marginTop: 12 }}>
@@ -512,20 +517,24 @@ function ColetaTurma({ userId, turmas, online, showToast }) {
             </tr>)}
           </tbody></table>
         </div>
-        <p className="note">É este o resultado do experimento: a mesma turma, os mesmos satélites, três ambientes.</p>
+        <p className="note">É este o resultado do experimento: a mesma turma, os mesmos satélites, três ambientes.
+          {sessao.chamada_id && <> O registro de cada aluno já marcou presença na chamada de hoje.</>}</p>
 
         <div className="btnrow"><button className="btn ghost" onClick={fechar}>Encerrar sessão</button></div>
       </>}
 
       {linhas.length > 0 && <div className="scrollx" style={{ marginTop: 14 }}>
         <table className="matrix"><thead><tr>
-          <th className="nm">Aluno</th><th>Onde</th><th>± horiz.</th><th>± vert.</th><th>Hora</th>
+          <th className="nm">Aluno</th><th>Onde</th><th>± horiz.</th><th>± vert.</th><th>até PERC</th><th>Hora</th>
         </tr></thead><tbody>
           {linhas.slice(0, 40).map(l => <tr key={l.id}>
             <td className="nm">{l.alunos?.nome || '—'}</td>
             <td>{l.rotulo}</td>
             <td>{metros(l.acuracia_m, 1)}</td>
             <td>{l.alt_acuracia_m != null ? metros(l.alt_acuracia_m, 1) : '—'}</td>
+            <td className={foraDoCampus(l) ? 'F' : ''} title={foraDoCampus(l) ? 'leitura longe do campus — conferir' : ''}>
+              {l.dist_perc_m == null ? '—' : l.dist_perc_m > 2000 ? metros(l.dist_perc_m / 1000, 1) + ' km' : metros(l.dist_perc_m, 0) + ' m'}{foraDoCampus(l) ? ' ⚠' : ''}
+            </td>
             <td>{new Date(l.criado_em).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</td>
           </tr>)}
         </tbody></table>

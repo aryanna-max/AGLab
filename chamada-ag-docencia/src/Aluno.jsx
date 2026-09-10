@@ -85,7 +85,7 @@ export default function Aluno() {
       setNome(data.nome || '')
       setEnviadas(data.n || (enviadas + 1))
       setPlacar({ meu: data.meu_melhor, turma: data.melhor_turma, alunos: data.alunos })
-      setAviso(rotulo === 'registro' ? 'Presença registrada na coleta' : 'Leitura enviada — ' + rotulo)
+      setAviso(rotulo === 'registro' ? (data.presenca ? 'Presença registrada ✓' : 'Leitura de registro enviada') : 'Leitura enviada — ' + rotulo)
       setTimeout(() => setAviso(''), 2500)
     } catch (e) {
       setErro('Falhou o envio: ' + (e.message || 'sem conexão'))
