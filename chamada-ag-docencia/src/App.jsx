@@ -42,7 +42,7 @@ function Login() {
   return (
     <div className="wrap">
       <div className="panel login">
-        <div className="brandrow"><span className="dot" /><div><h1 style={{ margin: 0, fontSize: 18 }}>Chamada AG Docência</h1><div className="sub" style={{ color: 'var(--muted)', fontSize: 12.5 }}>Topografia · IFPE</div></div></div>
+        <div className="brandrow"><span className="dot" /><div><h1 style={{ margin: 0, fontSize: 18 }}>Orbe</h1><div className="sub" style={{ color: 'var(--muted)', fontSize: 12.5 }}>Topografia · IFPE</div></div></div>
         <p className="hint">{modo === 'entrar' ? 'Entre com seu e-mail e senha.' : 'Crie sua conta de professora.'}</p>
         <form onSubmit={submit}>
           <label className="fld">E-mail</label>
@@ -113,7 +113,7 @@ function Main({ session }) {
   return (
     <div className="wrap">
       <header className="app">
-        <h1>Chamada · QR</h1><span className="sub">AG Docência</span>
+        <h1>Orbe</h1><span className="sub">Topografia · IFPE</span>
         <span className="sub" style={{ opacity: .6 }} title="versão que está rodando neste aparelho">v{__BUILD_ID__}</span>
         <span className="spacer" />
         <span className={'badge ' + (online ? 'on' : 'off')}>{online ? 'Online' : 'Offline'}</span>

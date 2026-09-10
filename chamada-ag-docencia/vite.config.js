@@ -15,9 +15,9 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['icon-192.png', 'icon-512.png'],
       manifest: {
-        name: 'Chamada AG Docência',
-        short_name: 'Chamada',
-        description: 'Chamada por QR com foto — AG Docência',
+        name: 'Orbe',
+        short_name: 'Orbe',
+        description: 'Orbe — chamada por QR, posição GNSS e campo no celular · Topografia IFPE',
         theme_color: '#1f4e79',
         background_color: '#f4f5f7',
         display: 'standalone',

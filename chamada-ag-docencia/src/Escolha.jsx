@@ -12,7 +12,7 @@ export default function Escolha({ onEscolher }) {
   return (
     <div className="wrap">
       <header className="app">
-        <h1>Topografia · IFPE</h1><span className="sub">AG Docência</span>
+        <h1>Orbe</h1><span className="sub">Topografia · IFPE</span>
       </header>
 
       <div className="escolha">
