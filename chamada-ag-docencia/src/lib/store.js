@@ -284,6 +284,22 @@ export async function vivos(turmaId) {
   return data
 }
 
+/* ---------- pins e poligonais da turma (professora) ---------- */
+export async function pinsDaTurma(turmaId) {
+  const { data, error } = await supabase.from('pins')
+    .select('id,nome,utm_n,utm_e,n_leituras,acuracia_media_m,desvio_n_m,desvio_e_m,marco_ref,criado_em,aluno_id,alunos!inner(nome,turma_id)')
+    .eq('alunos.turma_id', turmaId).order('criado_em', { ascending: false }).limit(200)
+  if (error) throw error
+  return data
+}
+export async function poligonaisDaTurma(turmaId) {
+  const { data, error } = await supabase.from('poligonais')
+    .select('id,nome,pin_ids,resultado,criado_em,aluno_id,alunos!inner(nome,turma_id)')
+    .eq('alunos.turma_id', turmaId).order('criado_em', { ascending: false }).limit(100)
+  if (error) throw error
+  return data
+}
+
 /* ---------- resumo ---------- */
 export async function resumoTurma(turmaId) {
   const { data: chs, error } = await supabase

@@ -5,6 +5,7 @@ import { qrDataUrl, decodeFromVideo, parsePayload, QR_PREFIX } from './lib/qr'
 import { PERC, M0452, paraUTM25S, distanciaUTM, grausMinSeg, metros, vezesPiorQuePerc } from './lib/geo'
 import { gravarPerfil } from './Escolha.jsx'
 import Radar from './Radar.jsx'
+import { marcoPorNome } from './lib/topo'
 
 /* ---------- utils ---------- */
 const todayISO = () => { const d = new Date(); const m = String(d.getMonth() + 1).padStart(2, '0'); const dd = String(d.getDate()).padStart(2, '0'); return `${d.getFullYear()}-${m}-${dd}` }
@@ -135,7 +136,7 @@ function Main({ session }) {
             {tab === 'conferir' && <Conferir userId={userId} turmas={turmas} online={online} setPending={setPending} showToast={showToast} />}
             {tab === 'resumo' && <Resumo turmas={turmas} showToast={showToast} />}
             {tab === 'radar' && <Radar userId={userId} turmas={turmas} online={online} showToast={showToast} />}
-            {tab === 'posicao' && <><ColetaTurma userId={userId} turmas={turmas} online={online} showToast={showToast} /><Posicao userId={userId} online={online} showToast={showToast} /></>}
+            {tab === 'posicao' && <><ColetaTurma userId={userId} turmas={turmas} online={online} showToast={showToast} /><Posicao userId={userId} online={online} showToast={showToast} /><PinsTurma turmas={turmas} online={online} /></>}
           </>}
 
       {toast && <div className="toast">{toast}</div>}
@@ -573,6 +574,45 @@ function ColetaTurma({ userId, turmas, online, showToast }) {
           </tr>)}
         </tbody></table>
       </div>}
+    </div>
+  )
+}
+
+/* ---------- PINS E POLIGONAIS DA TURMA ---------- */
+function PinsTurma({ turmas, online }) {
+  const [tid, setTid] = useState(turmas[0]?.id || '')
+  const [pins, setPins] = useState([]); const [polis, setPolis] = useState([])
+  useEffect(() => {
+    if (!tid || !online) return
+    let vivo = true
+    const puxa = () => Promise.all([store.pinsDaTurma(tid), store.poligonaisDaTurma(tid)]).then(([p, q]) => { if (vivo) { setPins(p); setPolis(q) } }).catch(() => {})
+    puxa(); const it = setInterval(puxa, 10000)
+    return () => { vivo = false; clearInterval(it) }
+  }, [tid, online])
+  return (
+    <div className="panel">
+      <h2>Pins e poligonais da turma</h2>
+      <p className="hint">O que os alunos levantaram no Orbe. Pin = média de uma ocupação; "vs marco" = distância até a coordenada oficial.</p>
+      <label className="fld">Turma</label>
+      <select value={tid} onChange={e => setTid(e.target.value)}>{turmas.map(x => <option key={x.id} value={x.id}>{x.nome}</option>)}</select>
+      {polis.length > 0 && <div className="scrollx" style={{ marginTop: 12 }}>
+        <table className="matrix"><thead><tr><th className="nm">Aluno</th><th>poligonal</th><th>vért.</th><th>perímetro</th><th>área</th><th>erro médio/vért.</th><th>quando</th></tr></thead>
+          <tbody>{polis.map(q => { const r = q.resultado || {}, c = r.comparacao; return <tr key={q.id}>
+            <td className="nm">{q.alunos?.nome}</td><td>{q.nome}</td><td>{r.vertices}</td>
+            <td>{r.perimetro != null ? metros(r.perimetro, 1) + ' m' : '—'}</td><td>{r.area != null ? metros(r.area, 0) + ' m²' : '—'}</td>
+            <td className={c ? (c.erroMedioVertice < 10 ? 'P' : 'F') : ''}>{c ? metros(c.erroMedioVertice, 1) + ' m' : '—'}</td>
+            <td>{new Date(q.criado_em).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</td>
+          </tr> })}</tbody></table></div>}
+      {pins.length > 0 ? <div className="scrollx" style={{ marginTop: 12 }}>
+        <table className="matrix"><thead><tr><th className="nm">Aluno</th><th>pin</th><th>leit.</th><th>±hz</th><th>espalh.</th><th>vs marco</th><th>quando</th></tr></thead>
+          <tbody>{pins.map(p => { const m = p.marco_ref ? marcoPorNome(p.marco_ref) : null; const err = m ? Math.hypot(p.utm_n - m.n, p.utm_e - m.e) : null; return <tr key={p.id}>
+            <td className="nm">{p.alunos?.nome}</td><td>{p.nome}</td><td>{p.n_leituras}</td>
+            <td>{p.acuracia_media_m != null ? metros(p.acuracia_media_m, 1) : '—'}</td>
+            <td>{metros(Math.hypot(p.desvio_n_m || 0, p.desvio_e_m || 0), 1)}</td>
+            <td className={err != null ? (err < 10 ? 'P' : 'F') : ''}>{err != null ? metros(err, 1) + ' m' : '—'}</td>
+            <td>{new Date(p.criado_em).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</td>
+          </tr> })}</tbody></table></div>
+        : <p className="empty" style={{ marginTop: 10 }}>Nenhum pin ainda.</p>}
     </div>
   )
 }

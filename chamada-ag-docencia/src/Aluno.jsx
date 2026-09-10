@@ -3,6 +3,7 @@ import { supabase } from './supabaseClient'
 import { PERC, paraUTM25S, distanciaUTM, metros, vezesPiorQuePerc } from './lib/geo'
 import { decodeFromVideo, parsePayload } from './lib/qr'
 import { gravarPerfil } from './Escolha.jsx'
+import Orbe from './Orbe.jsx'
 
 /* App do aluno. Sem conta, sem senha, sem campo de código.
 
@@ -441,6 +442,9 @@ export default function Aluno() {
           <p className="note">Ande até outro lugar e envie de novo. O que interessa é comparar.</p>
         </>}
       </div>
+
+      {pos && ident && <Orbe pos={pos} ident={ident} codigo={modo === 'aula' ? codigoAula : ''}
+        onAviso={m => { setAviso(m); setTimeout(() => setAviso(''), 4000) }} />}
     </div>
   )
 }
