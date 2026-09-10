@@ -31,6 +31,7 @@ export function qrDataUrl(text, size = 150) {
 }
 
 export function decodeFromVideo(video, canvas) {
+  if (!video || !canvas) return null
   if (video.readyState !== video.HAVE_ENOUGH_DATA) return null
   const w = video.videoWidth, h = video.videoHeight
   if (!w || !h) return null

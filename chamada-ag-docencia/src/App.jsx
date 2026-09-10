@@ -329,10 +329,34 @@ function Chamada({ userId, turmas, online, setPending, showToast, goConferir }) 
     if (!t) { alert('Selecione uma turma.'); return }
     if (!navigator.mediaDevices?.getUserMedia) { alert('Sem acesso à câmera. Use a marcação manual tocando nos nomes.'); return }
     navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
-      .then(s => { streamRef.current = s; videoRef.current.srcObject = s; videoRef.current.play(); setScanning(true); scanRef.current = true; doFlash('Câmera pronta. Aponte os QR.', ''); requestAnimationFrame(loop) })
-      .catch(e => alert('Não consegui abrir a câmera (' + (e?.name || 'erro') + '). Use a marcação manual.'))
+      .then(s => { streamRef.current = s; setScanning(true) })
+      .catch(e => {
+        streamRef.current?.getTracks().forEach(x => x.stop()); streamRef.current = null
+        alert('Não consegui abrir a câmera (' + (e?.name || 'erro') + '). Use a marcação manual.')
+      })
   }
-  function stopCam() { scanRef.current = false; setScanning(false); streamRef.current?.getTracks().forEach(x => x.stop()); setConfirmA(null) }
+
+  // O <video> só existe no DOM depois que `scanning` vira true. Acoplar o stream
+  // aqui, e não dentro do .then do getUserMedia, evita videoRef.current === null
+  // (o TypeError caía no catch e era reportado como falha de câmera).
+  useEffect(() => {
+    if (!scanning) return
+    const v = videoRef.current, s = streamRef.current
+    if (!v || !s) return
+    v.srcObject = s
+    const p = v.play()
+    if (p && p.catch) p.catch(() => {})   // iOS rejeita play() em alguns casos
+    scanRef.current = true
+    doFlash('Câmera pronta. Aponte os QR.', '')
+    requestAnimationFrame(loop)
+  }, [scanning])
+
+  function stopCam() {
+    scanRef.current = false; setScanning(false)
+    streamRef.current?.getTracks().forEach(x => x.stop()); streamRef.current = null
+    if (videoRef.current) videoRef.current.srcObject = null
+    setConfirmA(null)
+  }
   useEffect(() => () => stopCam(), [])
 
   const rows = t ? t.alunos.filter(a => !q || a.nome.toLowerCase().includes(q.toLowerCase()) || (a.matricula || '').includes(q)) : []
