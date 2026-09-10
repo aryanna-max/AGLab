@@ -427,6 +427,9 @@ function Chamada({ userId, turmas, online, setPending, showToast, goConferir }) 
   const videoRef = useRef(null), canvasRef = useRef(null), streamRef = useRef(null)
   const scanRef = useRef(false), lastRef = useRef({ t: '', at: 0 }), confT = useRef(null)
   const hitT = useRef(null), audioRef = useRef(null), lastScanRef = useRef(0)
+  // espelhos do estado, para o loop de leitura enxergar sempre o valor atual
+  const presentRef = useRef({}), chamadaRef = useRef(null), onlineRef = useRef(true)
+  const tRef = useRef(null), tidRef = useRef('')
   const t = turmas.find(x => x.id === tid)
 
   // abre/garante a chamada do dia
@@ -444,6 +447,15 @@ function Chamada({ userId, turmas, online, setPending, showToast, goConferir }) 
   }, [tid, data, online, userId, showToast])
 
   const counts = (() => { const tot = t ? t.alunos.length : 0; let p = 0; if (t) t.alunos.forEach(a => { if (present[a.id]) p++ }); return { tot, p, f: tot - p } })()
+
+  /* O loop de leitura é agendado uma vez, quando a câmera abre, e carrega
+     consigo a versão das funções daquele instante. Sem estes espelhos ele
+     enxergaria para sempre o estado do começo do escaneamento — era por
+     isso que reler o mesmo QR aparecia como presença nova. */
+  useEffect(() => { presentRef.current = present }, [present])
+  useEffect(() => { chamadaRef.current = chamadaId }, [chamadaId])
+  useEffect(() => { onlineRef.current = online }, [online])
+  useEffect(() => { tRef.current = t; tidRef.current = tid })
 
   function doFlash(msg, cls) { setFlash({ msg, cls }) }
   function showConfirm(aluno, statusText, kind) {
@@ -486,29 +498,33 @@ function Chamada({ userId, turmas, online, setPending, showToast, goConferir }) 
   }
 
   async function mark(alunoId) {
-    setPresent(p => ({ ...p, [alunoId]: true }))
+    setPresent(p => ({ ...p, [alunoId]: true })); presentRef.current = { ...presentRef.current, [alunoId]: true }
+    const chamadaId = chamadaRef.current, online = onlineRef.current
     if (chamadaId && online) { try { await store.marcarPresente(userId, chamadaId, alunoId) } catch (e) { store.queueOp({ type: 'present', chamadaId, alunoId }); setPending(store.outboxCount()) } }
     else if (chamadaId) { store.queueOp({ type: 'present', chamadaId, alunoId }); setPending(store.outboxCount()) }
     else { showToast('Sem chamada aberta (offline). Abra online uma vez.') }
   }
   async function unmark(alunoId) {
     setPresent(p => { const n = { ...p }; delete n[alunoId]; return n })
+    const n = { ...presentRef.current }; delete n[alunoId]; presentRef.current = n
+    const chamadaId = chamadaRef.current, online = onlineRef.current
     if (chamadaId && online) { try { await store.desmarcarPresente(chamadaId, alunoId) } catch (e) { store.queueOp({ type: 'absent', chamadaId, alunoId }); setPending(store.outboxCount()) } }
     else if (chamadaId) { store.queueOp({ type: 'absent', chamadaId, alunoId }); setPending(store.outboxCount()) }
   }
-  function toggle(alunoId) { present[alunoId] ? unmark(alunoId) : mark(alunoId) }
+  function toggle(alunoId) { presentRef.current[alunoId] ? unmark(alunoId) : mark(alunoId) }
 
   function onDecoded(text) {
     const now = Date.now()
     if (text === lastRef.current.t && now - lastRef.current.at < 1500) return
     lastRef.current = { t: text, at: now }
     const p = parsePayload(text)
+    const turma = tRef.current
     if (!p) { doFlash('QR não reconhecido.', 'err'); pulse('err'); return }
-    if (!t) { doFlash('Selecione uma turma.', 'err'); pulse('err'); return }
-    if (p.turmaId !== tid) { doFlash('Esse QR é de outra turma.', 'err'); pulse('err'); return }
-    const aluno = t.alunos.find(a => a.id === p.alunoId)
+    if (!turma) { doFlash('Selecione uma turma.', 'err'); pulse('err'); return }
+    if (p.turmaId !== tidRef.current) { doFlash('Esse QR é de outra turma.', 'err'); pulse('err'); return }
+    const aluno = turma.alunos.find(a => a.id === p.alunoId)
     if (!aluno) { doFlash('Aluno não está nesta turma.', 'err'); pulse('err'); return }
-    if (present[aluno.id]) { doFlash('Já registrado', 'dup'); pulse('dup'); showConfirm(aluno, '✓ Já registrado', 'dup'); return }
+    if (presentRef.current[aluno.id]) { doFlash('Já registrado', 'dup'); pulse('dup'); showConfirm(aluno, '✓ Já registrado', 'dup'); return }
     mark(aluno.id); doFlash('Presença registrada', 'ok'); pulse('ok'); showConfirm(aluno, '✓ Presença confirmada', 'ok')
   }
 
