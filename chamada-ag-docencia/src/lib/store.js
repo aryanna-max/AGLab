@@ -217,17 +217,17 @@ export async function listarLeituras(limite = 60) {
 }
 
 /* ---------- sessão de coleta (aula prática) ---------- */
-export async function abrirSessao(userId, turmaId, codigo, titulo) {
+export async function abrirSessao(userId, turmaId, codigo, titulo, tempo) {
   const { data, error } = await supabase.from('sessoes_coleta')
-    .insert({ owner_id: userId, turma_id: turmaId, codigo: codigo.toUpperCase(), titulo })
-    .select('id,codigo,aberta,criada_em,expira_em').single()
+    .insert({ owner_id: userId, turma_id: turmaId, codigo: codigo.toUpperCase(), titulo, tempo: tempo || null })
+    .select('id,codigo,aberta,criada_em,expira_em,tempo').single()
   if (error) throw error
   return data
 }
 
 export async function sessoesAbertas(turmaId) {
   const { data, error } = await supabase.from('sessoes_coleta')
-    .select('id,codigo,titulo,aberta,criada_em,expira_em')
+    .select('id,codigo,titulo,aberta,criada_em,expira_em,tempo')
     .eq('turma_id', turmaId).order('criada_em', { ascending: false }).limit(5)
   if (error) throw error
   return data

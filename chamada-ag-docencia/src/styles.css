@@ -147,3 +147,10 @@ table.matrix td.P{color:var(--ok);font-weight:700}table.matrix td.F{color:var(--
   .panel{box-shadow:none;border:none}
   .card{border:1px dashed #999}
 }
+
+/* placar do experimento */
+.placar{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}
+.pl-item{text-align:center;border:1px solid var(--line);border-radius:12px;padding:10px 6px}
+.pl-item.destaque{border-color:var(--brand);background:var(--chip)}
+.pl-n{font-size:20px;font-weight:800;font-variant-numeric:tabular-nums;color:var(--brand2)}
+.pl-l{font-size:11px;color:var(--muted);margin-top:3px}

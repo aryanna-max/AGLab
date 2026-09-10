@@ -24,7 +24,8 @@ export default function Aluno() {
   const [aviso, setAviso] = useState('')
   const [enviando, setEnviando] = useState(false)
   const [enviadas, setEnviadas] = useState(0)
-  const watchRef = useRef(null), t0 = useRef(0), ttff = useRef(null)
+  const [placar, setPlacar] = useState(null)
+  const watchRef = useRef(null), t0 = useRef(0), ttff = useRef(null), autoRef = useRef(false)
 
   useEffect(() => () => { if (watchRef.current != null) navigator.geolocation.clearWatch(watchRef.current) }, [])
 
@@ -52,6 +53,14 @@ export default function Aluno() {
           distPerc: distanciaUTM(u.n, u.e, PERC.utmN, PERC.utmE)
         })
         setErro('')
+        // o registro da aula e automatico: a primeira fixacao ja vira amostra
+        if (!autoRef.current) {
+          autoRef.current = true
+          const leitura = { lat: c.latitude, lon: c.longitude, acc: c.accuracy, alt: c.altitude,
+            altAcc: c.altitudeAccuracy, utmN: u.n, utmE: u.e,
+            distPerc: distanciaUTM(u.n, u.e, PERC.utmN, PERC.utmE) }
+          enviar('registro', leitura)
+        }
       },
       e => setErro(e.code === 1
         ? 'Você precisa permitir o acesso à localização para participar.'
@@ -60,21 +69,23 @@ export default function Aluno() {
     )
   }
 
-  async function enviar(rotulo) {
-    if (!pos || enviando) return
+  async function enviar(rotulo, posArg) {
+    const pp = posArg || pos
+    if (!pp || enviando) return
     setEnviando(true); setErro(''); setAviso('')
     try {
       const { data, error } = await supabase.rpc('enviar_leitura', {
         p_codigo: codigo.trim(), p_matricula: matricula.trim(),
-        p_lat: pos.lat, p_lon: pos.lon,
-        p_acuracia: pos.acc, p_altitude: pos.alt, p_alt_acuracia: pos.altAcc,
-        p_rotulo: rotulo, p_utm_n: pos.utmN, p_utm_e: pos.utmE, p_dist_perc: pos.distPerc
+        p_lat: pp.lat, p_lon: pp.lon,
+        p_acuracia: pp.acc, p_altitude: pp.alt, p_alt_acuracia: pp.altAcc,
+        p_rotulo: rotulo, p_utm_n: pp.utmN, p_utm_e: pp.utmE, p_dist_perc: pp.distPerc
       })
       if (error) throw error
       if (!data?.ok) { setErro(data?.erro || 'Não consegui registrar.'); return }
       setNome(data.nome || '')
       setEnviadas(data.n || (enviadas + 1))
-      setAviso('Leitura enviada — ' + rotulo)
+      setPlacar({ meu: data.meu_melhor, turma: data.melhor_turma, alunos: data.alunos })
+      setAviso(rotulo === 'registro' ? 'Presença registrada na coleta' : 'Leitura enviada — ' + rotulo)
       setTimeout(() => setAviso(''), 2500)
     } catch (e) {
       setErro('Falhou o envio: ' + (e.message || 'sem conexão'))
@@ -147,6 +158,18 @@ export default function Aluno() {
             ))}
           </div>
           {aviso && <div className="flash ok">{aviso}</div>}
+
+          {placar && <div className="placar">
+            <div className="pl-item"><div className="pl-n">± {metros(placar.meu, 1)}</div><div className="pl-l">seu recorde</div></div>
+            <div className="pl-item destaque"><div className="pl-n">± {metros(placar.turma, 1)}</div><div className="pl-l">melhor da turma</div></div>
+            <div className="pl-item"><div className="pl-n">{placar.alunos}</div><div className="pl-l">participando</div></div>
+          </div>}
+          {placar && placar.meu > placar.turma && <p className="note" style={{textAlign:'center'}}>
+            Alguém está com leitura melhor que a sua. Onde será que essa pessoa está?
+          </p>}
+          {placar && placar.meu <= placar.turma && <p className="note" style={{textAlign:'center'}}>
+            <b>Você está com a melhor leitura da turma.</b> Consegue melhorar ainda mais?
+          </p>}
           <p className="note">Ande até outro lugar e envie de novo. O que interessa é comparar.</p>
         </>}
       </div>

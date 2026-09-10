@@ -416,6 +416,7 @@ function Posicao({ userId, online, showToast }) {
 function ColetaTurma({ userId, turmas, online, showToast }) {
   const [tid, setTid] = useState(turmas[0]?.id || '')
   const [codigo, setCodigo] = useState('F19GPS')
+  const [tempo, setTempo] = useState('ensolarado')
   const [sessao, setSessao] = useState(null)
   const [linhas, setLinhas] = useState([])
   const [busy, setBusy] = useState(false)
@@ -444,7 +445,7 @@ function ColetaTurma({ userId, turmas, online, showToast }) {
     setBusy(true)
     try {
       const t = turmas.find(x => x.id === tid)
-      setSessao(await store.abrirSessao(userId, tid, codigo.trim(), t?.nome || null))
+      setSessao(await store.abrirSessao(userId, tid, codigo.trim(), t?.nome || null, tempo))
       showToast('Sessão aberta')
     } catch (e) {
       showToast(e.message?.includes('duplicate') ? 'Esse código já existe. Use outro.' : 'Erro: ' + e.message)
@@ -457,7 +458,7 @@ function ColetaTurma({ userId, turmas, online, showToast }) {
   }
 
   // média de acurácia por ambiente — é o resultado do experimento
-  const porAmbiente = ['sala', 'corredor', 'patio'].map(k => {
+  const porAmbiente = ['registro', 'sala', 'corredor', 'patio'].map(k => {
     const ls = linhas.filter(l => l.rotulo === k && l.acuracia_m != null)
     const med = ls.length ? ls.reduce((s, l) => s + l.acuracia_m, 0) / ls.length : null
     return { k, n: ls.length, med }
@@ -477,13 +478,20 @@ function ColetaTurma({ userId, turmas, online, showToast }) {
             </select></div>
           <div><label className="fld">Código da aula</label>
             <input value={codigo} onChange={e => setCodigo(e.target.value.toUpperCase())} maxLength={12} /></div>
+          <div><label className="fld">Céu agora</label>
+            <select value={tempo} onChange={e => setTempo(e.target.value)}>
+              <option value="ensolarado">☀️ Ensolarado</option>
+              <option value="parcial">⛅ Parcialmente nublado</option>
+              <option value="nublado">☁️ Nublado</option>
+              <option value="chuva">🌧️ Chuva</option>
+            </select></div>
         </div>
         <div className="btnrow"><button className="btn" onClick={abrir} disabled={busy || !online}>Abrir sessão</button></div>
       </>}
 
       {sessao?.aberta && <>
         <div className="codigo-box">
-          <div className="cb-lab">Código da aula — projete esta tela</div>
+          <div className="cb-lab">Código da aula — projete esta tela{sessao.tempo ? ' · céu: ' + sessao.tempo : ''}</div>
           <div className="cb-cod">{sessao.codigo}</div>
           {qr && <img className="cb-qr" src={qr} alt="" />}
           <div className="cb-link">{linkAluno}</div>
@@ -498,7 +506,7 @@ function ColetaTurma({ userId, turmas, online, showToast }) {
             <th className="nm">Ambiente</th><th>Leituras</th><th>Acurácia média</th>
           </tr></thead><tbody>
             {porAmbiente.map(a => <tr key={a.k}>
-              <td className="nm">{a.k === 'sala' ? 'Dentro da sala' : a.k === 'corredor' ? 'Corredor' : 'Pátio'}</td>
+              <td className="nm">{a.k === 'registro' ? 'Registro (automático)' : a.k === 'sala' ? 'Dentro da sala' : a.k === 'corredor' ? 'Corredor' : 'Pátio'}</td>
               <td>{a.n}</td>
               <td className={a.med != null ? (a.k === 'patio' ? 'P' : 'F') : ''}>{a.med != null ? '± ' + metros(a.med, 1) + ' m' : '—'}</td>
             </tr>)}
