@@ -166,9 +166,12 @@ export async function getPresentes(chamadaId) {
   return data.map(r => r.aluno_id)
 }
 
-export async function marcarPresente(userId, chamadaId, alunoId) {
+// origem: 'manual' (toque na lista) | 'qr_professora' (scanner) | 'chamada_aluno' (QR do dia, pelo app do aluno).
+// ignoreDuplicates: a primeira origem e a que fica registrada na ata.
+export async function marcarPresente(userId, chamadaId, alunoId, origem) {
   const { error } = await supabase.from('presencas')
-    .upsert({ owner_id: userId, chamada_id: chamadaId, aluno_id: alunoId }, { onConflict: 'chamada_id,aluno_id' })
+    .upsert({ owner_id: userId, chamada_id: chamadaId, aluno_id: alunoId, origem: origem || 'manual' },
+            { onConflict: 'chamada_id,aluno_id', ignoreDuplicates: true })
   if (error) throw error
 }
 export async function desmarcarPresente(chamadaId, alunoId) {
@@ -186,7 +189,7 @@ export async function flushOutbox(userId) {
   const rest = []
   for (const op of o) {
     try {
-      if (op.type === 'present') await marcarPresente(userId, op.chamadaId, op.alunoId)
+      if (op.type === 'present') await marcarPresente(userId, op.chamadaId, op.alunoId, op.origem)
       else if (op.type === 'absent') await desmarcarPresente(op.chamadaId, op.alunoId)
       else if (op.type === 'confirm') await supabase.from('chamadas').update({ confirmada: true }).eq('id', op.chamadaId)
     } catch (e) { rest.push(op) }
@@ -237,21 +240,21 @@ function hojeISO() {
 }
 
 // A sessão nasce amarrada à chamada de hoje: o registro do aluno vira presença.
-export async function abrirSessao(userId, turmaId, codigo, titulo, tempo, janelaInicio, janelaFim) {
+export async function abrirSessao(userId, turmaId, codigo, titulo, tempo, janelaInicio, janelaFim, local) {
   const ch = await ensureChamada(userId, turmaId, hojeISO())
   // upload da fila do aluno é aceito até 7 dias depois da aula; presença só dentro da janela
   const expira = new Date(new Date(janelaFim).getTime() + 7 * 24 * 3600 * 1000).toISOString()
   const { data, error } = await supabase.from('sessoes_coleta')
     .insert({ owner_id: userId, turma_id: turmaId, codigo: codigo.toUpperCase(), titulo, tempo: tempo || null,
-              chamada_id: ch.id, janela_inicio: janelaInicio, janela_fim: janelaFim, expira_em: expira })
-    .select('id,codigo,aberta,criada_em,expira_em,tempo,chamada_id,janela_inicio,janela_fim').single()
+              chamada_id: ch.id, janela_inicio: janelaInicio, janela_fim: janelaFim, expira_em: expira, local: local || 'sala' })
+    .select('id,codigo,aberta,criada_em,expira_em,tempo,chamada_id,janela_inicio,janela_fim,local').single()
   if (error) throw error
   return data
 }
 
 export async function sessoesAbertas(turmaId) {
   const { data, error } = await supabase.from('sessoes_coleta')
-    .select('id,codigo,titulo,aberta,criada_em,expira_em,tempo,chamada_id,janela_inicio,janela_fim')
+    .select('id,codigo,titulo,aberta,criada_em,expira_em,tempo,chamada_id,janela_inicio,janela_fim,local')
     .eq('turma_id', turmaId).order('criada_em', { ascending: false }).limit(5)
   if (error) throw error
   return data
@@ -266,7 +269,7 @@ export async function fecharSessao(id) {
    pelo RLS dela; o aluno nunca lê esta tabela. */
 export async function leiturasDaSessao(sessaoId) {
   const { data, error } = await supabase.from('leituras_gps')
-    .select('id,rotulo,acuracia_m,alt_acuracia_m,altitude_m,dist_perc_m,criado_em,capturado_em,presenca_marcada,aluno_id,alunos(nome,matricula)')
+    .select('id,rotulo,acuracia_m,alt_acuracia_m,altitude_m,dist_perc_m,criado_em,capturado_em,presenca_marcada,extra,aluno_id,alunos(nome,matricula)')
     .eq('sessao_id', sessaoId).order('criado_em', { ascending: false })
   if (error) throw error
   return data
@@ -280,7 +283,7 @@ export async function resumoTurma(turmaId) {
   const ids = chs.map(c => c.id)
   let pres = []
   if (ids.length) {
-    const { data, error: e2 } = await supabase.from('presencas').select('chamada_id,aluno_id').in('chamada_id', ids)
+    const { data, error: e2 } = await supabase.from('presencas').select('chamada_id,aluno_id,origem,created_at').in('chamada_id', ids)
     if (e2) throw e2
     pres = data
   }
