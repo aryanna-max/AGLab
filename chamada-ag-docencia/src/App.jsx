@@ -108,6 +108,7 @@ function Main({ session }) {
     <div className="wrap">
       <header className="app">
         <h1>Chamada · QR</h1><span className="sub">AG Docência</span>
+        <span className="sub" style={{ opacity: .6 }} title="versão que está rodando neste aparelho">v{__BUILD_ID__}</span>
         <span className="spacer" />
         <span className={'badge ' + (online ? 'on' : 'off')}>{online ? 'Online' : 'Offline'}</span>
         {pending > 0 && <span className="badge off">{pending} p/ sincronizar</span>}

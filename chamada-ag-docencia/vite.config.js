@@ -2,7 +2,13 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
+// Carimbo da build, exibido no cabeçalho. Serve para saber, olhando o
+// aparelho, qual versão o service worker está de fato servindo.
+// (a build roda em UTC na Vercel; -3 h para bater com o relógio de Recife)
+const BUILD_ID = new Date(Date.now() - 3 * 3600 * 1000).toISOString().slice(5, 16).replace('T', ' ')
+
 export default defineConfig({
+  define: { __BUILD_ID__: JSON.stringify(BUILD_ID) },
   plugins: [
     react(),
     VitePWA({
@@ -26,6 +32,12 @@ export default defineConfig({
       workbox: {
         globPatterns: ['**/*.{js,css,html,png,svg,woff2}'],
         navigateFallback: 'index.html',
+        // Sem isto, o SW novo fica "waiting" e o aparelho continua rodando a
+        // versão antiga até todas as abas serem fechadas — foi o que aconteceu
+        // no teste de 10/09: a correção estava no ar e o celular servia o cache.
+        skipWaiting: true,
+        clientsClaim: true,
+        cleanupOutdatedCaches: true,
         runtimeCaching: [
           {
             // Fotos dos alunos: a URL assinada aponta para um arquivo que não muda,
