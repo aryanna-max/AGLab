@@ -82,6 +82,8 @@ export default function Aluno() {
   const watchRef = useRef(null), t0 = useRef(0), ttff = useRef(null), autoRef = useRef(false)
   const nFixRef = useRef(0), melhorRef = useRef(null)
   const [lendoQR, setLendoQR] = useState(false)
+  const [turma, setTurma] = useState('')
+  const [conferindo, setConferindo] = useState(false)
   const [erroQR, setErroQR] = useState('')
   const qrVideo = useRef(null), qrCanvas = useRef(null), qrStream = useRef(null), qrVivo = useRef(false), qrUlt = useRef(0)
 
@@ -149,13 +151,35 @@ export default function Aluno() {
   }, [lendoQR])
   useEffect(() => () => fecharLeitorQR(), [])
 
-  function entrar(e) {
+  async function entrar(e) {
     e.preventDefault()
     setErro('')
     if (!codigo.trim() || !matricula.trim()) { setErro('Preencha o código da aula e a sua matrícula.'); return }
+    if (lendoQR) fecharLeitorQR()
+    setConferindo(true)
+    try {
+      // confere código + matrícula ANTES de entrar; se estiver errado, fica aqui
+      const { data, error } = await supabase.rpc('validar_sessao', { p_codigo: codigo.trim(), p_matricula: matricula.trim() })
+      if (error) throw error
+      if (!data?.ok) { setErro(data?.erro || 'Não consegui conferir. Tente de novo.'); return }
+      setNome(data.nome || ''); setTurma(data.turma || '')
+    } catch (er) {
+      if (!ehErroDeRede(er)) { setErro('Falhou a conferência: ' + (er.message || 'erro')); return }
+      // sem rede: deixa entrar; a leitura fica na fila e é validada quando subir
+      setAviso('Sem rede agora — não deu para conferir o código. Suas leituras ficam guardadas e sobem depois.')
+      setTimeout(() => setAviso(''), 5000)
+    } finally { setConferindo(false) }
     try { localStorage.setItem('agc2_matricula', matricula.trim()); localStorage.setItem('agc2_codigo_aula', codigo.trim()) } catch (er) {}
     setDentro(true)
     liga()
+  }
+
+  // volta para a tela de entrada, parando o GPS e zerando a sessão local
+  function sair() {
+    if (watchRef.current != null) { navigator.geolocation.clearWatch(watchRef.current); watchRef.current = null }
+    autoRef.current = false; nFixRef.current = 0; melhorRef.current = null; ttff.current = null
+    setPos(null); setPlacar(null); setEnviadas(0); setNome(''); setTurma(''); setErro(''); setAviso('')
+    setDentro(false)
   }
 
   function liga() {
@@ -260,7 +284,8 @@ export default function Aluno() {
         <input value={matricula} onChange={e => setMatricula(e.target.value)}
           placeholder="20262F61RC0000" inputMode="text" autoCorrect="off" />
         {erro && <div className="flash err" style={{ textAlign: 'left' }}>{erro}</div>}
-        <div className="btnrow"><button className="btn" type="submit">Começar</button></div>
+        <div className="btnrow"><button className="btn" type="submit" disabled={conferindo}>{conferindo ? 'Conferindo…' : 'Começar'}</button></div>
+        {aviso && <div className="flash dup" style={{ textAlign: 'left' }}>{aviso}</div>}
         <p className="note">O aparelho vai pedir permissão de localização. Sem ela não dá para participar
           do experimento — só a sua posição é usada, e apenas nesta aula.</p>
       </form>
@@ -281,8 +306,9 @@ export default function Aluno() {
     <div className="wrap">
       <header className="app">
         <h1>Posição · GNSS</h1>
-        {nome && <span className="sub">oi, {nome}</span>}
+        {nome && <span className="sub">oi, {nome}{turma ? ' · ' + turma : ''}</span>}
         <span className="spacer" />
+        <button className="btn ghost mini" onClick={sair} title="trocar código ou matrícula">↩ Voltar</button>
         {enviadas > 0 && <span className="badge on">{enviadas} enviada{enviadas > 1 ? 's' : ''}</span>}
         {naFila > 0 && <span className="badge off">{naFila} na fila</span>}
         {!online && <span className="badge off">sem rede</span>}
