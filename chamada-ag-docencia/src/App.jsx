@@ -3,6 +3,7 @@ import { supabase } from './supabaseClient'
 import * as store from './lib/store'
 import { qrDataUrl, decodeFromVideo, parsePayload, QR_PREFIX } from './lib/qr'
 import { PERC, M0452, paraUTM25S, distanciaUTM, grausMinSeg, metros, vezesPiorQuePerc } from './lib/geo'
+import { gravarPerfil } from './Escolha.jsx'
 
 /* ---------- utils ---------- */
 const todayISO = () => { const d = new Date(); const m = String(d.getMonth() + 1).padStart(2, '0'); const dd = String(d.getDate()).padStart(2, '0'); return `${d.getFullYear()}-${m}-${dd}` }
@@ -53,6 +54,8 @@ function Login() {
           {modo === 'entrar' ? 'Primeira vez? Criar conta' : 'Já tenho conta — entrar'}
         </p>
       </div>
+      <p className="note" style={{ textAlign: 'center', cursor: 'pointer' }}
+        onClick={() => { gravarPerfil('aluno'); location.href = '/' }}>Sou aluno</p>
     </div>
   )
 }

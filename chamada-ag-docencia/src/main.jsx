@@ -2,13 +2,24 @@ import React from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App.jsx'
 import Aluno from './Aluno.jsx'
+import Escolha, { lerPerfil, gravarPerfil } from './Escolha.jsx'
 import './styles.css'
 
-// A tela do aluno não passa por login: /aluno ou qualquer URL com ?aula=CODIGO
-const ehAluno = location.pathname.replace(/\/+$/, '').endsWith('/aluno') ||
+/* Quem entra por link com ?aula= (o QR projetado) ou por /aluno vai direto
+   para a coleta. Fora isso, vale o perfil guardado no aparelho; sem perfil,
+   aparecem os dois cards. Assim o mesmo PWA instalado abre como app do
+   aluno ou da professora, conforme o aparelho. */
+const porLink = location.pathname.replace(/\/+$/, '').endsWith('/aluno') ||
   new URLSearchParams(location.search).has('aula')
 
-createRoot(document.getElementById('root')).render(ehAluno ? <Aluno /> : <App />)
+function Raiz() {
+  const [perfil, setPerfil] = React.useState(() => porLink ? 'aluno' : lerPerfil())
+  if (perfil === 'aluno') return <Aluno />
+  if (perfil === 'professor') return <App />
+  return <Escolha onEscolher={p => { gravarPerfil(p); setPerfil(p) }} />
+}
+
+createRoot(document.getElementById('root')).render(<Raiz />)
 
 /* Atualização do app.
 
