@@ -200,6 +200,22 @@ export async function confirmarChamada(chamadaId) {
   if (error) throw error
 }
 
+/* ---------- leituras de GPS (uso didático) ---------- */
+export async function salvarLeitura(userId, dados) {
+  const { data, error } = await supabase.from('leituras_gps')
+    .insert({ owner_id: userId, ...dados }).select('id,criado_em').single()
+  if (error) throw error
+  return data
+}
+
+export async function listarLeituras(limite = 60) {
+  const { data, error } = await supabase.from('leituras_gps')
+    .select('id,rotulo,lat,lon,acuracia_m,altitude_m,alt_acuracia_m,utm_n,utm_e,dist_perc_m,ttff_ms,criado_em')
+    .order('criado_em', { ascending: false }).limit(limite)
+  if (error) throw error
+  return data
+}
+
 /* ---------- resumo ---------- */
 export async function resumoTurma(turmaId) {
   const { data: chs, error } = await supabase

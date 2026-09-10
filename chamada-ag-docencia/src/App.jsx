@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react'
 import { supabase } from './supabaseClient'
 import * as store from './lib/store'
 import { qrDataUrl, decodeFromVideo, parsePayload, QR_PREFIX } from './lib/qr'
+import { PERC, M0452, paraUTM25S, distanciaUTM, grausMinSeg, metros, vezesPiorQuePerc } from './lib/geo'
 
 /* ---------- utils ---------- */
 const todayISO = () => { const d = new Date(); const m = String(d.getMonth() + 1).padStart(2, '0'); const dd = String(d.getDate()).padStart(2, '0'); return `${d.getFullYear()}-${m}-${dd}` }
@@ -118,7 +119,7 @@ function Main({ session }) {
       <div className="lgpd"><b>Dentro da lei (LGPD).</b> Dados no seu banco privado em São Paulo, só a sua conta acessa. As fotos servem para você conferir na tela — sem biometria. Guarde o termo de consentimento assinado dos alunos.</div>
 
       <nav className="tabs">
-        {[['chamada', 'Chamada'], ['turmas', 'Turmas & Fotos'], ['conferir', 'Conferir faltantes'], ['resumo', 'Resumo / Exportar']].map(([k, l]) =>
+        {[['chamada', 'Chamada'], ['turmas', 'Turmas & Fotos'], ['conferir', 'Conferir faltantes'], ['resumo', 'Resumo / Exportar'], ['posicao', 'Posição · GNSS']].map(([k, l]) =>
           <button key={k} className={tab === k ? 'active' : ''} onClick={() => setTab(k)}>{l}</button>)}
       </nav>
 
@@ -129,6 +130,7 @@ function Main({ session }) {
             {tab === 'turmas' && <TurmasFotos turmas={turmas} refresh={refresh} showToast={showToast} online={online} />}
             {tab === 'conferir' && <Conferir userId={userId} turmas={turmas} online={online} setPending={setPending} showToast={showToast} />}
             {tab === 'resumo' && <Resumo turmas={turmas} showToast={showToast} />}
+            {tab === 'posicao' && <Posicao userId={userId} online={online} showToast={showToast} />}
           </>}
 
       {toast && <div className="toast">{toast}</div>}
@@ -252,6 +254,160 @@ function TurmasFotos({ turmas, refresh, showToast, online }) {
       </div>
 
       {selfie && <SelfieOverlay aluno={selfie} onClose={() => setSelfie(null)} onCapture={url => { setSelfie(null); saveFoto(selfie.id, url) }} />}
+    </>
+  )
+}
+
+/* ---------- POSIÇÃO · GNSS (instrumento didático) ---------- */
+function Posicao({ userId, online, showToast }) {
+  const [lendo, setLendo] = useState(false)
+  const [pos, setPos] = useState(null)      // leitura corrente
+  const [melhor, setMelhor] = useState(null) // melhor acurácia da sessão
+  const [n, setN] = useState(0)             // quantas atualizações
+  const [erro, setErro] = useState('')
+  const [rotulo, setRotulo] = useState('sala')
+  const [salvas, setSalvas] = useState([])
+  const watchRef = useRef(null), t0Ref = useRef(0), ttffRef = useRef(null)
+
+  useEffect(() => () => { if (watchRef.current != null) navigator.geolocation.clearWatch(watchRef.current) }, [])
+
+  function comeca() {
+    setErro('')
+    if (!navigator.geolocation) { setErro('Este navegador não expõe geolocalização.'); return }
+    setLendo(true); setN(0); setMelhor(null); setPos(null)
+    t0Ref.current = performance.now(); ttffRef.current = null
+    watchRef.current = navigator.geolocation.watchPosition(
+      p => {
+        if (ttffRef.current == null) ttffRef.current = Math.round(performance.now() - t0Ref.current)
+        const c = p.coords
+        const u = paraUTM25S(c.latitude, c.longitude)
+        const leitura = {
+          lat: c.latitude, lon: c.longitude,
+          acuracia_m: c.accuracy,
+          altitude_m: c.altitude, alt_acuracia_m: c.altitudeAccuracy,
+          utm_n: u.n, utm_e: u.e,
+          dist_perc_m: distanciaUTM(u.n, u.e, PERC.utmN, PERC.utmE),
+          dist_m0452_m: distanciaUTM(u.n, u.e, M0452.utmN, M0452.utmE),
+          ttff_ms: ttffRef.current
+        }
+        setPos(leitura); setN(k => k + 1)
+        setMelhor(m => (!m || (leitura.acuracia_m || 1e9) < (m.acuracia_m || 1e9)) ? leitura : m)
+      },
+      e => { setErro(e.code === 1 ? 'Permissão de localização negada.' : 'Não consegui obter posição (' + (e.message || e.code) + ').'); para() },
+      { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 }
+    )
+  }
+  function para() {
+    if (watchRef.current != null) { navigator.geolocation.clearWatch(watchRef.current); watchRef.current = null }
+    setLendo(false)
+  }
+
+  async function salvar() {
+    const l = pos
+    if (!l) return
+    if (!online) { showToast('Offline — conecte para salvar a leitura'); return }
+    try {
+      const { dist_m0452_m, ...campos } = l
+      await store.salvarLeitura(userId, { ...campos, rotulo })
+      showToast('Leitura salva')
+      carregar()
+    } catch (e) { showToast('Erro ao salvar: ' + e.message) }
+  }
+  const carregar = useCallback(async () => {
+    if (!online) return
+    try { setSalvas(await store.listarLeituras(20)) } catch (e) {}
+  }, [online])
+  useEffect(() => { carregar() }, [carregar])
+
+  const vezes = pos ? vezesPiorQuePerc(pos.acuracia_m) : null
+  const razaoVert = pos && pos.alt_acuracia_m && pos.acuracia_m ? (pos.alt_acuracia_m / pos.acuracia_m) : null
+
+  return (
+    <>
+      <div className="panel">
+        <h2>Posição · GNSS</h2>
+        <p className="hint">O seu celular medido contra a estação da rede geodésica nacional que fica dentro do campus.</p>
+
+        <div className="btnrow">
+          {!lendo
+            ? <button className="btn" onClick={comeca}>Ler posição</button>
+            : <button className="btn ghost" onClick={para}>Parar leitura</button>}
+          {pos && <button className="btn ghost" onClick={salvar} disabled={!online}>Salvar leitura</button>}
+        </div>
+
+        {erro && <div className="flash err" style={{ textAlign: 'left' }}>{erro}</div>}
+
+        {lendo && !pos && <div className="spin">Adquirindo satélites…</div>}
+
+        {pos && <>
+          <div className="gps-grid">
+            <div className="gp"><div className="gl">Latitude</div><div className="gv">{grausMinSeg(pos.lat, true)}</div></div>
+            <div className="gp"><div className="gl">Longitude</div><div className="gv">{grausMinSeg(pos.lon, false)}</div></div>
+            <div className="gp"><div className="gl">UTM 25 S · N</div><div className="gv">{metros(pos.utm_n, 1)}</div></div>
+            <div className="gp"><div className="gl">UTM 25 S · E</div><div className="gv">{metros(pos.utm_e, 1)}</div></div>
+          </div>
+
+          <div className="count-strip" style={{ marginTop: 12 }}>
+            <div className="c"><div className="n">±{metros(pos.acuracia_m, 0)}</div><div className="l">horizontal (m)</div></div>
+            <div className="c"><div className="n">{pos.alt_acuracia_m ? '±' + metros(pos.alt_acuracia_m, 0) : '—'}</div><div className="l">vertical (m)</div></div>
+            <div className="c"><div className="n">{n}</div><div className="l">leituras</div></div>
+          </div>
+
+          {razaoVert && <p className="note">
+            O erro <b>vertical é {razaoVert.toFixed(1)}× o horizontal</b>. Os satélites estão todos acima do
+            horizonte, nunca abaixo — a componente vertical é mal condicionada. É por isso que rede de esgoto
+            por gravidade não se nivela com GNSS.
+          </p>}
+
+          {pos.altitude_m != null && <p className="note">
+            Altitude <b>{metros(pos.altitude_m, 1)} m</b> — é <b>elipsoidal</b>, não a altitude do mar.
+            Para virar ortométrica falta a ondulação geoidal (MAPGEO2015); no campus ela é de cerca de −5,56 m.
+          </p>}
+
+          <div className="perc-box">
+            <div className="pb-tit">Referência: {PERC.nome}</div>
+            <div className="pb-sub">Estação RBMC do IBGE, no Bloco A · SIRGAS2000 época 2000,4 · em operação desde {PERC.desde}</div>
+            <table className="pb-tab"><tbody>
+              <tr><td>Distância medida até ela</td><td><b>{metros(pos.dist_perc_m, 0)} m</b></td></tr>
+              <tr><td>Distância até o marco M0452</td><td><b>{metros(pos.dist_m0452_m, 0)} m</b></td></tr>
+              <tr><td>Incerteza do seu celular</td><td><b>± {metros(pos.acuracia_m, 1)} m</b></td></tr>
+              <tr><td>Incerteza da PERC</td><td><b>± 0,001 m</b></td></tr>
+            </tbody></table>
+            {vezes && <div className="pb-punch">Seu celular erra <b>{vezes.toLocaleString('pt-BR')}×</b> mais que a estação — a poucos metros dela, com os mesmos satélites.</div>}
+          </div>
+
+          {pos.ttff_ms != null && <p className="note">Primeira fixação em <b>{(pos.ttff_ms / 1000).toFixed(1)} s</b> (TTFF).
+            {melhor && melhor.acuracia_m < pos.acuracia_m && <> Melhor acurácia da sessão: ±{metros(melhor.acuracia_m, 1)} m.</>}
+          </p>}
+
+          <label className="fld" style={{ marginTop: 12 }}>Onde você está?</label>
+          <select value={rotulo} onChange={e => setRotulo(e.target.value)}>
+            <option value="sala">Dentro da sala</option>
+            <option value="corredor">Corredor</option>
+            <option value="patio">Pátio / céu aberto</option>
+            <option value="outro">Outro</option>
+          </select>
+          <p className="note">Esse rótulo é a variável do experimento: é o que permite comparar a precisão dentro e fora do prédio ao longo do semestre.</p>
+        </>}
+      </div>
+
+      {salvas.length > 0 && <div className="panel">
+        <h2>Leituras salvas</h2>
+        <p className="hint">{salvas.length} mais recentes. Vira dataset da turma ao longo do semestre.</p>
+        <div className="scrollx">
+          <table className="matrix"><thead><tr>
+            <th className="nm">Quando</th><th>Onde</th><th>± horiz.</th><th>± vert.</th><th>até PERC</th>
+          </tr></thead><tbody>
+            {salvas.map(r => <tr key={r.id}>
+              <td className="nm">{new Date(r.criado_em).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</td>
+              <td>{r.rotulo || '—'}</td>
+              <td>{metros(r.acuracia_m, 1)}</td>
+              <td>{r.alt_acuracia_m != null ? metros(r.alt_acuracia_m, 1) : '—'}</td>
+              <td>{metros(r.dist_perc_m, 0)}</td>
+            </tr>)}
+          </tbody></table>
+        </div>
+      </div>}
     </>
   )
 }
