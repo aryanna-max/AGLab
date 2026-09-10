@@ -31,7 +31,8 @@ const ehErroDeRede = e => !e?.code && /fetch|network|conex|Failed|load/i.test(St
 const AMBIENTES = [
   { k: 'sala', rotulo: 'Dentro da sala', emoji: '🏫' },
   { k: 'corredor', rotulo: 'Corredor', emoji: '🚪' },
-  { k: 'patio', rotulo: 'Pátio / céu aberto', emoji: '🌤️' }
+  { k: 'patio', rotulo: 'Pátio / céu aberto', emoji: '🌤️' },
+  { k: 'outro', rotulo: 'Outro lugar — descreva', emoji: '✍️' }
 ]
 const nomeLocal = k => ({ sala: 'Dentro da sala', corredor: 'Corredor', patio: 'Pátio', outro: 'Outro' })[k] || k
 
@@ -138,6 +139,8 @@ export default function Aluno() {
   const [lendoCartao, setLendoCartao] = useState(false)
   const [conferindo, setConferindo] = useState(false)
   const [depoisDeIdent, setDepoisDeIdent] = useState(null)     // para onde ir após identificar
+  const [outroTxt, setOutroTxt] = useState('')                 // descrição livre quando o lugar é 'outro'
+  const [pedindoOutro, setPedindoOutro] = useState(false)
 
   const watchRef = useRef(null), t0 = useRef(0), ttff = useRef(null), autoRef = useRef(false)
   const nFixRef = useRef(0), melhorRef = useRef(null), modoRef = useRef('livre'), identRef = useRef(ident), codigoRef = useRef(codigoDaUrl)
@@ -240,7 +243,7 @@ export default function Aluno() {
   }
 
   /* ---------- envio ---------- */
-  async function enviar(rotulo, posArg) {
+  async function enviar(rotulo, posArg, descricao) {
     const pp = posArg || pos, id = identRef.current
     if (!pp || enviando || !id) return
     setEnviando(true); setErro(''); setAviso('')
@@ -250,6 +253,7 @@ export default function Aluno() {
       capturado_em: new Date().toISOString(), online: navigator.onLine,
       extra: { ...contextoDoAparelho(), ttff_ms: ttff.current, n_fixes_antes: Math.max(0, nFixRef.current - 1),
         melhor_acuracia_sessao: melhorRef.current,
+        local_descricao: descricao ? String(descricao).slice(0, 80) : undefined,
         rumo: pp.rumo == null || Number.isNaN(pp.rumo) ? null : pp.rumo,
         velocidade: pp.velocidade == null || Number.isNaN(pp.velocidade) ? null : pp.velocidade }
     }
@@ -261,7 +265,7 @@ export default function Aluno() {
       if (rotulo === 'chamada') {
         if (data.presenca) fixarPresenca(data, item.codigo, false)
         else if (data.motivo === 'fora_da_janela') fixarPresenca(data, item.codigo, true)
-      } else { setAviso('Leitura enviada — ' + nomeLocal(rotulo)); setTimeout(() => setAviso(''), 2500) }
+      } else { setAviso('Leitura enviada — ' + (rotulo === 'outro' && descricao ? descricao : nomeLocal(rotulo))); setTimeout(() => setAviso(''), 2500) }
     } catch (e) {
       if (ehErroDeRede(e)) {
         const f = ler(K_FILA, []); f.push(item); gravar(K_FILA, f); setNaFila(f.length)
@@ -426,9 +430,14 @@ export default function Aluno() {
 
           <label className="fld" style={{ marginTop: 16 }}>Onde você está agora? Toque para enviar uma medição.</label>
           <div className="amb-row">
-            {AMBIENTES.map(a => <button key={a.k} className="amb" disabled={enviando} onClick={() => enviar(a.k)}>
+            {AMBIENTES.map(a => <button key={a.k} className={'amb' + (a.k === 'outro' && pedindoOutro ? ' on' : '')} disabled={enviando}
+              onClick={() => a.k === 'outro' ? setPedindoOutro(v => !v) : enviar(a.k)}>
               <span className="amb-emoji">{a.emoji}</span><span className="amb-txt">{a.rotulo}</span></button>)}
           </div>
+          {pedindoOutro && <form className="row" style={{ marginTop: 8 }} onSubmit={e => { e.preventDefault(); if (outroTxt.trim()) { enviar('outro', null, outroTxt.trim()); setPedindoOutro(false) } }}>
+            <input value={outroTxt} onChange={e => setOutroTxt(e.target.value)} maxLength={80} placeholder="Onde? Ex.: escada do Bloco F, quadra, ponto de ônibus" style={{ flex: 3 }} autoFocus />
+            <button className="btn" type="submit" disabled={!outroTxt.trim() || enviando} style={{ flex: 1, minWidth: 110 }}>Enviar</button>
+          </form>}
           {aviso && <div className="flash ok">{aviso}</div>}
 
           {placar && <div className="placar">

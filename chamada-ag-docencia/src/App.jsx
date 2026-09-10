@@ -272,6 +272,7 @@ function Posicao({ userId, online, showToast }) {
   const [n, setN] = useState(0)             // quantas atualizações
   const [erro, setErro] = useState('')
   const [rotulo, setRotulo] = useState('sala')
+  const [outroTxt, setOutroTxt] = useState('')
   const [salvas, setSalvas] = useState([])
   const watchRef = useRef(null), t0Ref = useRef(0), ttffRef = useRef(null)
 
@@ -314,7 +315,7 @@ function Posicao({ userId, online, showToast }) {
     if (!online) { showToast('Offline — conecte para salvar a leitura'); return }
     try {
       const { dist_m0452_m, ...campos } = l
-      await store.salvarLeitura(userId, { ...campos, rotulo })
+      await store.salvarLeitura(userId, { ...campos, rotulo, extra: rotulo === 'outro' && outroTxt.trim() ? { local_descricao: outroTxt.trim().slice(0, 80) } : undefined })
       showToast('Leitura salva')
       carregar()
     } catch (e) { showToast('Erro ao salvar: ' + e.message) }
@@ -393,6 +394,7 @@ function Posicao({ userId, online, showToast }) {
             <option value="patio">Pátio / céu aberto</option>
             <option value="outro">Outro</option>
           </select>
+          {rotulo === 'outro' && <input value={outroTxt} onChange={e => setOutroTxt(e.target.value)} maxLength={80} placeholder="Descreva o lugar" style={{ marginTop: 8 }} />}
           <p className="note">Esse rótulo é a variável do experimento: é o que permite comparar a precisão dentro e fora do prédio ao longo do semestre.</p>
         </>}
       </div>
@@ -559,7 +561,7 @@ function ColetaTurma({ userId, turmas, online, showToast }) {
         </tr></thead><tbody>
           {linhas.slice(0, 40).map(l => <tr key={l.id}>
             <td className="nm">{l.alunos?.nome || '—'}</td>
-            <td>{l.rotulo}</td>
+            <td>{l.rotulo}{l.rotulo === 'outro' && l.extra?.local_descricao ? ' · ' + l.extra.local_descricao : ''}</td>
             <td>{metros(l.acuracia_m, 1)}</td>
             <td>{l.alt_acuracia_m != null ? metros(l.alt_acuracia_m, 1) : '—'}</td>
             <td className={foraDoCampus(l) ? 'F' : ''} title={foraDoCampus(l) ? 'leitura longe do campus — conferir' : ''}>
