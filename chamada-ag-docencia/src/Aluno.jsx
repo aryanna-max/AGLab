@@ -80,13 +80,15 @@ export default function Aluno() {
   const [naFila, setNaFila] = useState(() => lerFila().length)
   const [online, setOnline] = useState(navigator.onLine)
   const watchRef = useRef(null), t0 = useRef(0), ttff = useRef(null), autoRef = useRef(false)
-  const nFixRef = useRef(0), melhorRef = useRef(null)
+  const nFixRef = useRef(0), melhorRef = useRef(null), modoRef = useRef('livre')
   const [lendoQR, setLendoQR] = useState(false)
   const [turma, setTurma] = useState('')
   const [conferindo, setConferindo] = useState(false)
+  const [modo, setModo] = useState('livre')   // 'aula' quando entrou com o código do dia
   const [erroQR, setErroQR] = useState('')
   const qrVideo = useRef(null), qrCanvas = useRef(null), qrStream = useRef(null), qrVivo = useRef(false), qrUlt = useRef(0)
 
+  useEffect(() => { modoRef.current = modo }, [modo])
   useEffect(() => () => { if (watchRef.current != null) navigator.geolocation.clearWatch(watchRef.current) }, [])
 
   // sobe a fila: ao abrir, quando a rede volta, e de 30 em 30 s
@@ -154,7 +156,7 @@ export default function Aluno() {
   async function entrar(e) {
     e.preventDefault()
     setErro('')
-    if (!codigo.trim() || !matricula.trim()) { setErro('Preencha o código da aula e a sua matrícula.'); return }
+    if (!matricula.trim()) { setErro('Informe a sua matrícula.'); return }
     if (lendoQR) fecharLeitorQR()
     setConferindo(true)
     try {
@@ -162,11 +164,12 @@ export default function Aluno() {
       const { data, error } = await supabase.rpc('validar_sessao', { p_codigo: codigo.trim(), p_matricula: matricula.trim() })
       if (error) throw error
       if (!data?.ok) { setErro(data?.erro || 'Não consegui conferir. Tente de novo.'); return }
-      setNome(data.nome || ''); setTurma(data.turma || '')
+      setNome(data.nome || ''); setTurma(data.turma || ''); setModo(data.modo === 'aula' ? 'aula' : 'livre')
     } catch (er) {
       if (!ehErroDeRede(er)) { setErro('Falhou a conferência: ' + (er.message || 'erro')); return }
       // sem rede: deixa entrar; a leitura fica na fila e é validada quando subir
-      setAviso('Sem rede agora — não deu para conferir o código. Suas leituras ficam guardadas e sobem depois.')
+      setModo(codigo.trim() ? 'aula' : 'livre')
+      setAviso('Sem rede agora — não deu para conferir. Suas leituras ficam guardadas e sobem depois.')
       setTimeout(() => setAviso(''), 5000)
     } finally { setConferindo(false) }
     try { localStorage.setItem('agc2_matricula', matricula.trim()); localStorage.setItem('agc2_codigo_aula', codigo.trim()) } catch (er) {}
@@ -178,7 +181,7 @@ export default function Aluno() {
   function sair() {
     if (watchRef.current != null) { navigator.geolocation.clearWatch(watchRef.current); watchRef.current = null }
     autoRef.current = false; nFixRef.current = 0; melhorRef.current = null; ttff.current = null
-    setPos(null); setPlacar(null); setEnviadas(0); setNome(''); setTurma(''); setErro(''); setAviso('')
+    setPos(null); setPlacar(null); setEnviadas(0); setNome(''); setTurma(''); setErro(''); setAviso(''); setModo('livre')
     setDentro(false)
   }
 
@@ -202,7 +205,7 @@ export default function Aluno() {
         })
         setErro('')
         // o registro da aula e automatico: a primeira fixacao ja vira amostra
-        if (!autoRef.current) {
+        if (!autoRef.current && modoRef.current === 'aula') {
           autoRef.current = true
           const leitura = { lat: c.latitude, lon: c.longitude, acc: c.accuracy, alt: c.altitude,
             altAcc: c.altitudeAccuracy, utmN: u.n, utmE: u.e,
@@ -265,8 +268,8 @@ export default function Aluno() {
       <header className="app"><h1>Posição · GNSS</h1><span className="sub">experimento da aula</span></header>
       <form className="panel login" onSubmit={entrar}>
         <h2>Entrar na coleta</h2>
-        <p className="hint">Sem senha. Só o código que está na tela da sala e a sua matrícula.</p>
-        <label className="fld">Código da aula</label>
+        <p className="hint">Sem senha. <b>Para medir, basta a matrícula.</b> O código da aula só é preciso na hora da chamada.</p>
+        <label className="fld">Código da aula <span style={{ fontWeight: 400, opacity: .7 }}>— só na hora da chamada; deixe vazio para medir</span></label>
         <div className="row">
           <input value={codigo} onChange={e => setCodigo(e.target.value.toUpperCase())}
             placeholder="Ex.: F19GPS" autoCapitalize="characters" autoCorrect="off" style={{ flex: 2 }} />
@@ -307,6 +310,7 @@ export default function Aluno() {
       <header className="app">
         <h1>Posição · GNSS</h1>
         {nome && <span className="sub">oi, {nome}{turma ? ' · ' + turma : ''}</span>}
+        <span className={'badge ' + (modo === 'aula' ? 'on' : '')}>{modo === 'aula' ? 'chamada + medição' : 'medição livre'}</span>
         <span className="spacer" />
         <button className="btn ghost mini" onClick={sair} title="trocar código ou matrícula">↩ Voltar</button>
         {enviadas > 0 && <span className="badge on">{enviadas} enviada{enviadas > 1 ? 's' : ''}</span>}
