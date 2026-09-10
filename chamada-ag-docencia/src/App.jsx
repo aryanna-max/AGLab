@@ -417,6 +417,8 @@ function ColetaTurma({ userId, turmas, online, showToast }) {
   const [tid, setTid] = useState(turmas[0]?.id || '')
   const [codigo, setCodigo] = useState('F19GPS')
   const [tempo, setTempo] = useState('ensolarado')
+  const [hIni, setHIni] = useState('12:50')
+  const [hFim, setHFim] = useState('17:40')
   const [sessao, setSessao] = useState(null)
   const [linhas, setLinhas] = useState([])
   const [busy, setBusy] = useState(false)
@@ -445,7 +447,10 @@ function ColetaTurma({ userId, turmas, online, showToast }) {
     setBusy(true)
     try {
       const t = turmas.find(x => x.id === tid)
-      setSessao(await store.abrirSessao(userId, tid, codigo.trim(), t?.nome || null, tempo))
+      const hoje = todayISO()
+      const ini = new Date(hoje + 'T' + hIni + ':00'), fim = new Date(hoje + 'T' + hFim + ':00')
+      if (!(fim > ini)) { showToast('A janela precisa terminar depois de começar'); setBusy(false); return }
+      setSessao(await store.abrirSessao(userId, tid, codigo.trim(), t?.nome || null, tempo, ini.toISOString(), fim.toISOString()))
       showToast('Sessão aberta')
     } catch (e) {
       showToast(e.message?.includes('duplicate') ? 'Esse código já existe. Use outro.' : 'Erro: ' + e.message)
@@ -464,7 +469,10 @@ function ColetaTurma({ userId, turmas, online, showToast }) {
     return { k, n: ls.length, med }
   })
   const alunosDistintos = new Set(linhas.map(l => l.aluno_id)).size
-  const presentesColeta = new Set(linhas.filter(l => l.rotulo === 'registro').map(l => l.aluno_id)).size
+  const presentesColeta = new Set(linhas.filter(l => l.presenca_marcada).map(l => l.aluno_id)).size
+  const registrosForaJanela = linhas.filter(l => l.rotulo === 'registro' && !l.presenca_marcada)
+  // subiu da fila: capturado bem antes de o servidor receber
+  const atrasada = l => l.capturado_em && (new Date(l.criado_em) - new Date(l.capturado_em)) > 3 * 60 * 1000
   // o campus inteiro cabe em ~250 m da PERC; acima disso a leitura veio de fora
   const LONGE_M = 400
   const foraDoCampus = l => l.dist_perc_m != null && l.dist_perc_m > LONGE_M
@@ -482,6 +490,8 @@ function ColetaTurma({ userId, turmas, online, showToast }) {
             </select></div>
           <div><label className="fld">Código da aula</label>
             <input value={codigo} onChange={e => setCodigo(e.target.value.toUpperCase())} maxLength={12} /></div>
+          <div><label className="fld">Aula começa</label><input type="time" value={hIni} onChange={e => setHIni(e.target.value)} /></div>
+          <div><label className="fld">Aula termina</label><input type="time" value={hFim} onChange={e => setHFim(e.target.value)} /></div>
           <div><label className="fld">Céu agora</label>
             <select value={tempo} onChange={e => setTempo(e.target.value)}>
               <option value="ensolarado">☀️ Ensolarado</option>
@@ -490,12 +500,14 @@ function ColetaTurma({ userId, turmas, online, showToast }) {
               <option value="chuva">🌧️ Chuva</option>
             </select></div>
         </div>
+        <p className="note">Presença automática só para registros feitos <b>dentro da janela</b>, pelo relógio do servidor. O que subir depois entra como amostra e aparece como falta — a decisão final é sua, na aba Chamada.</p>
         <div className="btnrow"><button className="btn" onClick={abrir} disabled={busy || !online}>Abrir sessão</button></div>
       </>}
 
       {sessao?.aberta && <>
         <div className="codigo-box">
-          <div className="cb-lab">Código da aula — projete esta tela{sessao.tempo ? ' · céu: ' + sessao.tempo : ''}</div>
+          <div className="cb-lab">Código da aula — projete esta tela{sessao.tempo ? ' · céu: ' + sessao.tempo : ''}
+            {sessao.janela_inicio && <> · janela {new Date(sessao.janela_inicio).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}–{new Date(sessao.janela_fim).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</>}</div>
           <div className="cb-cod">{sessao.codigo}</div>
           {qr && <img className="cb-qr" src={qr} alt="" />}
           <div className="cb-link">{linkAluno}</div>
@@ -520,12 +532,15 @@ function ColetaTurma({ userId, turmas, online, showToast }) {
         <p className="note">É este o resultado do experimento: a mesma turma, os mesmos satélites, três ambientes.
           {sessao.chamada_id && <> O registro de cada aluno já marcou presença na chamada de hoje.</>}</p>
 
+        {registrosForaJanela.length > 0 && <p className="note" style={{ color: 'var(--miss)' }}>
+          <b>{registrosForaJanela.length}</b> registro(s) chegaram fora da janela e <b>não</b> marcaram presença. Quem decide é você, na aba Chamada.
+        </p>}
         <div className="btnrow"><button className="btn ghost" onClick={fechar}>Encerrar sessão</button></div>
       </>}
 
       {linhas.length > 0 && <div className="scrollx" style={{ marginTop: 14 }}>
         <table className="matrix"><thead><tr>
-          <th className="nm">Aluno</th><th>Onde</th><th>± horiz.</th><th>± vert.</th><th>até PERC</th><th>Hora</th>
+          <th className="nm">Aluno</th><th>Onde</th><th>± horiz.</th><th>± vert.</th><th>até PERC</th><th>Capturada</th><th>Presença</th>
         </tr></thead><tbody>
           {linhas.slice(0, 40).map(l => <tr key={l.id}>
             <td className="nm">{l.alunos?.nome || '—'}</td>
@@ -535,7 +550,12 @@ function ColetaTurma({ userId, turmas, online, showToast }) {
             <td className={foraDoCampus(l) ? 'F' : ''} title={foraDoCampus(l) ? 'leitura longe do campus — conferir' : ''}>
               {l.dist_perc_m == null ? '—' : l.dist_perc_m > 2000 ? metros(l.dist_perc_m / 1000, 1) + ' km' : metros(l.dist_perc_m, 0) + ' m'}{foraDoCampus(l) ? ' ⚠' : ''}
             </td>
-            <td>{new Date(l.criado_em).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</td>
+            <td title={atrasada(l) ? 'subiu da fila em ' + new Date(l.criado_em).toLocaleString('pt-BR') : ''}>
+              {new Date(l.capturado_em || l.criado_em).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}{atrasada(l) ? ' ⏳' : ''}
+            </td>
+            <td className={l.rotulo !== 'registro' ? '' : l.presenca_marcada ? 'P' : 'F'}>
+              {l.rotulo !== 'registro' ? '—' : l.presenca_marcada ? 'marcada' : 'fora da janela'}
+            </td>
           </tr>)}
         </tbody></table>
       </div>}

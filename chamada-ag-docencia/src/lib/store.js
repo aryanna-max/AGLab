@@ -223,18 +223,21 @@ function hojeISO() {
 }
 
 // A sessão nasce amarrada à chamada de hoje: o registro do aluno vira presença.
-export async function abrirSessao(userId, turmaId, codigo, titulo, tempo) {
+export async function abrirSessao(userId, turmaId, codigo, titulo, tempo, janelaInicio, janelaFim) {
   const ch = await ensureChamada(userId, turmaId, hojeISO())
+  // upload da fila do aluno é aceito até 7 dias depois da aula; presença só dentro da janela
+  const expira = new Date(new Date(janelaFim).getTime() + 7 * 24 * 3600 * 1000).toISOString()
   const { data, error } = await supabase.from('sessoes_coleta')
-    .insert({ owner_id: userId, turma_id: turmaId, codigo: codigo.toUpperCase(), titulo, tempo: tempo || null, chamada_id: ch.id })
-    .select('id,codigo,aberta,criada_em,expira_em,tempo,chamada_id').single()
+    .insert({ owner_id: userId, turma_id: turmaId, codigo: codigo.toUpperCase(), titulo, tempo: tempo || null,
+              chamada_id: ch.id, janela_inicio: janelaInicio, janela_fim: janelaFim, expira_em: expira })
+    .select('id,codigo,aberta,criada_em,expira_em,tempo,chamada_id,janela_inicio,janela_fim').single()
   if (error) throw error
   return data
 }
 
 export async function sessoesAbertas(turmaId) {
   const { data, error } = await supabase.from('sessoes_coleta')
-    .select('id,codigo,titulo,aberta,criada_em,expira_em,tempo,chamada_id')
+    .select('id,codigo,titulo,aberta,criada_em,expira_em,tempo,chamada_id,janela_inicio,janela_fim')
     .eq('turma_id', turmaId).order('criada_em', { ascending: false }).limit(5)
   if (error) throw error
   return data
@@ -249,7 +252,7 @@ export async function fecharSessao(id) {
    pelo RLS dela; o aluno nunca lê esta tabela. */
 export async function leiturasDaSessao(sessaoId) {
   const { data, error } = await supabase.from('leituras_gps')
-    .select('id,rotulo,acuracia_m,alt_acuracia_m,altitude_m,dist_perc_m,criado_em,aluno_id,alunos(nome,matricula)')
+    .select('id,rotulo,acuracia_m,alt_acuracia_m,altitude_m,dist_perc_m,criado_em,capturado_em,presenca_marcada,aluno_id,alunos(nome,matricula)')
     .eq('sessao_id', sessaoId).order('criado_em', { ascending: false })
   if (error) throw error
   return data

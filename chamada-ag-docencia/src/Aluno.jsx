@@ -7,6 +7,25 @@ import { PERC, paraUTM25S, distanciaUTM, metros, vezesPiorQuePerc } from './lib/
    e envia leituras rotuladas por ambiente. Nao le nenhuma tabela: fala
    apenas com a funcao enviar_leitura, que valida no banco. */
 
+/* Fila offline. A leitura fica no celular com a hora da captura e sobe
+   quando houver rede — na hora, ao voltar a rede, ou em outro dia. */
+const FILA = 'agc2_fila_leituras'
+const lerFila = () => { try { return JSON.parse(localStorage.getItem(FILA) || '[]') } catch (e) { return [] } }
+const gravarFila = f => { try { localStorage.setItem(FILA, JSON.stringify(f)) } catch (e) {} }
+const ehErroDeRede = e => !e?.code && /fetch|network|conex|Failed|load/i.test(String(e?.message || e))
+
+async function postar(item) {
+  const { data, error } = await supabase.rpc('enviar_leitura', {
+    p_codigo: item.codigo, p_matricula: item.matricula,
+    p_lat: item.lat, p_lon: item.lon,
+    p_acuracia: item.acc, p_altitude: item.alt, p_alt_acuracia: item.altAcc,
+    p_rotulo: item.rotulo, p_utm_n: item.utmN, p_utm_e: item.utmE, p_dist_perc: item.distPerc,
+    p_capturado_em: item.capturado_em
+  })
+  if (error) throw error
+  return data
+}
+
 const AMBIENTES = [
   { k: 'sala', rotulo: 'Dentro da sala', emoji: '🏫' },
   { k: 'corredor', rotulo: 'Corredor', emoji: '🚪' },
@@ -25,9 +44,38 @@ export default function Aluno() {
   const [enviando, setEnviando] = useState(false)
   const [enviadas, setEnviadas] = useState(0)
   const [placar, setPlacar] = useState(null)
+  const [naFila, setNaFila] = useState(() => lerFila().length)
+  const [online, setOnline] = useState(navigator.onLine)
   const watchRef = useRef(null), t0 = useRef(0), ttff = useRef(null), autoRef = useRef(false)
 
   useEffect(() => () => { if (watchRef.current != null) navigator.geolocation.clearWatch(watchRef.current) }, [])
+
+  // sobe a fila: ao abrir, quando a rede volta, e de 30 em 30 s
+  async function esvaziarFila() {
+    const fila = lerFila()
+    if (!fila.length || !navigator.onLine) return
+    const resto = []
+    for (const item of fila) {
+      try {
+        const d = await postar(item)
+        if (d?.ok) { setPlacar({ meu: d.meu_melhor, turma: d.melhor_turma, alunos: d.alunos }); if (d.nome) setNome(d.nome) }
+        // ok:false (código/matrícula inválidos) não volta para a fila: não vai passar nunca
+      } catch (e) {
+        if (ehErroDeRede(e)) { resto.push(item); break }
+      }
+    }
+    gravarFila(resto); setNaFila(resto.length)
+    const subiu = fila.length - resto.length
+    if (subiu > 0) { setAviso(subiu + ' leitura(s) da fila enviada(s)'); setTimeout(() => setAviso(''), 3000) }
+  }
+  useEffect(() => {
+    const on = () => { setOnline(true); esvaziarFila() }
+    const off = () => setOnline(false)
+    window.addEventListener('online', on); window.addEventListener('offline', off)
+    esvaziarFila()
+    const it = setInterval(esvaziarFila, 30000)
+    return () => { window.removeEventListener('online', on); window.removeEventListener('offline', off); clearInterval(it) }
+  }, [])
 
   function entrar(e) {
     e.preventDefault()
@@ -73,22 +121,25 @@ export default function Aluno() {
     const pp = posArg || pos
     if (!pp || enviando) return
     setEnviando(true); setErro(''); setAviso('')
+    const item = { codigo: codigo.trim(), matricula: matricula.trim(), rotulo, ...pp, capturado_em: new Date().toISOString() }
     try {
-      const { data, error } = await supabase.rpc('enviar_leitura', {
-        p_codigo: codigo.trim(), p_matricula: matricula.trim(),
-        p_lat: pp.lat, p_lon: pp.lon,
-        p_acuracia: pp.acc, p_altitude: pp.alt, p_alt_acuracia: pp.altAcc,
-        p_rotulo: rotulo, p_utm_n: pp.utmN, p_utm_e: pp.utmE, p_dist_perc: pp.distPerc
-      })
-      if (error) throw error
+      const data = await postar(item)
       if (!data?.ok) { setErro(data?.erro || 'Não consegui registrar.'); return }
       setNome(data.nome || '')
       setEnviadas(data.n || (enviadas + 1))
       setPlacar({ meu: data.meu_melhor, turma: data.melhor_turma, alunos: data.alunos })
-      setAviso(rotulo === 'registro' ? (data.presenca ? 'Presença registrada ✓' : 'Leitura de registro enviada') : 'Leitura enviada — ' + rotulo)
-      setTimeout(() => setAviso(''), 2500)
+      if (rotulo === 'registro') {
+        setAviso(data.presenca ? 'Presença registrada ✓'
+          : data.motivo === 'fora_da_janela' ? 'Registro enviado fora do horário da aula — a professora decide a presença'
+          : 'Leitura de registro enviada')
+      } else setAviso('Leitura enviada — ' + rotulo)
+      setTimeout(() => setAviso(''), 3500)
     } catch (e) {
-      setErro('Falhou o envio: ' + (e.message || 'sem conexão'))
+      if (ehErroDeRede(e)) {
+        const f = lerFila(); f.push(item); gravarFila(f); setNaFila(f.length)
+        setAviso('Sem rede: leitura guardada no celular. Sobe sozinha quando tiver conexão.')
+        setTimeout(() => setAviso(''), 4000)
+      } else setErro('Falhou o envio: ' + (e.message || 'erro'))
     } finally { setEnviando(false) }
   }
 
@@ -122,6 +173,8 @@ export default function Aluno() {
         {nome && <span className="sub">oi, {nome}</span>}
         <span className="spacer" />
         {enviadas > 0 && <span className="badge on">{enviadas} enviada{enviadas > 1 ? 's' : ''}</span>}
+        {naFila > 0 && <span className="badge off">{naFila} na fila</span>}
+        {!online && <span className="badge off">sem rede</span>}
       </header>
 
       <div className="panel">
