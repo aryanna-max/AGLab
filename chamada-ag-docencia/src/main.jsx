@@ -1,9 +1,14 @@
 import React from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App.jsx'
+import Aluno from './Aluno.jsx'
 import './styles.css'
 
-createRoot(document.getElementById('root')).render(<App />)
+// A tela do aluno não passa por login: /aluno ou qualquer URL com ?aula=CODIGO
+const ehAluno = location.pathname.replace(/\/+$/, '').endsWith('/aluno') ||
+  new URLSearchParams(location.search).has('aula')
+
+createRoot(document.getElementById('root')).render(ehAluno ? <Aluno /> : <App />)
 
 /* Atualização do app.
 

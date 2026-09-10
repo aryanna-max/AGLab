@@ -216,6 +216,38 @@ export async function listarLeituras(limite = 60) {
   return data
 }
 
+/* ---------- sessão de coleta (aula prática) ---------- */
+export async function abrirSessao(userId, turmaId, codigo, titulo) {
+  const { data, error } = await supabase.from('sessoes_coleta')
+    .insert({ owner_id: userId, turma_id: turmaId, codigo: codigo.toUpperCase(), titulo })
+    .select('id,codigo,aberta,criada_em,expira_em').single()
+  if (error) throw error
+  return data
+}
+
+export async function sessoesAbertas(turmaId) {
+  const { data, error } = await supabase.from('sessoes_coleta')
+    .select('id,codigo,titulo,aberta,criada_em,expira_em')
+    .eq('turma_id', turmaId).order('criada_em', { ascending: false }).limit(5)
+  if (error) throw error
+  return data
+}
+
+export async function fecharSessao(id) {
+  const { error } = await supabase.from('sessoes_coleta').update({ aberta: false }).eq('id', id)
+  if (error) throw error
+}
+
+/* Leituras da sessão, já com o nome do aluno — a professora enxerga tudo
+   pelo RLS dela; o aluno nunca lê esta tabela. */
+export async function leiturasDaSessao(sessaoId) {
+  const { data, error } = await supabase.from('leituras_gps')
+    .select('id,rotulo,acuracia_m,alt_acuracia_m,altitude_m,dist_perc_m,criado_em,aluno_id,alunos(nome,matricula)')
+    .eq('sessao_id', sessaoId).order('criado_em', { ascending: false })
+  if (error) throw error
+  return data
+}
+
 /* ---------- resumo ---------- */
 export async function resumoTurma(turmaId) {
   const { data: chs, error } = await supabase

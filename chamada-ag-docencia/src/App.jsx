@@ -130,7 +130,7 @@ function Main({ session }) {
             {tab === 'turmas' && <TurmasFotos turmas={turmas} refresh={refresh} showToast={showToast} online={online} />}
             {tab === 'conferir' && <Conferir userId={userId} turmas={turmas} online={online} setPending={setPending} showToast={showToast} />}
             {tab === 'resumo' && <Resumo turmas={turmas} showToast={showToast} />}
-            {tab === 'posicao' && <Posicao userId={userId} online={online} showToast={showToast} />}
+            {tab === 'posicao' && <><ColetaTurma userId={userId} turmas={turmas} online={online} showToast={showToast} /><Posicao userId={userId} online={online} showToast={showToast} /></>}
           </>}
 
       {toast && <div className="toast">{toast}</div>}
@@ -409,6 +409,120 @@ function Posicao({ userId, online, showToast }) {
         </div>
       </div>}
     </>
+  )
+}
+
+/* ---------- COLETA DA TURMA (aula prática) ---------- */
+function ColetaTurma({ userId, turmas, online, showToast }) {
+  const [tid, setTid] = useState(turmas[0]?.id || '')
+  const [codigo, setCodigo] = useState('F19GPS')
+  const [sessao, setSessao] = useState(null)
+  const [linhas, setLinhas] = useState([])
+  const [busy, setBusy] = useState(false)
+
+  const linkAluno = sessao ? `${location.origin}/?aula=${encodeURIComponent(sessao.codigo)}` : ''
+  const qr = sessao ? qrDataUrl(linkAluno, 190) : null
+
+  useEffect(() => {
+    if (!tid || !online) return
+    store.sessoesAbertas(tid).then(s => setSessao(s?.find(x => x.aberta) || null)).catch(() => {})
+  }, [tid, online])
+
+  // atualiza as leituras enquanto a sessão estiver aberta
+  useEffect(() => {
+    if (!sessao?.id || !online) return
+    let vivo = true
+    const puxa = () => store.leiturasDaSessao(sessao.id).then(d => vivo && setLinhas(d)).catch(() => {})
+    puxa()
+    const it = setInterval(puxa, 5000)
+    return () => { vivo = false; clearInterval(it) }
+  }, [sessao, online])
+
+  async function abrir() {
+    if (!tid) { showToast('Selecione a turma'); return }
+    if (!codigo.trim()) { showToast('Defina um código'); return }
+    setBusy(true)
+    try {
+      const t = turmas.find(x => x.id === tid)
+      setSessao(await store.abrirSessao(userId, tid, codigo.trim(), t?.nome || null))
+      showToast('Sessão aberta')
+    } catch (e) {
+      showToast(e.message?.includes('duplicate') ? 'Esse código já existe. Use outro.' : 'Erro: ' + e.message)
+    } finally { setBusy(false) }
+  }
+  async function fechar() {
+    if (!sessao) return
+    try { await store.fecharSessao(sessao.id); setSessao({ ...sessao, aberta: false }); showToast('Sessão encerrada') }
+    catch (e) { showToast('Erro ao encerrar') }
+  }
+
+  // média de acurácia por ambiente — é o resultado do experimento
+  const porAmbiente = ['sala', 'corredor', 'patio'].map(k => {
+    const ls = linhas.filter(l => l.rotulo === k && l.acuracia_m != null)
+    const med = ls.length ? ls.reduce((s, l) => s + l.acuracia_m, 0) / ls.length : null
+    return { k, n: ls.length, med }
+  })
+  const alunosDistintos = new Set(linhas.map(l => l.aluno_id)).size
+
+  return (
+    <div className="panel">
+      <h2>Aula prática — coleta da turma</h2>
+      <p className="hint">Os alunos entram pelo celular sem conta: só o código da aula e a matrícula.</p>
+
+      {!sessao?.aberta && <>
+        <div className="row">
+          <div><label className="fld">Turma</label>
+            <select value={tid} onChange={e => setTid(e.target.value)}>
+              {turmas.map(x => <option key={x.id} value={x.id}>{x.nome}</option>)}
+            </select></div>
+          <div><label className="fld">Código da aula</label>
+            <input value={codigo} onChange={e => setCodigo(e.target.value.toUpperCase())} maxLength={12} /></div>
+        </div>
+        <div className="btnrow"><button className="btn" onClick={abrir} disabled={busy || !online}>Abrir sessão</button></div>
+      </>}
+
+      {sessao?.aberta && <>
+        <div className="codigo-box">
+          <div className="cb-lab">Código da aula — projete esta tela</div>
+          <div className="cb-cod">{sessao.codigo}</div>
+          {qr && <img className="cb-qr" src={qr} alt="" />}
+          <div className="cb-link">{linkAluno}</div>
+        </div>
+        <div className="count-strip" style={{ marginTop: 12 }}>
+          <div className="c ok"><div className="n">{linhas.length}</div><div className="l">leituras</div></div>
+          <div className="c"><div className="n">{alunosDistintos}</div><div className="l">alunos</div></div>
+        </div>
+
+        <div className="scrollx" style={{ marginTop: 12 }}>
+          <table className="matrix"><thead><tr>
+            <th className="nm">Ambiente</th><th>Leituras</th><th>Acurácia média</th>
+          </tr></thead><tbody>
+            {porAmbiente.map(a => <tr key={a.k}>
+              <td className="nm">{a.k === 'sala' ? 'Dentro da sala' : a.k === 'corredor' ? 'Corredor' : 'Pátio'}</td>
+              <td>{a.n}</td>
+              <td className={a.med != null ? (a.k === 'patio' ? 'P' : 'F') : ''}>{a.med != null ? '± ' + metros(a.med, 1) + ' m' : '—'}</td>
+            </tr>)}
+          </tbody></table>
+        </div>
+        <p className="note">É este o resultado do experimento: a mesma turma, os mesmos satélites, três ambientes.</p>
+
+        <div className="btnrow"><button className="btn ghost" onClick={fechar}>Encerrar sessão</button></div>
+      </>}
+
+      {linhas.length > 0 && <div className="scrollx" style={{ marginTop: 14 }}>
+        <table className="matrix"><thead><tr>
+          <th className="nm">Aluno</th><th>Onde</th><th>± horiz.</th><th>± vert.</th><th>Hora</th>
+        </tr></thead><tbody>
+          {linhas.slice(0, 40).map(l => <tr key={l.id}>
+            <td className="nm">{l.alunos?.nome || '—'}</td>
+            <td>{l.rotulo}</td>
+            <td>{metros(l.acuracia_m, 1)}</td>
+            <td>{l.alt_acuracia_m != null ? metros(l.alt_acuracia_m, 1) : '—'}</td>
+            <td>{new Date(l.criado_em).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</td>
+          </tr>)}
+        </tbody></table>
+      </div>}
+    </div>
   )
 }
 
