@@ -210,3 +210,8 @@ tr.reocup td{opacity:.75;font-style:italic}
 .poli-medida{fill:rgba(46,117,182,.15);stroke:var(--brand2);stroke-width:2.5}
 .poli-v{fill:var(--brand2)}
 .poli-marco{fill:var(--ok)}
+
+/* controle de raio do radar */
+.radar-ctl{margin-top:12px}
+.radar-ctl input[type=range]{width:100%;margin-top:6px;accent-color:var(--brand2)}
+.btn.mini.on{background:var(--brand);color:var(--brand-ink);border-color:var(--brand)}
