@@ -202,8 +202,22 @@ export async function confirmarChamada(chamadaId) {
 
 /* ---------- leituras de GPS (uso didático) ---------- */
 export async function salvarLeitura(userId, dados) {
+  const c = navigator.connection || navigator.mozConnection || navigator.webkitConnection
+  const ua = navigator.userAgent || ''
+  const extra = {
+    plataforma: /iPhone|iPad/.test(ua) ? 'iOS' : /Android/.test(ua) ? 'Android' : 'outro',
+    user_agent: ua.slice(0, 200),
+    tela: `${screen.width}x${screen.height}@${window.devicePixelRatio || 1}`,
+    tipo_conexao: c && c.effectiveType ? c.effectiveType : null,
+    downlink_mbps: c && typeof c.downlink === 'number' ? c.downlink : null,
+    rtt_ms: c && typeof c.rtt === 'number' ? c.rtt : null,
+    app_versao: typeof __BUILD_ID__ !== 'undefined' ? __BUILD_ID__ : null,
+    ...(dados.extra || {})
+  }
+  const { extra: _e, ...campos } = dados
   const { data, error } = await supabase.from('leituras_gps')
-    .insert({ owner_id: userId, ...dados }).select('id,criado_em').single()
+    .insert({ owner_id: userId, ...campos, online_na_captura: navigator.onLine, capturado_em: new Date().toISOString(), extra })
+    .select('id,criado_em').single()
   if (error) throw error
   return data
 }

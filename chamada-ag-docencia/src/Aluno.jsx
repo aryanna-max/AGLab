@@ -20,10 +20,30 @@ async function postar(item) {
     p_lat: item.lat, p_lon: item.lon,
     p_acuracia: item.acc, p_altitude: item.alt, p_alt_acuracia: item.altAcc,
     p_rotulo: item.rotulo, p_utm_n: item.utmN, p_utm_e: item.utmE, p_dist_perc: item.distPerc,
-    p_capturado_em: item.capturado_em
+    p_capturado_em: item.capturado_em,
+    p_online: item.online == null ? null : !!item.online,
+    p_fix_ts: item.fixTs || null,
+    p_extra: item.extra || null
   })
   if (error) throw error
   return data
+}
+
+/* Contexto do aparelho no instante da captura, para pesquisa.
+   Tudo aqui e "o que o navegador consegue dar": no iPhone a Network
+   Information API nao existe (fica nulo), e o user agent e generico. */
+function contextoDoAparelho() {
+  const c = navigator.connection || navigator.mozConnection || navigator.webkitConnection
+  const ua = navigator.userAgent || ''
+  return {
+    plataforma: /iPhone|iPad/.test(ua) ? 'iOS' : /Android/.test(ua) ? 'Android' : 'outro',
+    user_agent: ua.slice(0, 200),
+    tela: `${screen.width}x${screen.height}@${window.devicePixelRatio || 1}`,
+    tipo_conexao: c && c.effectiveType ? c.effectiveType : null,
+    downlink_mbps: c && typeof c.downlink === 'number' ? c.downlink : null,
+    rtt_ms: c && typeof c.rtt === 'number' ? c.rtt : null,
+    app_versao: typeof __BUILD_ID__ !== 'undefined' ? __BUILD_ID__ : null
+  }
 }
 
 const AMBIENTES = [
@@ -47,6 +67,7 @@ export default function Aluno() {
   const [naFila, setNaFila] = useState(() => lerFila().length)
   const [online, setOnline] = useState(navigator.onLine)
   const watchRef = useRef(null), t0 = useRef(0), ttff = useRef(null), autoRef = useRef(false)
+  const nFixRef = useRef(0), melhorRef = useRef(null)
 
   useEffect(() => () => { if (watchRef.current != null) navigator.geolocation.clearWatch(watchRef.current) }, [])
 
@@ -94,11 +115,15 @@ export default function Aluno() {
         if (ttff.current == null) ttff.current = Math.round(performance.now() - t0.current)
         const c = p.coords
         const u = paraUTM25S(c.latitude, c.longitude)
+        nFixRef.current += 1
+        if (melhorRef.current == null || c.accuracy < melhorRef.current) melhorRef.current = c.accuracy
         setPos({
           lat: c.latitude, lon: c.longitude, acc: c.accuracy,
           alt: c.altitude, altAcc: c.altitudeAccuracy,
           utmN: u.n, utmE: u.e,
-          distPerc: distanciaUTM(u.n, u.e, PERC.utmN, PERC.utmE)
+          distPerc: distanciaUTM(u.n, u.e, PERC.utmN, PERC.utmE),
+          fixTs: p.timestamp ? new Date(p.timestamp).toISOString() : null,
+          rumo: c.heading, velocidade: c.speed
         })
         setErro('')
         // o registro da aula e automatico: a primeira fixacao ja vira amostra
@@ -106,7 +131,9 @@ export default function Aluno() {
           autoRef.current = true
           const leitura = { lat: c.latitude, lon: c.longitude, acc: c.accuracy, alt: c.altitude,
             altAcc: c.altitudeAccuracy, utmN: u.n, utmE: u.e,
-            distPerc: distanciaUTM(u.n, u.e, PERC.utmN, PERC.utmE) }
+            distPerc: distanciaUTM(u.n, u.e, PERC.utmN, PERC.utmE),
+            fixTs: p.timestamp ? new Date(p.timestamp).toISOString() : null,
+            rumo: c.heading, velocidade: c.speed }
           enviar('registro', leitura)
         }
       },
@@ -121,7 +148,19 @@ export default function Aluno() {
     const pp = posArg || pos
     if (!pp || enviando) return
     setEnviando(true); setErro(''); setAviso('')
-    const item = { codigo: codigo.trim(), matricula: matricula.trim(), rotulo, ...pp, capturado_em: new Date().toISOString() }
+    const item = {
+      codigo: codigo.trim(), matricula: matricula.trim(), rotulo, ...pp,
+      capturado_em: new Date().toISOString(),
+      online: navigator.onLine,                 // no instante da captura, nao do envio
+      extra: {
+        ...contextoDoAparelho(),
+        ttff_ms: ttff.current,
+        n_fixes_antes: Math.max(0, nFixRef.current - 1),
+        melhor_acuracia_sessao: melhorRef.current,
+        rumo: pp.rumo == null || Number.isNaN(pp.rumo) ? null : pp.rumo,
+        velocidade: pp.velocidade == null || Number.isNaN(pp.velocidade) ? null : pp.velocidade
+      }
+    }
     try {
       const data = await postar(item)
       if (!data?.ok) { setErro(data?.erro || 'Não consegui registrar.'); return }
