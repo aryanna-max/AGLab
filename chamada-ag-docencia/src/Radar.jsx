@@ -3,7 +3,7 @@ import * as store from './lib/store'
 import { paraUTM25S } from './lib/geo'
 
 /* Radar da professora: quem está por perto, como bolinhas com foto.
-   - aceso (anel verde pulsando): mandou batimento nos últimos 90 s — está com o Meu GPS ou a Chamada aberta
+   - aceso (anel verde pulsando): mandou batimento nos últimos 90 s — está com o Orbe ou a Chamada aberta
    - apagado (anel cinza): marcou presença hoje, mas não está transmitindo agora
    - quem não fez nenhum dos dois não aparece
    Centro: a posição do celular da professora; se negada, o Bloco F. Norte para cima.
@@ -113,7 +113,7 @@ export default function Radar({ userId, turmas, online, showToast }) {
   return (
     <div className="panel">
       <h2>Radar — quem está por perto</h2>
-      <p className="hint">Aceso: está com o Meu GPS ou a Chamada aberta agora. Apagado: marcou presença hoje, mas não está transmitindo.</p>
+      <p className="hint">Aceso: está com o Orbe ou a Chamada aberta agora. Apagado: marcou presença hoje, mas não está transmitindo.</p>
       <label className="fld">Turma</label>
       <select value={tid} onChange={e => setTid(e.target.value)}>{turmas.map(x => <option key={x.id} value={x.id}>{x.nome}</option>)}</select>
 

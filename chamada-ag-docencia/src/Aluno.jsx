@@ -10,7 +10,7 @@ import Orbe from './Orbe.jsx'
    Dois cards:
    - CHAMADA: lê o QR do dia com a câmera. A leitura É a chamada. Presença só
      nasce aqui, e só dentro da janela da aula (decidido no servidor).
-   - MEU GPS: mede a posição a qualquer hora. Nunca marca presença.
+   - ORBE: mede a posição a qualquer hora. Nunca marca presença.
 
    Os dois levam à mesma tela de medição, mas a confirmação de presença fica
    FIXA na tela e volta se ele reabrir o app no mesmo dia.
@@ -21,7 +21,7 @@ import Orbe from './Orbe.jsx'
 const K_IDENT = 'agc2_ident'            // {alunoId, matricula, nome, turma}
 const K_PRES = 'agc2_presenca_dia'      // {data, codigo, hora, local, turma, fora}
 const K_FILA = 'agc2_fila_leituras'
-export const NOME_GPS = 'Meu GPS'       // o card de medição. O nome é a 1ª lição: não é GPS, é GNSS
+export const NOME_GPS = 'Orbe'          // o card de medição tem o nome do app (decisão dela, 10/09)
 
 const hojeISO = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` }
 const ler = (k, def) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : def } catch (e) { return def } }
