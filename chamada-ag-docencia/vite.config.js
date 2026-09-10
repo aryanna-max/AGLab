@@ -28,6 +28,18 @@ export default defineConfig({
         navigateFallback: 'index.html',
         runtimeCaching: [
           {
+            // Fotos dos alunos: a URL assinada aponta para um arquivo que não muda,
+            // então CacheFirst. É o que garante a foto na tela sem rede, em sala.
+            // Precisa vir antes da regra geral: a primeira que casar é a que vale.
+            urlPattern: ({ url }) => url.href.includes('/storage/v1/object/'),
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'fotos-alunos',
+              expiration: { maxEntries: 400, maxAgeSeconds: 60 * 60 * 24 * 30 },
+              cacheableResponse: { statuses: [0, 200] }
+            }
+          },
+          {
             urlPattern: ({ url }) => url.href.includes('supabase.co'),
             handler: 'NetworkFirst',
             options: { cacheName: 'supabase-api', networkTimeoutSeconds: 5 }

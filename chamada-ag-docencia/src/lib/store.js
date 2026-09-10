@@ -3,6 +3,13 @@ import { SEED } from '../seed'
 
 const CACHE_TURMAS = 'agc2_turmas_cache'
 const OUTBOX = 'agc2_outbox'
+const URLCACHE = 'agc2_foto_urls'
+
+/* Fotos ficam no Storage (bucket privado), não na linha da tabela.
+   Caminho: <owner_id>/<aluno_id>.jpg — casa com a policy do bucket. */
+const BUCKET = 'fotos'
+const SIGNED_TTL = 60 * 60 * 24 * 30   // URL assinada vale 30 dias
+const SIGNED_RENEW = 60 * 60 * 24 * 3  // renova quando faltarem menos de 3 dias
 
 /* ---------- cache local (para offline) ---------- */
 export function getCachedTurmas() {
@@ -17,14 +24,76 @@ function getOutbox() { try { return JSON.parse(localStorage.getItem(OUTBOX) || '
 function setOutbox(o) { try { localStorage.setItem(OUTBOX, JSON.stringify(o)) } catch (e) {} }
 export function outboxCount() { return getOutbox().length }
 
+/* ---------- helpers de foto ---------- */
+async function currentUserId() {
+  const { data } = await supabase.auth.getSession()
+  return data && data.session ? data.session.user.id : null
+}
+
+function dataUrlToBlob(dataUrl) {
+  const partes = String(dataUrl).split(',')
+  const mime = (partes[0].match(/data:([^;]+)/) || [])[1] || 'image/jpeg'
+  const bin = atob(partes[1])
+  const arr = new Uint8Array(bin.length)
+  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i)
+  return new Blob([arr], { type: mime })
+}
+
+/* As URLs assinadas são guardadas e reaproveitadas. Isso importa para o
+   offline: se a URL mudasse a cada carga, o service worker nunca acertaria
+   o cache e a foto sumiria sem rede. */
+function getUrlCache() { try { return JSON.parse(localStorage.getItem(URLCACHE) || '{}') } catch (e) { return {} } }
+function setUrlCache(c) { try { localStorage.setItem(URLCACHE, JSON.stringify(c)) } catch (e) {} }
+
+function esquecerUrl(path) {
+  const c = getUrlCache()
+  delete c[path]
+  setUrlCache(c)
+}
+
+/* Preenche aluno.foto com a URL assinada. Alunos que ainda tenham o campo
+   antigo (data URL na tabela) continuam aparecendo, sem migração. */
+async function resolverFotos(alunos) {
+  const cache = getUrlCache()
+  const agora = Math.floor(Date.now() / 1000)
+  const pendentes = []
+
+  for (const a of alunos) {
+    if (!a.foto_path) continue
+    const c = cache[a.foto_path]
+    if (c && c.exp - agora > SIGNED_RENEW) a.foto = c.url
+    else pendentes.push(a.foto_path)
+  }
+
+  if (!pendentes.length) return alunos
+
+  try {
+    const { data, error } = await supabase.storage.from(BUCKET).createSignedUrls(pendentes, SIGNED_TTL)
+    if (error || !data) return alunos
+    for (const item of data) {
+      if (!item || item.error || !item.signedUrl) continue
+      cache[item.path] = { url: item.signedUrl, exp: agora + SIGNED_TTL }
+    }
+    setUrlCache(cache)
+    for (const a of alunos) {
+      if (a.foto_path && cache[a.foto_path]) a.foto = cache[a.foto_path].url
+    }
+  } catch (e) { /* sem rede: fica com o que já houver em cache */ }
+
+  return alunos
+}
+
 /* ---------- carregar turmas + alunos ---------- */
 export async function loadTurmas() {
   const { data: turmas, error } = await supabase
     .from('turmas').select('id,nome,codigo').order('nome')
   if (error) throw error
   const { data: alunos, error: e2 } = await supabase
-    .from('alunos').select('id,turma_id,matricula,nome,foto').order('nome')
+    .from('alunos').select('id,turma_id,matricula,nome,foto,foto_path').order('nome')
   if (e2) throw e2
+
+  await resolverFotos(alunos)
+
   const byT = {}
   turmas.forEach(t => { byT[t.id] = { ...t, alunos: [] } })
   alunos.forEach(a => { if (byT[a.turma_id]) byT[a.turma_id].alunos.push(a) })
@@ -53,8 +122,29 @@ export async function importSeed(userId) {
 
 /* ---------- foto ---------- */
 export async function saveFoto(alunoId, dataUrl) {
-  const { error } = await supabase.from('alunos').update({ foto: dataUrl }).eq('id', alunoId)
+  const uid = await currentUserId()
+  if (!uid) throw new Error('Sessão expirada. Entre novamente para salvar a foto.')
+  const path = uid + '/' + alunoId + '.jpg'
+
+  // string vazia = remover
+  if (!dataUrl) {
+    await supabase.storage.from(BUCKET).remove([path])
+    const { error } = await supabase.from('alunos').update({ foto_path: null, foto: null }).eq('id', alunoId)
+    if (error) throw error
+    esquecerUrl(path)
+    return
+  }
+
+  const blob = dataUrlToBlob(dataUrl)
+  const { error: upErr } = await supabase.storage.from(BUCKET)
+    .upload(path, blob, { contentType: blob.type || 'image/jpeg', upsert: true })
+  if (upErr) throw upErr
+
+  const { error } = await supabase.from('alunos').update({ foto_path: path, foto: null }).eq('id', alunoId)
   if (error) throw error
+
+  // a foto trocou no mesmo caminho: descarta a URL antiga para não servir cache velho
+  esquecerUrl(path)
 }
 
 /* ---------- chamada / presenças ---------- */
