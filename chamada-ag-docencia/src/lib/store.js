@@ -120,6 +120,46 @@ export async function importSeed(userId) {
   }
 }
 
+/* Quais turmas do seed ainda NAO existem (compara pelo codigo).
+   Serve para importar sem duplicar, mesmo ja havendo outras turmas. */
+export async function turmasDoSeedFaltando() {
+  const { data, error } = await supabase.from('turmas').select('codigo')
+  if (error) throw error
+  const tem = new Set((data || []).map(t => t.codigo))
+  return Object.keys(SEED).filter(k => !tem.has(k)).map(k => ({ codigo: k, nome: SEED[k].nome, alunos: SEED[k].alunos.length }))
+}
+
+/* Importa so as que faltam. Devolve quantas turmas e quantos alunos entraram. */
+export async function importarFaltantes(userId) {
+  const faltam = await turmasDoSeedFaltando()
+  let alunos = 0
+  for (const f of faltam) {
+    const s = SEED[f.codigo]
+    const { data: t, error } = await supabase
+      .from('turmas').insert({ owner_id: userId, nome: s.nome, codigo: f.codigo }).select('id').single()
+    if (error) throw error
+    const rows = s.alunos.map(a => ({ owner_id: userId, turma_id: t.id, matricula: a.matricula || null, nome: a.nome }))
+    for (let i = 0; i < rows.length; i += 200) {
+      const { error: er } = await supabase.from('alunos').insert(rows.slice(i, i + 200))
+      if (er) throw er
+    }
+    alunos += rows.length
+  }
+  return { turmas: faltam.length, alunos }
+}
+
+/* Apaga a turma. As fotos no Storage saem junto; alunos, chamadas, presencas
+   e leituras caem por cascata no banco. */
+export async function apagarTurma(turmaId) {
+  const uid = await currentUserId()
+  const { data: alunos } = await supabase.from('alunos').select('foto_path').eq('turma_id', turmaId)
+  const paths = (alunos || []).map(a => a.foto_path).filter(Boolean)
+  if (paths.length) { try { await supabase.storage.from(BUCKET).remove(paths) } catch (e) {} }
+  const { error } = await supabase.from('turmas').delete().eq('id', turmaId)
+  if (error) throw error
+  try { localStorage.removeItem(CACHE_TURMAS) } catch (e) {}
+}
+
 /* ---------- foto ---------- */
 export async function saveFoto(alunoId, dataUrl) {
   const uid = await currentUserId()

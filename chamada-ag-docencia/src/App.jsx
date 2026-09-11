@@ -132,7 +132,7 @@ function Main({ session }) {
         turmas.length === 0 ? <SeedPanel userId={userId} onDone={refresh} showToast={showToast} /> :
           <>
             {tab === 'chamada' && <Chamada userId={userId} turmas={turmas} turmasMap={turmasMap} online={online} setPending={setPending} showToast={showToast} goConferir={() => setTab('conferir')} />}
-            {tab === 'turmas' && <TurmasFotos turmas={turmas} refresh={refresh} showToast={showToast} online={online} />}
+            {tab === 'turmas' && <><GerenciarTurmas userId={userId} turmas={turmas} refresh={refresh} showToast={showToast} online={online} /><TurmasFotos turmas={turmas} refresh={refresh} showToast={showToast} online={online} /></>}
             {tab === 'conferir' && <Conferir userId={userId} turmas={turmas} online={online} setPending={setPending} showToast={showToast} />}
             {tab === 'resumo' && <Resumo turmas={turmas} showToast={showToast} />}
             {tab === 'radar' && <Radar userId={userId} turmas={turmas} online={online} showToast={showToast} />}
@@ -140,6 +140,70 @@ function Main({ session }) {
           </>}
 
       {toast && <div className="toast">{toast}</div>}
+    </div>
+  )
+}
+
+/* ---------- gerenciar turmas (importar as que faltam · apagar) ---------- */
+function GerenciarTurmas({ userId, turmas, refresh, showToast, online }) {
+  const [faltam, setFaltam] = useState(null)
+  const [busy, setBusy] = useState(false)
+  const [confirmar, setConfirmar] = useState(null)   // turma escolhida para apagar
+  const [texto, setTexto] = useState('')
+
+  const carregar = useCallback(() => {
+    if (!online) return
+    store.turmasDoSeedFaltando().then(setFaltam).catch(() => setFaltam(null))
+  }, [online])
+  useEffect(() => { carregar() }, [carregar, turmas.length])
+
+  async function importar() {
+    setBusy(true)
+    try { const r = await store.importarFaltantes(userId); showToast(`${r.turmas} turma(s) e ${r.alunos} aluno(s) importados`); refresh(); carregar() }
+    catch (e) { alert('Erro ao importar: ' + e.message) }
+    finally { setBusy(false) }
+  }
+  async function apagar() {
+    if (!confirmar) return
+    setBusy(true)
+    try { await store.apagarTurma(confirmar.id); showToast('Turma apagada'); setConfirmar(null); setTexto(''); refresh(); carregar() }
+    catch (e) { alert('Erro ao apagar: ' + e.message) }
+    finally { setBusy(false) }
+  }
+
+  return (
+    <div className="panel">
+      <h2>Turmas</h2>
+      <p className="hint">Importar as turmas de 2026.2 preparadas no app, e apagar as que não servem mais.</p>
+
+      {!online && <p className="note" style={{ color: 'var(--miss)' }}>Offline — conecte-se para importar ou apagar.</p>}
+
+      {faltam && faltam.length > 0 && <>
+        <div className="scrollx"><table className="matrix"><thead><tr><th className="nm">Falta importar</th><th>alunos</th></tr></thead>
+          <tbody>{faltam.map(f => <tr key={f.codigo}><td className="nm">{f.nome}</td><td>{f.alunos}</td></tr>)}</tbody></table></div>
+        <div className="btnrow"><button className="btn" disabled={busy || !online} onClick={importar}>
+          {busy ? 'Importando…' : `Importar ${faltam.length} turma(s) · ${faltam.reduce((s, f) => s + f.alunos, 0)} alunos`}</button></div>
+      </>}
+      {faltam && faltam.length === 0 && <p className="note">As 3 turmas de 2026.2 já estão importadas.</p>}
+
+      <label className="fld" style={{ marginTop: 14 }}>Turmas neste app</label>
+      <ul className="people">
+        {turmas.map(t => <li key={t.id}>
+          <span className="left"><span className="who"><span>{t.nome}</span><span className="m">{t.alunos.length} aluno(s)</span></span></span>
+          <button className="btn danger mini" disabled={busy || !online} onClick={() => { setConfirmar(t); setTexto('') }}>Apagar</button>
+        </li>)}
+      </ul>
+
+      {confirmar && <div className="panel" style={{ borderColor: 'var(--miss)', marginTop: 12 }}>
+        <h2 style={{ color: 'var(--miss)' }}>Apagar “{confirmar.nome}”?</h2>
+        <p className="hint">Isso apaga <b>{confirmar.alunos.length} aluno(s)</b>, com as fotos, chamadas, presenças e leituras de GPS dessa turma. Não dá para desfazer.</p>
+        <label className="fld">Para confirmar, escreva <b>APAGAR</b></label>
+        <input value={texto} onChange={e => setTexto(e.target.value.toUpperCase())} placeholder="APAGAR" autoCorrect="off" />
+        <div className="btnrow">
+          <button className="btn danger" disabled={texto !== 'APAGAR' || busy} onClick={apagar}>{busy ? 'Apagando…' : 'Apagar definitivamente'}</button>
+          <button className="btn ghost" onClick={() => { setConfirmar(null); setTexto('') }}>Cancelar</button>
+        </div>
+      </div>}
     </div>
   )
 }
