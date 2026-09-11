@@ -523,7 +523,7 @@ function Posicao({ userId, online, showToast }) {
 /* ---------- COLETA DA TURMA (aula prática) ---------- */
 function ColetaTurma({ userId, turmas, online, showToast }) {
   const [tid, setTid] = useState(turmas[0]?.id || '')
-  const [codigo, setCodigo] = useState('F19GPS')
+  const [codigo, setCodigo] = useState('')
   const [tempo, setTempo] = useState('ensolarado')
   const [local, setLocal] = useState('sala')
   const [hIni, setHIni] = useState('12:50')
@@ -535,10 +535,22 @@ function ColetaTurma({ userId, turmas, online, showToast }) {
   const linkAluno = sessao ? `${location.origin}/?aula=${encodeURIComponent(sessao.codigo)}` : ''
   const qr = sessao ? qrDataUrl(linkAluno, 190) : null
 
+  // código sugerido a partir da turma: F61RC -> F61GPS
+  const sugerir = t => { const m = String(t?.codigo || '').match(/([a-z]\d{2})[a-z]{2}/i); return m ? m[1].toUpperCase() + 'GPS' : 'AULA' }
+  useEffect(() => { const t = turmas.find(x => x.id === tid); if (t) setCodigo(sugerir(t)) }, [tid])
+
   useEffect(() => {
     if (!tid || !online) return
     store.sessoesAbertas(tid).then(s => setSessao(s?.find(x => x.aberta) || null)).catch(() => {})
   }, [tid, online])
+
+  // sessões abertas hoje nas OUTRAS turmas, para não parecer que não há nenhuma
+  const [outras, setOutras] = useState([])
+  useEffect(() => {
+    if (!online) return
+    Promise.all(turmas.map(t => store.sessoesAbertas(t.id).then(ss => (ss || []).filter(x => x.aberta).map(x => ({ ...x, turma: t })))))
+      .then(r => setOutras(r.flat().filter(x => x.turma.id !== tid))).catch(() => {})
+  }, [tid, online, turmas.length])
 
   // atualiza as leituras enquanto a sessão estiver aberta
   useEffect(() => {
@@ -617,6 +629,9 @@ function ColetaTurma({ userId, turmas, online, showToast }) {
               <option value="chuva">🌧️ Chuva</option>
             </select></div>
         </div>
+        {outras.length > 0 && <p className="note" style={{ color: 'var(--brand2)' }}>
+          Já há aula aberta em: {outras.map(o => <b key={o.id}>{o.turma.nome} ({o.codigo}) </b>)} — troque a turma acima para ver o QR dela.
+        </p>}
         <p className="note">Presença automática só para registros feitos <b>dentro da janela</b>, pelo relógio do servidor. O que subir depois entra como amostra e aparece como falta — a decisão final é sua, na aba Chamada.</p>
         <div className="btnrow"><button className="btn" onClick={abrir} disabled={busy || !online}>Abrir sessão</button></div>
       </>}
