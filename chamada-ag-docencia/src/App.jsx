@@ -6,6 +6,7 @@ import { PERC, M0452, paraUTM25S, distanciaUTM, grausMinSeg, metros, vezesPiorQu
 import { gravarPerfil } from './Escolha.jsx'
 import Radar from './Radar.jsx'
 import { marcoPorNome } from './lib/topo'
+import { baixarCartao, compartilharCartao } from './lib/cartao'
 
 /* ---------- utils ---------- */
 const todayISO = () => { const d = new Date(); const m = String(d.getMonth() + 1).padStart(2, '0'); const dd = String(d.getDate()).padStart(2, '0'); return `${d.getFullYear()}-${m}-${dd}` }
@@ -131,90 +132,17 @@ function Main({ session }) {
       {loading ? <div className="spin">Carregando turmas…</div> :
         turmas.length === 0 ? <SeedPanel userId={userId} onDone={refresh} showToast={showToast} /> :
           <>
-            {tab === 'chamada' && <Chamada userId={userId} turmas={turmas} turmasMap={turmasMap} online={online} setPending={setPending} showToast={showToast} goConferir={() => setTab('conferir')} />}
+            {tab === 'chamada' && <><ColetaTurma userId={userId} turmas={turmas} online={online} showToast={showToast} /><Chamada userId={userId} turmas={turmas} turmasMap={turmasMap} online={online} setPending={setPending} showToast={showToast} goConferir={() => setTab('conferir')} /></>}
             {tab === 'turmas' && <><GerenciarTurmas userId={userId} turmas={turmas} refresh={refresh} showToast={showToast} online={online} /><TurmasFotos turmas={turmas} refresh={refresh} showToast={showToast} online={online} /></>}
             {tab === 'conferir' && <Conferir userId={userId} turmas={turmas} online={online} setPending={setPending} showToast={showToast} />}
             {tab === 'resumo' && <Resumo turmas={turmas} showToast={showToast} />}
             {tab === 'radar' && <Radar userId={userId} turmas={turmas} online={online} showToast={showToast} />}
-            {tab === 'posicao' && <><ColetaTurma userId={userId} turmas={turmas} online={online} showToast={showToast} /><Posicao userId={userId} online={online} showToast={showToast} /><PinsTurma turmas={turmas} online={online} /></>}
+            {tab === 'posicao' && <><Posicao userId={userId} online={online} showToast={showToast} /><PinsTurma turmas={turmas} online={online} /></>}
           </>}
 
       {toast && <div className="toast">{toast}</div>}
     </div>
   )
-}
-
-/* ---------- cartão do aluno em PNG (para baixar ou compartilhar) ---------- */
-const FONTE = 'system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif'
-
-function ajustarFonte(c, txt, maxW, tamInicial, peso) {
-  let t = tamInicial
-  for (;;) {
-    c.font = `${peso} ${t}px ${FONTE}`
-    if (c.measureText(txt).width <= maxW || t <= 13) break
-    t -= 1
-  }
-}
-
-function desenharCartao(aluno, turma) {
-  const W = 640, H = 880
-  const cv = document.createElement('canvas'); cv.width = W; cv.height = H
-  const c = cv.getContext('2d')
-  c.fillStyle = '#ffffff'; c.fillRect(0, 0, W, H)
-  c.strokeStyle = '#1f4e79'; c.lineWidth = 8; c.strokeRect(18, 18, W - 36, H - 36)
-  c.textAlign = 'center'
-
-  c.fillStyle = '#1f4e79'; c.font = `800 36px ${FONTE}`
-  c.fillText('Orbe', W / 2, 86)
-  c.fillStyle = '#5b6069'; c.font = `500 20px ${FONTE}`
-  c.fillText('Topografia · IFPE', W / 2, 116)
-
-  const lado = 420
-  const qr = makeQRCanvas(`${QR_PREFIX};${turma.id};${aluno.id}`, lado)
-  if (qr) c.drawImage(qr, (W - lado) / 2, 150, lado, lado)
-
-  let y = 150 + lado + 62
-  c.fillStyle = '#1a1c1f'; ajustarFonte(c, aluno.nome, W - 90, 34, '700')
-  c.fillText(aluno.nome, W / 2, y)
-  if (aluno.matricula) {
-    y += 40; c.fillStyle = '#5b6069'; c.font = `500 24px ${FONTE}`
-    c.fillText('Mat. ' + aluno.matricula, W / 2, y)
-  }
-  y += 36; c.fillStyle = '#5b6069'; ajustarFonte(c, turma.nome, W - 90, 20, '500')
-  c.fillText(turma.nome, W / 2, y)
-
-  c.fillStyle = '#8a9099'; c.font = `500 17px ${FONTE}`
-  c.fillText('Mostre este QR para a professora registrar sua presença', W / 2, H - 46)
-  return cv
-}
-
-function nomeArquivo(aluno) {
-  const base = (aluno.matricula || aluno.nome).replace(/[^\w\-. ]+/g, '').trim()
-  return `QR ${base}.png`
-}
-
-function baixarCartao(aluno, turma) {
-  desenharCartao(aluno, turma).toBlob(b => {
-    const url = URL.createObjectURL(b)
-    const a = document.createElement('a'); a.href = url; a.download = nomeArquivo(aluno)
-    document.body.appendChild(a); a.click(); document.body.removeChild(a)
-    setTimeout(() => URL.revokeObjectURL(url), 3000)
-  }, 'image/png')
-}
-
-// No celular, compartilhar é melhor que baixar: abre a folha do sistema e
-// permite mandar direto pelo WhatsApp ou salvar em Fotos.
-function compartilharCartao(aluno, turma, aoFalhar) {
-  desenharCartao(aluno, turma).toBlob(async b => {
-    try {
-      const f = new File([b], nomeArquivo(aluno), { type: 'image/png' })
-      if (navigator.canShare && navigator.canShare({ files: [f] })) {
-        await navigator.share({ files: [f], title: 'QR de ' + aluno.nome })
-        return
-      }
-    } catch (e) { if (e && e.name === 'AbortError') return }
-    aoFalhar && aoFalhar()
-  }, 'image/png')
 }
 
 /* ---------- gerenciar turmas (importar as que faltam · apagar) ---------- */
@@ -661,8 +589,8 @@ function ColetaTurma({ userId, turmas, online, showToast }) {
 
   return (
     <div className="panel">
-      <h2>Aula prática — coleta da turma</h2>
-      <p className="hint">Os alunos entram pelo celular sem conta: só o código da aula e a matrícula.</p>
+      <h2>QR da aula de hoje</h2>
+      <p className="hint">Abra a aula e <b>projete esta tela</b>: é lendo este QR que o aluno registra presença, no horário da aula. Ele também alimenta a coleta de posição.</p>
 
       {!sessao?.aberta && <>
         <div className="row">
