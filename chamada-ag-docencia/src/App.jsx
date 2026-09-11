@@ -144,12 +144,88 @@ function Main({ session }) {
   )
 }
 
+/* ---------- cartão do aluno em PNG (para baixar ou compartilhar) ---------- */
+const FONTE = 'system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif'
+
+function ajustarFonte(c, txt, maxW, tamInicial, peso) {
+  let t = tamInicial
+  for (;;) {
+    c.font = `${peso} ${t}px ${FONTE}`
+    if (c.measureText(txt).width <= maxW || t <= 13) break
+    t -= 1
+  }
+}
+
+function desenharCartao(aluno, turma) {
+  const W = 640, H = 880
+  const cv = document.createElement('canvas'); cv.width = W; cv.height = H
+  const c = cv.getContext('2d')
+  c.fillStyle = '#ffffff'; c.fillRect(0, 0, W, H)
+  c.strokeStyle = '#1f4e79'; c.lineWidth = 8; c.strokeRect(18, 18, W - 36, H - 36)
+  c.textAlign = 'center'
+
+  c.fillStyle = '#1f4e79'; c.font = `800 36px ${FONTE}`
+  c.fillText('Orbe', W / 2, 86)
+  c.fillStyle = '#5b6069'; c.font = `500 20px ${FONTE}`
+  c.fillText('Topografia · IFPE', W / 2, 116)
+
+  const lado = 420
+  const qr = makeQRCanvas(`${QR_PREFIX};${turma.id};${aluno.id}`, lado)
+  if (qr) c.drawImage(qr, (W - lado) / 2, 150, lado, lado)
+
+  let y = 150 + lado + 62
+  c.fillStyle = '#1a1c1f'; ajustarFonte(c, aluno.nome, W - 90, 34, '700')
+  c.fillText(aluno.nome, W / 2, y)
+  if (aluno.matricula) {
+    y += 40; c.fillStyle = '#5b6069'; c.font = `500 24px ${FONTE}`
+    c.fillText('Mat. ' + aluno.matricula, W / 2, y)
+  }
+  y += 36; c.fillStyle = '#5b6069'; ajustarFonte(c, turma.nome, W - 90, 20, '500')
+  c.fillText(turma.nome, W / 2, y)
+
+  c.fillStyle = '#8a9099'; c.font = `500 17px ${FONTE}`
+  c.fillText('Mostre este QR para a professora registrar sua presença', W / 2, H - 46)
+  return cv
+}
+
+function nomeArquivo(aluno) {
+  const base = (aluno.matricula || aluno.nome).replace(/[^\w\-. ]+/g, '').trim()
+  return `QR ${base}.png`
+}
+
+function baixarCartao(aluno, turma) {
+  desenharCartao(aluno, turma).toBlob(b => {
+    const url = URL.createObjectURL(b)
+    const a = document.createElement('a'); a.href = url; a.download = nomeArquivo(aluno)
+    document.body.appendChild(a); a.click(); document.body.removeChild(a)
+    setTimeout(() => URL.revokeObjectURL(url), 3000)
+  }, 'image/png')
+}
+
+// No celular, compartilhar é melhor que baixar: abre a folha do sistema e
+// permite mandar direto pelo WhatsApp ou salvar em Fotos.
+function compartilharCartao(aluno, turma, aoFalhar) {
+  desenharCartao(aluno, turma).toBlob(async b => {
+    try {
+      const f = new File([b], nomeArquivo(aluno), { type: 'image/png' })
+      if (navigator.canShare && navigator.canShare({ files: [f] })) {
+        await navigator.share({ files: [f], title: 'QR de ' + aluno.nome })
+        return
+      }
+    } catch (e) { if (e && e.name === 'AbortError') return }
+    aoFalhar && aoFalhar()
+  }, 'image/png')
+}
+
 /* ---------- gerenciar turmas (importar as que faltam · apagar) ---------- */
 function GerenciarTurmas({ userId, turmas, refresh, showToast, online }) {
   const [faltam, setFaltam] = useState(null)
   const [busy, setBusy] = useState(false)
   const [confirmar, setConfirmar] = useState(null)   // turma escolhida para apagar
   const [texto, setTexto] = useState('')
+  const [alvoTurma, setAlvoTurma] = useState(turmas[0]?.id || '')
+  const [novoNome, setNovoNome] = useState('')
+  const [novaMat, setNovaMat] = useState('')
 
   const carregar = useCallback(() => {
     if (!online) return
@@ -185,6 +261,26 @@ function GerenciarTurmas({ userId, turmas, refresh, showToast, online }) {
           {busy ? 'Importando…' : `Importar ${faltam.length} turma(s) · ${faltam.reduce((s, f) => s + f.alunos, 0)} alunos`}</button></div>
       </>}
       {faltam && faltam.length === 0 && <p className="note">As 3 turmas de 2026.2 já estão importadas.</p>}
+
+      <label className="fld" style={{ marginTop: 18 }}>Incluir aluno</label>
+      <form className="row" onSubmit={async e => {
+        e.preventDefault()
+        const t = turmas.find(x => x.id === alvoTurma) || turmas[0]
+        if (!t || !novoNome.trim()) return
+        setBusy(true)
+        try { await store.adicionarAluno(userId, t.id, novoNome, novaMat); showToast('Aluno incluído'); setNovoNome(''); setNovaMat(''); refresh() }
+        catch (er) { alert(er.message) } finally { setBusy(false) }
+      }}>
+        <div style={{ flex: 2, minWidth: 180 }}>
+          <select value={alvoTurma} onChange={e => setAlvoTurma(e.target.value)}>
+            {turmas.map(t => <option key={t.id} value={t.id}>{t.nome}</option>)}
+          </select>
+        </div>
+        <div style={{ flex: 3, minWidth: 180 }}><input value={novoNome} onChange={e => setNovoNome(e.target.value)} placeholder="Nome completo" /></div>
+        <div style={{ flex: 2, minWidth: 150 }}><input value={novaMat} onChange={e => setNovaMat(e.target.value)} placeholder="Matrícula (opcional)" autoCorrect="off" /></div>
+        <div style={{ flex: 0, minWidth: 110 }}><button className="btn" type="submit" disabled={busy || !online || !novoNome.trim()}>Incluir</button></div>
+      </form>
+      <p className="note">A matrícula é o que o aluno digita no Orbe para se identificar. Sem ela, ele só entra lendo o QR do próprio cartão.</p>
 
       <label className="fld" style={{ marginTop: 14 }}>Turmas neste app</label>
       <ul className="people">
@@ -275,6 +371,7 @@ function TurmasFotos({ turmas, refresh, showToast, online }) {
   const [tid, setTid] = useState(turmas[0]?.id || '')
   const [selfie, setSelfie] = useState(null)
   const [cards, setCards] = useState(null)
+  const [umPorPagina, setUmPorPagina] = useState(false)
   const fileRef = useRef(null)
   const alvo = useRef(null)
   const t = turmas.find(x => x.id === tid) || turmas[0]
@@ -318,9 +415,20 @@ function TurmasFotos({ turmas, refresh, showToast, online }) {
         <p className="hint">Gere os cartõezinhos e imprima (ou salve em PDF). Cada aluno recebe o seu.</p>
         <div className="btnrow noprint">
           <button className="btn" onClick={gerarCartoes}>Gerar cartões</button>
-          {cards && <button className="btn ghost" onClick={() => window.print()}>Imprimir / PDF</button>}
+          {cards && <button className="btn ghost" onClick={() => { setUmPorPagina(false); setTimeout(() => window.print(), 60) }}>Imprimir folha</button>}
+          {cards && <button className="btn ghost" onClick={() => { setUmPorPagina(true); setTimeout(() => window.print(), 60) }}>PDF — um por página</button>}
         </div>
-        {cards && <div className="cards">{cards.map(a => <div className="card" key={a.id}>{a.qr && <img src={a.qr} alt="" />}<div className="cn">{a.nome}</div>{a.matricula && <div className="cm">Mat. {a.matricula}</div>}<div className="cm">{t.nome}</div></div>)}</div>}
+        {cards && <p className="note noprint">Cada cartão tem <b>Baixar</b> (salva o PNG) e <b>Enviar</b> (abre o compartilhamento do celular — WhatsApp, Fotos, AirDrop).</p>}
+        {cards && <div className={'cards' + (umPorPagina ? ' pagina' : '')}>{cards.map(a => <div className="card" key={a.id}>
+          {a.qr && <img src={a.qr} alt="" />}
+          <div className="cn">{a.nome}</div>
+          {a.matricula && <div className="cm">Mat. {a.matricula}</div>}
+          <div className="cm">{t.nome}</div>
+          <div className="btnrow noprint" style={{ justifyContent: 'center', marginTop: 8 }}>
+            <button className="btn ghost mini" onClick={() => baixarCartao(a, t)}>Baixar</button>
+            <button className="btn ghost mini" onClick={() => compartilharCartao(a, t, () => baixarCartao(a, t))}>Enviar</button>
+          </div>
+        </div>)}</div>}
       </div>
 
       {selfie && <SelfieOverlay aluno={selfie} onClose={() => setSelfie(null)} onCapture={url => { setSelfie(null); saveFoto(selfie.id, url) }} />}

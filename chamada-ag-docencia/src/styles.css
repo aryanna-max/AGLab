@@ -146,6 +146,14 @@ table.matrix td.P{color:var(--ok);font-weight:700}table.matrix td.F{color:var(--
   nav.tabs,header.app,.lgpd,.noprint{display:none!important}
   .panel{box-shadow:none;border:none}
   .card{border:1px dashed #999}
+  /* um cartão por página: vira PDF de cartões destacáveis */
+  .cards.pagina{display:block}
+  .cards.pagina .card{break-after:page;page-break-after:always;border:2px solid #1f4e79;border-radius:14px;
+    padding:28px;margin:0 auto;max-width:15cm;text-align:center}
+  .cards.pagina .card img{max-width:9cm}
+  .cards.pagina .card .cn{font-size:20pt;margin-top:14px}
+  .cards.pagina .card .cm{font-size:12pt}
+  .cards.pagina .card:last-child{break-after:auto;page-break-after:auto}
 }
 
 /* placar do experimento */

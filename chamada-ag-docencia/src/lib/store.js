@@ -160,6 +160,27 @@ export async function apagarTurma(turmaId) {
   try { localStorage.removeItem(CACHE_TURMAS) } catch (e) {}
 }
 
+/* ---------- alunos: incluir e remover ---------- */
+export async function adicionarAluno(userId, turmaId, nome, matricula) {
+  const mat = (matricula || '').trim()
+  if (mat) {
+    const { data: ja } = await supabase.from('alunos').select('id').eq('turma_id', turmaId).ilike('matricula', mat).maybeSingle()
+    if (ja) throw new Error('Já existe aluno com essa matrícula nesta turma.')
+  }
+  const { data, error } = await supabase.from('alunos')
+    .insert({ owner_id: userId, turma_id: turmaId, nome: nome.trim(), matricula: mat || null })
+    .select('id,nome,matricula').single()
+  if (error) throw error
+  return data
+}
+
+export async function removerAluno(alunoId) {
+  const { data } = await supabase.from('alunos').select('foto_path').eq('id', alunoId).maybeSingle()
+  if (data && data.foto_path) { try { await supabase.storage.from(BUCKET).remove([data.foto_path]) } catch (e) {} }
+  const { error } = await supabase.from('alunos').delete().eq('id', alunoId)
+  if (error) throw error
+}
+
 /* ---------- foto ---------- */
 export async function saveFoto(alunoId, dataUrl) {
   const uid = await currentUserId()
