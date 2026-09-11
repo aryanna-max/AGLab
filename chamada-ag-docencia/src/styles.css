@@ -215,3 +215,10 @@ tr.reocup td{opacity:.75;font-style:italic}
 .radar-ctl{margin-top:12px}
 .radar-ctl input[type=range]{width:100%;margin-top:6px;accent-color:var(--brand2)}
 .btn.mini.on{background:var(--brand);color:var(--brand-ink);border-color:var(--brand)}
+
+/* mascote Orbe */
+.marca{text-align:center;margin:5vh auto 20px;max-width:460px}
+.marca-img{width:min(190px,52vw);height:auto;display:block;margin:0 auto 4px}
+.marca-nome{font-size:34px;font-weight:800;letter-spacing:-.02em;margin:0}
+.marca-sub{font-size:13.5px;color:var(--muted);margin:2px 0 0}
+.orbe-mini{width:34px;height:34px;object-fit:contain;flex:0 0 auto;margin-right:-2px}

@@ -372,7 +372,7 @@ export default function Aluno() {
 
   if (tela === 'home') return (
     <div className="wrap">
-      <header className="app"><h1>Orbe</h1><span className="sub">Topografia · IFPE · aluno</span><span className="spacer" />
+      <header className="app"><img className="orbe-mini" src="/orbe-mascote.png" alt="" /><h1>Orbe</h1><span className="sub">Topografia · IFPE · aluno</span><span className="spacer" />
         {naFila > 0 && <span className="badge off">{naFila} na fila</span>}{!online && <span className="badge off">sem rede</span>}</header>
       <CardPresenca />
       <div className="escolha">

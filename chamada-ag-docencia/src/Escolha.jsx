@@ -11,9 +11,11 @@ export function gravarPerfil(p) { try { if (p) localStorage.setItem(PERFIL_KEY, 
 export default function Escolha({ onEscolher }) {
   return (
     <div className="wrap">
-      <header className="app">
-        <h1>Orbe</h1><span className="sub">Topografia · IFPE</span>
-      </header>
+      <div className="marca">
+        <img className="marca-img" src="/orbe-mascote.png" alt="" width="360" height="290" />
+        <h1 className="marca-nome">Orbe</h1>
+        <p className="marca-sub">Topografia · IFPE</p>
+      </div>
 
       <div className="escolha">
         <button className="card-perfil" onClick={() => onEscolher('aluno')}>
