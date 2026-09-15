@@ -2,6 +2,7 @@ import React from 'react'
 import { createRoot } from 'react-dom/client'
 import '../src/styles.css'
 import { MainParaTeste as Main } from '../src/App.jsx'
+import Aluno from '../src/Aluno.jsx'
 
 // Mostra o erro no topo da página, com as linhas do stack que apontam para o nosso código.
 window.addEventListener('error', e => {
@@ -9,4 +10,5 @@ window.addEventListener('error', e => {
   document.body.insertAdjacentHTML('afterbegin', '<pre style="color:red;background:#fff;padding:8px;white-space:pre-wrap">ERRO: ' + e.message + '\n' + stack + '</pre>')
 })
 
-createRoot(document.getElementById('root')).render(<Main session={{ user: { id: 'prof' } }} />)
+if (location.search.includes('aluno')) { try { localStorage.setItem('agc2_ident', JSON.stringify({ alunoId: 'x', matricula: '20231F61RC0280', nome: 'Alice', turma: 'F61RC', turmaId: 't', temFoto: true })) } catch (e) {} }
+createRoot(document.getElementById('root')).render(location.search.includes('aluno') ? <Aluno /> : <Main session={{ user: { id: 'prof' } }} />)

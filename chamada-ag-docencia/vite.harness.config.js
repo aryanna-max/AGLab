@@ -5,7 +5,7 @@ export default defineConfig({
   plugins: [react()],
   resolve: { alias: [
     { find: /^\.\/lib\/store$/, replacement: '/harness/store-mock.js' },
-    { find: /^\.\/supabaseClient$/, replacement: '/harness/supabase-mock.js' },
+    { find: /^\.\.?\/supabaseClient$/, replacement: '/harness/supabase-mock.js' },
   ] },
   server: { port: 5179, strictPort: true, open: false },
 })

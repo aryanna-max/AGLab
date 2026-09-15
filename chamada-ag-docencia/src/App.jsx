@@ -6,6 +6,7 @@ import { PERC, M0452, paraUTM25S, distanciaUTM, grausMinSeg, metros, vezesPiorQu
 import { gravarPerfil } from './Escolha.jsx'
 import Radar from './Radar.jsx'
 import Analise from './Analise.jsx'
+import MissoesProfessora from './MissoesProfessora.jsx'
 import { EH_COMPUTADOR } from './lib/aparelho'
 import { baixarCartao, compartilharCartao } from './lib/cartao'
 import Orbe from './Orbe.jsx'
@@ -145,7 +146,7 @@ function Main({ session }) {
       </div>}
 
       <nav className="tabs">
-        {[['chamada', 'Chamada'], ['analise', 'Análise'], ['radar', 'Radar'], ['conferir', 'Conferir faltantes'], ['resumo', 'Resumo / Exportar'], ['posicao', 'Minha posição'], ['turmas', 'Turmas & Fotos']].map(([k, l]) =>
+        {[['chamada', 'Chamada'], ['missoes', 'Missões'], ['analise', 'Análise'], ['radar', 'Radar'], ['conferir', 'Conferir faltantes'], ['resumo', 'Resumo / Exportar'], ['posicao', 'Minha posição'], ['turmas', 'Turmas & Fotos']].map(([k, l]) =>
           <button key={k} className={tab === k ? 'active' : ''} onClick={() => setTab(k)}>{l}</button>)}
       </nav>
 
@@ -154,6 +155,7 @@ function Main({ session }) {
           !turma ? <div className="spin">Escolhendo a turma…</div> :
           <>
             {tab === 'chamada' && <><ColetaTurma userId={userId} tid={tid} turmas={turmas} online={online} showToast={showToast} /><Chamada userId={userId} tid={tid} turmas={turmas} online={online} setPending={setPending} showToast={showToast} goConferir={() => setTab('conferir')} /></>}
+            {tab === 'missoes' && <MissoesProfessora userId={userId} tid={tid} turmas={turmas} online={online} showToast={showToast} />}
             {tab === 'analise' && <Analise tid={tid} turmas={turmas} online={online} showToast={showToast} />}
             {tab === 'radar' && <Radar userId={userId} tid={tid} turmas={turmas} online={online} showToast={showToast} ehComputador={EH_COMPUTADOR} />}
             {tab === 'conferir' && <Conferir userId={userId} tid={tid} turmas={turmas} online={online} setPending={setPending} showToast={showToast} />}

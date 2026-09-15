@@ -307,3 +307,45 @@ table.matrix tr.sel-row td{background:rgba(123,79,0,.10)}
 .ana-zoom .btn{min-width:30px;padding:4px 8px;font-weight:800}
 .ana-zoom-k{font-size:11px;opacity:.7;padding:0 6px;font-variant-numeric:tabular-nums}
 .ana-svg{cursor:grab;touch-action:none;user-select:none}.ana-svg.arrastando{cursor:grabbing}
+
+/* ---------- home do aluno: três cards, alerta de missão ---------- */
+.escolha.tres{grid-template-columns:1fr}
+@media(min-width:560px){.escolha.tres{grid-template-columns:repeat(3,1fr);max-width:900px}}
+.cp-badge{display:inline-block;margin-left:6px;min-width:20px;padding:0 6px;border-radius:999px;background:#c0392b;color:#fff;font-size:12px;line-height:20px;text-align:center;vertical-align:middle}
+.alerta-missao{display:flex;gap:12px;align-items:center;width:100%;text-align:left;border:1px solid var(--line);border-left:5px solid var(--brand2);background:var(--panel);color:inherit;border-radius:12px;padding:12px 14px;margin:0 0 12px;cursor:pointer;font:inherit}
+.alerta-missao.urgente{border-left-color:#d35400}
+.alerta-missao .am-ico{font-size:24px}
+.alerta-missao .am-txt{display:flex;flex-direction:column;gap:2px}
+.alerta-missao .am-txt span{font-size:13px;opacity:.75}
+/* ---------- histórico e missões ---------- */
+.people.hist li{cursor:default}
+.missao-card{display:flex;flex-direction:column;gap:4px;width:100%;text-align:left;border:1px solid var(--line);background:var(--panel);color:inherit;border-radius:12px;padding:12px 14px;margin:8px 0;cursor:pointer;font:inherit}
+.missao-card.urgente{border-color:#d35400}
+.missao-card.encerrada{opacity:.7}
+.missao-card .mc-top{display:flex;gap:6px;flex-wrap:wrap}
+.missao-card .mc-tit{font-weight:700;font-size:16px}
+.missao-card .mc-sub{font-size:13px;opacity:.75}
+.tag.nova{background:#2e75b6;color:#fff}
+.tag.nivel{background:#f6eedc;color:#7b4f00}
+.prazo{font-weight:600}.prazo.urgente{color:#d35400}.prazo.vencido{color:var(--miss)}
+.etapas{list-style:none;padding:0;margin:0}
+.etapas li{padding:8px 0;border-bottom:1px solid var(--line)}
+.etapas li label{display:flex;gap:10px;align-items:flex-start;cursor:pointer}
+.etapas li input{width:20px;height:20px;margin:2px 0 0;flex:0 0 auto}
+.etapas li.feita span{opacity:.6;text-decoration:line-through}
+.niveis-lista{margin:0;padding-left:18px}.niveis-lista li{margin-bottom:6px}.niveis-lista li.meu{font-weight:700}
+.nivel-grande{font-size:28px;font-weight:800;margin:6px 0}
+.devolutiva{background:var(--chip, #eaedf1);border-radius:10px;padding:10px 12px;margin:10px 0}
+.devolutiva p{margin:4px 0 0;white-space:pre-wrap}
+.podio-row{display:flex;gap:8px;flex-wrap:wrap}
+.podio-it{flex:1;min-width:90px;border:1px solid var(--line);border-radius:12px;padding:10px;text-align:center;display:flex;flex-direction:column}
+.podio-it.p0{border-color:#b8860b;background:rgba(184,134,11,.08)}
+.pd-pos{font-weight:800;font-size:18px}.pd-nome{font-weight:600}.pd-pts{font-size:12px;opacity:.7}
+
+/* ---------- missões: entregas (professora) ---------- */
+.people.entregas li.entrega-li{display:block;cursor:default}
+.ent-cab{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+.ent-texto{margin:6px 0;font-size:14px;white-space:pre-wrap;background:var(--chip,#eaedf1);border-radius:8px;padding:8px 10px}
+.ent-acoes{margin-top:6px;align-items:center}
+.ent-acoes select,.ent-acoes input{margin:0}
+.ent-acoes .btnrow{margin:0;flex-wrap:nowrap}

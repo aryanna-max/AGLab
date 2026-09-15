@@ -16,6 +16,10 @@ const polis = [
   { id: 'q2', nome: 'Poligonal M0451-B-M0452', pin_ids: ['p5', 'p7', 'p6'], resultado: { vertices: 3, perimetro: 91, area: 300 }, criado_em: agora, aluno_id: T2 + '-a2', alunos: { nome: 'Aluno 3' } },
 ]
 const especificos = {
+  listarMissoes: async () => [{ id: 'm1', titulo: 'Caça ao azimute', frente: 'planimetria', etapas: ['a','b','c'], entrega: 'Distância ao ponto certo', niveis: {}, arquivada: false }],
+  lancamentosDaTurma: async () => [{ id: 'l1', missao_id: 'm1', turma_id: T2, prazo_tipo: 'aula', prazo_em: new Date(Date.now()+3600000).toISOString(), mostrar_ranking: true, encerrado: false, missoes: { titulo: 'Caça ao azimute', etapas: ['a','b','c'] } }],
+  entregasDaTurma: async () => [{ id: 'e1', lancamento_id: 'l1', aluno_id: T2 + '-a1', etapas_feitas: { 0: 1 }, texto: 'Cheguei a 4 m do ponto.', status: 'enviada', enviada_em: new Date().toISOString(), fora_do_prazo: false, nivel: 'prata', missao_lancamentos: { mostrar_ranking: true } }],
+  janelaDeHoje: async () => ({ codigo: 'F61GPS', janela_fim: new Date(Date.now()+3600000).toISOString() }),
   listarLeituras: async () => [], salvarLeitura: async () => ({}), listarMarcos: async () => [{ id: 'm1', nome: 'TESTE', utm_n: 9108700, utm_e: 284950, sigma: 0.02, tipo: 'marco', nota: 'mock' }], marcosPublicos: async () => [],
   apiProfessora: () => ({ meusPins: async () => pins.slice(0, 2), salvarPin: async () => ({ ok: true, pin_id: 'x' }), minhasPoligonais: async () => [], salvarPoligonal: async () => ({ ok: true, id: 'y' }) }),
   getCachedTurmas: () => turmas, loadTurmas: async () => turmas, outboxCount: () => 0, flushOutbox: async () => 0,
@@ -30,24 +34,34 @@ const especificos = {
 
 export const abrirSessao = especificos['abrirSessao'] || (async () => null)
 export const adicionarAluno = especificos['adicionarAluno'] || (async () => null)
+export const apagarLancamento = especificos['apagarLancamento'] || (async () => null)
 export const apagarMarco = especificos['apagarMarco'] || (async () => null)
+export const apagarMissao = especificos['apagarMissao'] || (async () => null)
 export const apagarTurma = especificos['apagarTurma'] || (async () => null)
 export const apiProfessora = especificos['apiProfessora'] || (async () => null)
+export const atualizarLancamento = especificos['atualizarLancamento'] || (async () => null)
+export const avaliarEntrega = especificos['avaliarEntrega'] || (async () => null)
 export const confirmarChamada = especificos['confirmarChamada'] || (async () => null)
 export const conteudoDaChamada = especificos['conteudoDaChamada'] || (async () => null)
 export const desmarcarPresente = especificos['desmarcarPresente'] || (async () => null)
 export const ensureChamada = especificos['ensureChamada'] || (async () => null)
+export const entregasDaTurma = especificos['entregasDaTurma'] || (async () => null)
 export const fecharSessao = especificos['fecharSessao'] || (async () => null)
 export const flushOutbox = especificos['flushOutbox'] || (async () => null)
 export const fotoDoPin = especificos['fotoDoPin'] || (async () => null)
 export const getCachedTurmas = especificos['getCachedTurmas'] || (async () => null)
 export const getPresentes = especificos['getPresentes'] || (async () => null)
 export const importSeed = especificos['importSeed'] || (async () => null)
+export const importarCardapio = especificos['importarCardapio'] || (async () => null)
 export const importarFaltantes = especificos['importarFaltantes'] || (async () => null)
+export const janelaDeHoje = especificos['janelaDeHoje'] || (async () => null)
+export const lancamentosDaTurma = especificos['lancamentosDaTurma'] || (async () => null)
+export const lancarMissao = especificos['lancarMissao'] || (async () => null)
 export const leiturasDaSessao = especificos['leiturasDaSessao'] || (async () => null)
 export const leiturasDaTurma = especificos['leiturasDaTurma'] || (async () => null)
 export const listarLeituras = especificos['listarLeituras'] || (async () => null)
 export const listarMarcos = especificos['listarMarcos'] || (async () => null)
+export const listarMissoes = especificos['listarMissoes'] || (async () => null)
 export const loadTurmas = especificos['loadTurmas'] || (async () => null)
 export const marcarPresente = especificos['marcarPresente'] || (async () => null)
 export const minhaUltimaLeitura = especificos['minhaUltimaLeitura'] || (async () => null)
@@ -59,6 +73,7 @@ export const resumoTurma = especificos['resumoTurma'] || (async () => null)
 export const salvarConteudo = especificos['salvarConteudo'] || (async () => null)
 export const salvarLeitura = especificos['salvarLeitura'] || (async () => null)
 export const salvarMarco = especificos['salvarMarco'] || (async () => null)
+export const salvarMissao = especificos['salvarMissao'] || (async () => null)
 export const saveFoto = especificos['saveFoto'] || (async () => null)
 export const sessoesAbertas = especificos['sessoesAbertas'] || (async () => null)
 export const sessoesDaTurma = especificos['sessoesDaTurma'] || (async () => null)

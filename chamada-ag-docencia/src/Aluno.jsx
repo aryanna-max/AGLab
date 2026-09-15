@@ -5,6 +5,9 @@ import { decodeFromVideo, parsePayload } from './lib/qr'
 import { gravarPerfil } from './Escolha.jsx'
 import Orbe from './Orbe.jsx'
 import MinhaFoto from './MinhaFoto.jsx'
+import PresencaAluno from './PresencaAluno.jsx'
+import MissoesAluno from './MissoesAluno.jsx'
+import { useHistoricoPresenca, useMissoes, fmtPrazo, missaoVista, resumoFaltas } from './lib/alunoApi'
 import { EH_COMPUTADOR } from './lib/aparelho'
 import { resumirOcupacao } from './lib/topo'
 
@@ -37,7 +40,7 @@ const AvisoPrecisao = ({ pos }) => pos && pos.acc > ACC_GROSSEIRA ? (
 const K_IDENT = 'agc2_ident'            // {alunoId, matricula, nome, turma}
 const K_PRES = 'agc2_presenca_dia'      // {data, codigo, hora, local, turma, fora}
 const K_FILA = 'agc2_fila_leituras'
-export const NOME_GPS = 'Orbe'          // o card de medição tem o nome do app (decisão dela, 10/09)
+export const NOME_GPS = 'Campo'         // área de medições (decisão dela, 15/09: cards Presença · Campo · Missões)
 
 const hojeISO = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` }
 const ler = (k, def) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : def } catch (e) { return def } }
@@ -138,7 +141,7 @@ export default function Aluno() {
   const params = new URLSearchParams(location.search)
   const codigoDaUrl = (params.get('aula') || '').toUpperCase()
 
-  const [tela, setTela] = useState('home')   // home | ler-aula | identificar | chamada-ok | medir
+  const [tela, setTela] = useState('home')   // home | presenca | missoes | ler-aula | identificar | chamada-ok | medir
   const [ident, setIdent] = useState(() => ler(K_IDENT, null))
   const [presenca, setPresenca] = useState(() => { const p = ler(K_PRES, null); return p && p.data === hojeISO() ? p : null })
   const [codigoAula, setCodigoAula] = useState(codigoDaUrl)   // código lido do QR do dia (só na chamada)
@@ -192,6 +195,8 @@ export default function Aluno() {
   useEffect(() => { modoRef.current = modo }, [modo])
   useEffect(() => { identRef.current = ident }, [ident])
   useEffect(() => { codigoRef.current = codigoAula }, [codigoAula])
+  const historico = useHistoricoPresenca(ident, online)
+  const missoes = useMissoes(ident, online)
 
   /* ---------- fila offline ---------- */
   async function esvaziarFila() {
@@ -234,6 +239,7 @@ export default function Aluno() {
   function fixarPresenca(d, codigo, fora) {
     const p = { data: hojeISO(), codigo, hora: d.hora, local: d.local, turma: aula?.turma || identRef.current?.turma || '', fora: !!fora }
     gravar(K_PRES, p); setPresenca(p)
+    setTimeout(() => historico.recarregar(), 1500)
   }
 
   /* ---------- identificação ---------- */
@@ -321,6 +327,11 @@ export default function Aluno() {
 
   /* ---------- navegação ---------- */
   function irChamada() { setErro(''); setTela('ler-aula') }
+  function irArea(area) {
+    setErro('')
+    if (!identRef.current) { setDepoisDeIdent(area); setTela('identificar'); return }
+    setTela(area)
+  }
   function irMedir() {
     setErro('')
     if (!identRef.current) { setDepoisDeIdent('medir'); setTela('identificar'); return }
@@ -346,7 +357,7 @@ export default function Aluno() {
       if (data.nome && (data.nome !== id?.nome || !id?.turmaId || id?.temFoto !== data.tem_foto)) { const i = { ...id, nome: data.nome, turma: data.turma, turmaId: data.turma_id, temFoto: data.tem_foto }; gravar(K_IDENT, i); setIdent(i); identRef.current = i }
     } catch (e) {
       if (!ehErroDeRede(e)) { setErro('Falhou: ' + (e.message || 'erro')); setTela('home'); return }
-      setAviso('Sem rede — a chamada vai subir quando a conexão voltar.'); setTimeout(() => setAviso(''), 4000)
+      setAviso('Sem rede — a presença vai subir quando a conexão voltar.'); setTimeout(() => setAviso(''), 4000)
     } finally { setConferindo(false) }
     setModo('aula'); modoRef.current = 'aula'; autoRef.current = false
     setTela('chamada-ok'); ligarGPS()
@@ -356,6 +367,7 @@ export default function Aluno() {
     if (!ok) return
     const destino = depoisDeIdent; setDepoisDeIdent(null)
     if (destino === 'chamada') await entrarNaAula(codigoRef.current)
+    else if (destino === 'presenca' || destino === 'missoes') setTela(destino)
     else { setModo('livre'); modoRef.current = 'livre'; setTela('medir'); ligarGPS() }
   }
   function voltarHome() { if (ocupRef.current.ativa) cancelarChamada(); pararGPS(); setPos(null); setPlacar(null); setErro(''); setAviso(''); setMedirNaAula(false); setTela('home') }
@@ -383,14 +395,26 @@ export default function Aluno() {
 
   const CardPresenca = () => presenca && (
     <div className={'presenca-fixa' + (presenca.fora ? ' fora' : '')}>
-      <div className="pf-tit">{presenca.fora ? '⏱ Chamada fora do horário' : '✓ Presença de hoje registrada'}</div>
+      <div className="pf-tit">{presenca.fora ? '⏱ Presença fora do horário' : '✓ Presença de hoje registrada'}</div>
       <div className="pf-sub">{presenca.hora} · {nomeLocal(presenca.local)}{presenca.turma ? ' · ' + presenca.turma : ''}</div>
       {presenca.fora && <div className="pf-sub">A professora decide. Sua leitura ficou guardada.</div>}
     </div>
   )
 
+  if (tela === 'presenca') return (
+    <div className="wrap"><Cabecalho titulo="Presença" />
+      <PresencaAluno historico={historico} presencaHoje={presenca} online={online} onMarcar={irChamada} />
+    </div>
+  )
+
+  if (tela === 'missoes') return (
+    <div className="wrap"><Cabecalho titulo="Missões" />
+      <MissoesAluno ident={ident} online={online} missoes={missoes} />
+    </div>
+  )
+
   if (tela === 'ler-aula') return (
-    <div className="wrap"><Cabecalho titulo="Chamada" />
+    <div className="wrap"><Cabecalho titulo="Presença" />
       <LeitorQR titulo="Aponte para o QR da aula" onLido={qrDaAulaLido} onCancelar={voltarHome} />
     </div>
   )
@@ -415,6 +439,23 @@ export default function Aluno() {
     </div>
   )
 
+  // resumo para os cards da home
+  const hojeJan = historico.dados?.hoje
+  const rf = resumoFaltas(historico.dados)
+  const subPresenca = presenca && !presenca.fora ? `Registrada hoje às ${presenca.hora}.`
+    : hojeJan ? (hojeJan.aberta_agora ? `Aula aberta até ${hojeJan.fim}. Marque agora.` : `Janela de hoje: ${hojeJan.inicio}–${hojeJan.fim}.`)
+    : rf ? `${rf.presencas} presença(s) · ${rf.faltasHa} h-a de falta.` : 'Marcar presença e acompanhar faltas.'
+  const listaM = missoes.dados?.missoes || []
+  const abertasM = listaM.filter(m => m.aberta)
+  const nAbertas = abertasM.length
+  const proxima = abertasM.slice().sort((a, b) => new Date(a.prazo_em) - new Date(b.prazo_em))[0]
+  const subMissoes = proxima ? `${nAbertas} aberta(s) · ${fmtPrazo(proxima.prazo_em).texto}` : 'O que a professora lançou para a turma.'
+  // alerta ao abrir o app: missão nova ainda não vista, ou prazo vencendo em breve
+  const novaM = abertasM.find(m => !missaoVista(m.lancamento_id))
+  const urgM = abertasM.find(m => fmtPrazo(m.prazo_em).urgente && (m.minha?.status !== 'enviada' && m.minha?.status !== 'aceita'))
+  const alerta = novaM ? { titulo: `Nova missão: ${novaM.titulo}`, sub: fmtPrazo(novaM.prazo_em).texto, urgente: false }
+    : urgM ? { titulo: `Prazo acabando: ${urgM.titulo}`, sub: fmtPrazo(urgM.prazo_em).texto, urgente: true } : null
+
   if (tela === 'home') return (
     <div className="wrap">
       <header className="app"><img className="orbe-mini" src="/orbe-mascote.png" alt="" /><h1>Orbe</h1><span className="sub">Topografia · IFPE · aluno</span><span className="spacer" />
@@ -424,14 +465,22 @@ export default function Aluno() {
         Se você é a professora, <span style={{ cursor: 'pointer', textDecoration: 'underline', fontWeight: 700 }} onClick={() => { gravarPerfil('professor'); location.href = '/' }}>entre como professora</span>.
       </div>}
       <CardPresenca />
-      <div className="escolha">
-        <button className="card-perfil" onClick={irChamada}>
-          <span className="cp-emoji">📋</span><span className="cp-tit">Chamada</span>
-          <span className="cp-sub">Leia o QR da aula e pronto: a presença fica registrada. Só no horário da aula.</span>
+      {alerta && <button className={'alerta-missao' + (alerta.urgente ? ' urgente' : '')} onClick={() => irArea('missoes')}>
+        <span className="am-ico">{alerta.urgente ? '⏱' : '✨'}</span>
+        <span className="am-txt"><b>{alerta.titulo}</b><span>{alerta.sub}</span></span>
+      </button>}
+      <div className="escolha tres">
+        <button className="card-perfil" onClick={() => irArea('presenca')}>
+          <span className="cp-emoji">📍</span><span className="cp-tit">Presença</span>
+          <span className="cp-sub">{subPresenca}</span>
         </button>
         <button className="card-perfil" onClick={irMedir}>
           <span className="cp-emoji">🛰️</span><span className="cp-tit">{NOME_GPS}</span>
-          <span className="cp-sub">Medições, pins e poligonais, a qualquer hora. Não é a chamada.</span>
+          <span className="cp-sub">Ir até, pins e poligonais, a qualquer hora.</span>
+        </button>
+        <button className="card-perfil" onClick={() => irArea('missoes')}>
+          <span className="cp-emoji">🎯</span><span className="cp-tit">Missões{nAbertas > 0 && <span className="cp-badge">{nAbertas}</span>}</span>
+          <span className="cp-sub">{subMissoes}</span>
         </button>
       </div>
       {erro && <div className="flash err">{erro}</div>}
@@ -454,13 +503,13 @@ export default function Aluno() {
   const emAula = tela === 'chamada-ok'
   return (
     <div className="wrap">
-      <Cabecalho titulo={emAula ? 'Chamada' : NOME_GPS} />
+      <Cabecalho titulo={emAula ? 'Presença' : NOME_GPS} />
       <CardPresenca />
-      {!emAula && !presenca && <p className="note">Medição livre — não registra presença. Para a chamada, use o card 📋 na tela inicial.</p>}
+      {!emAula && !presenca && <p className="note">Medição livre — não registra presença. Para marcar presença, use o card Presença na tela inicial.</p>}
 
       {emAula && !medirNaAula && <div className="panel" style={{ textAlign: 'center' }}>
         {presenca
-          ? <><h2 style={{ marginTop: 0 }}>Pronto. A chamada foi feita.</h2>
+          ? <><h2 style={{ marginTop: 0 }}>Pronto. Presença enviada.</h2>
               <p className="hint">Pode guardar o celular. Se a professora pedir para medir, toque abaixo.</p></>
           : ocupando
           ? <div className="ocup">
