@@ -40,6 +40,87 @@ function baixarTexto(nome, texto) {
 }
 const desdeDoPeriodo = p => { if (p === 'tudo') return null; const d = new Date(); if (p === 'hoje') { d.setHours(0, 0, 0, 0); return d.toISOString() } d.setDate(d.getDate() - Number(p)); return d.toISOString() }
 
+/* ---------- Acurácia real nos marcos: RMSE por aluno e por turma ----------
+   Só onde há verdade: pins que caíram a menos de RAIO_MARCO de um marco de coordenada
+   conhecida, classificados pelo LUGAR (o nome digitado às vezes está trocado).
+   Referências: NSSDA (FGDC-STD-007.3-1998) e ASPRS Positional Accuracy Standards (2014):
+   acurácia horizontal a 95% = 1,7308 × RMSE_h; PEC-PCD / ET-ADGV: RMSE ≤ EP da classe e
+   90% dos pontos dentro do PEC (90% circular = 1,5175 × RMSE_h). Decomposição:
+   RMSE² = |viés|² + variância — viés grande e variância pequena = a REFERÊNCIA está errada. */
+const RAIO_MARCO = 30
+const K95 = 1.7308, K90 = 1.5175
+const rms = a => a.length ? Math.sqrt(a.reduce((s, v) => s + v * v, 0) / a.length) : null
+const media = a => a.length ? a.reduce((s, v) => s + v, 0) / a.length : null
+
+function ocupacaoValida(p) {
+  // regras de qualidade: fixações suficientes, espalhamento plausível, acurácia informada não "aproximada"
+  return (p.n_leituras || 0) >= 10 && Math.hypot(p.desvio_n_m || 0, p.desvio_e_m || 0) <= 5 && (p.acuracia_media_m == null || p.acuracia_media_m <= 50)
+}
+function marcoMaisProximo(p) {
+  let melhor = null
+  for (const m of MARCOS) { if (m.tipo === 'referencia') continue; const d = Math.hypot(p.utm_n - m.n, p.utm_e - m.e); if (d < RAIO_MARCO && (!melhor || d < melhor.d)) melhor = { m, d } }
+  return melhor
+}
+function estatErro(erros) {
+  // erros: [{dN, dE}]
+  const n = erros.length; if (!n) return null
+  const dNs = erros.map(e => e.dN), dEs = erros.map(e => e.dE)
+  const rmseN = rms(dNs), rmseE = rms(dEs), rmseH = Math.hypot(rmseN, rmseE)
+  const viesN = media(dNs), viesE = media(dEs), vies = Math.hypot(viesN, viesE)
+  const variancia = Math.max(0, rmseH * rmseH - vies * vies)
+  const raios = erros.map(e => Math.hypot(e.dN, e.dE)).sort((a, b) => a - b)
+  const p90emp = raios[Math.min(n - 1, Math.floor(0.9 * (n - 1)))]
+  return { n, rmseN, rmseE, rmseH, viesN, viesE, vies, sd: Math.sqrt(variancia), ce90: K90 * rmseH, ce95: K95 * rmseH, p90emp, medRaio: raios[n >> 1] }
+}
+
+function AcuraciaMarcos({ pins, t, alunosIdx }) {
+  const [soValidas, setSoValidas] = useState(true)
+  const [porMarco, setPorMarco] = useState(false)
+  const dados = useMemo(() => {
+    const linhas = []
+    for (const p of pins) {
+      const mm = marcoMaisProximo(p); if (!mm) continue
+      const valida = ocupacaoValida(p)
+      if (soValidas && !valida) continue
+      linhas.push({ p, m: mm.m, dN: p.utm_n - mm.m.n, dE: p.utm_e - mm.m.e, valida })
+    }
+    const porAluno = {}; linhas.forEach(l => { (porAluno[l.p.aluno_id] = porAluno[l.p.aluno_id] || []).push(l) })
+    const porM = {}; linhas.forEach(l => { (porM[l.m.nome] = porM[l.m.nome] || []).push(l) })
+    return { linhas, porAluno, porM, turma: estatErro(linhas), descartadas: pins.filter(p => marcoMaisProximo(p) && !ocupacaoValida(p)).length }
+  }, [pins, soValidas])
+  const fm = (v, k = 2) => v == null ? '—' : metros(v, k)
+  if (!dados.linhas.length && !dados.descartadas) return null
+  const provisorio = dados.linhas.some(l => l.m.tipo === 'provisorio')
+  return (
+    <div className="panel">
+      <h2>Acurácia real nos marcos — RMSE</h2>
+      <p className="hint">Só onde existe verdade: pins ocupados a menos de {RAIO_MARCO} m de um marco de coordenada conhecida, classificados pelo lugar, não pelo nome. Erro = pin − marco. <b>RMSE_h</b> é o número único de acurácia horizontal; <b>95%</b> segue o NSSDA/ASPRS (1,7308 × RMSE_h) e <b>90%</b> o PEC-PCD (1,5175 × RMSE_h). <b>Viés</b> é o erro médio; se ele domina o RMSE, o problema está na referência, não nos aparelhos.</p>
+      <div className="btnrow" style={{ alignItems: 'center' }}>
+        <label className="chk-inline"><input type="checkbox" checked={soValidas} onChange={e => setSoValidas(e.target.checked)} /> só ocupações válidas (≥ 10 fixações, espalh. ≤ 5 m, acurácia ≤ 50 m){dados.descartadas ? ` — ${dados.descartadas} fora` : ''}</label>
+        <label className="chk-inline"><input type="checkbox" checked={porMarco} onChange={e => setPorMarco(e.target.checked)} /> agrupar por marco</label>
+      </div>
+      {dados.turma && <div className="count-strip" style={{ marginTop: 10 }}>
+        <div className="c"><div className="n">{dados.turma.n}</div><div className="l">pins em marcos</div></div>
+        <div className="c ok"><div className="n">{fm(dados.turma.rmseH, 1)}</div><div className="l">RMSE_h (m)</div></div>
+        <div className="c"><div className="n">{fm(dados.turma.ce95, 1)}</div><div className="l">95% NSSDA (m)</div></div>
+        <div className="c"><div className="n">{fm(dados.turma.ce90, 1)}</div><div className="l">90% PEC-PCD (m)</div></div>
+        <div className={'c' + (dados.turma.vies > dados.turma.sd ? ' miss' : '')}><div className="n">{fm(dados.turma.vies, 1)}</div><div className="l">viés (m)</div></div>
+        <div className="c"><div className="n">{fm(dados.turma.sd, 1)}</div><div className="l">desvio (m)</div></div>
+      </div>}
+      <div className="scrollx tbl-wrap" style={{ marginTop: 10 }}><table className="matrix"><thead><tr><th className="nm">{porMarco ? 'Marco' : 'Aluno'}</th><th>pins</th><th>RMSE N</th><th>RMSE E</th><th>RMSE_h</th><th>viés N</th><th>viés E</th><th>|viés|</th><th>desvio</th><th>95%</th><th>90%</th><th>p90 real</th><th>mediana</th><th>acur. informada</th></tr></thead>
+        <tbody>{Object.entries(porMarco ? dados.porM : dados.porAluno).map(([k, ls]) => { const e = estatErro(ls); const inf = media(ls.map(l => l.p.acuracia_media_m).filter(v => v != null))
+          const nome = porMarco ? k : (t.alunos.find(a => a.id === k)?.nome || '?')
+          return <tr key={k}><td className="nm">{!porMarco && <i className="dot" style={{ background: hsl(alunosIdx[k] ?? 0, t.alunos.length) }} />}{nome}{porMarco && ls[0].m.tipo === 'provisorio' ? ' (provisório)' : ''}</td>
+            <td>{e.n}</td><td>{fm(e.rmseN)}</td><td>{fm(e.rmseE)}</td><td><b>{fm(e.rmseH)}</b></td>
+            <td>{(e.viesN >= 0 ? '+' : '') + fm(e.viesN)}</td><td>{(e.viesE >= 0 ? '+' : '') + fm(e.viesE)}</td>
+            <td className={e.vies > e.sd && e.n >= 3 ? 'F' : ''}>{fm(e.vies)}</td><td>{fm(e.sd)}</td>
+            <td>{fm(e.ce95, 1)}</td><td>{fm(e.ce90, 1)}</td><td>{fm(e.p90emp, 1)}</td><td>{fm(e.medRaio, 1)}</td>
+            <td className={inf != null && e.rmseH > 2 * inf ? 'F' : ''}>{inf != null ? '± ' + fm(inf, 1) + (e.rmseH > 2 * inf ? ' ⚠' : '') : '—'}</td></tr> })}</tbody></table></div>
+      <p className="note">Com 1 ou 2 pins o RMSE é só o erro daquele pin; a coluna só ganha peso a partir de uns 5. <b>p90 real</b> é o percentil 90 observado, para comparar com o 90% teórico. <b>⚠</b> na acurácia informada: o celular erra mais que o dobro do que declara.{provisorio ? ' O M0451 usa coordenada provisória: o erro ali é relativo à mediana dos próprios alunos, não a uma verdade independente.' : ''}</p>
+    </div>
+  )
+}
+
 export default function Analise({ tid, turmas, online, showToast }) {
   const t = turmas.find(x => x.id === tid)
   const [periodo, setPeriodo] = useState('30')
@@ -453,6 +534,8 @@ export default function Analise({ tid, turmas, online, showToast }) {
               <td>{p.tem_foto ? <button className="btn ghost mini" onClick={() => abrirFoto(p)}>📷</button> : '—'}</td>
             </tr> })}</tbody></table></div> : <p className="empty">Nenhum pin no filtro.</p>}
       </div>
+
+      <AcuraciaMarcos pins={pins} t={t} alunosIdx={alunosIdx} />
 
       <div className="panel">
         <h2>Poligonais ({polis.length})</h2>
