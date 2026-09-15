@@ -299,3 +299,5 @@ tr.reocup td{opacity:.75;font-style:italic}
 .ana-poli.sel{stroke-width:3;stroke-dasharray:none;fill:rgba(123,79,0,.18)}
 .ana-poli-v{fill:#7B4F00;stroke:#fff;stroke-width:1.5}.ana-poli-vn{font-size:10px;font-weight:800;fill:#fff}
 table.matrix tr.sel-row td{background:rgba(123,79,0,.10)}
+
+.ana-marco.provisorio line,.ana-marco.provisorio circle{stroke:#d35400}.ana-marco.provisorio .ana-marco-lab{fill:#d35400}

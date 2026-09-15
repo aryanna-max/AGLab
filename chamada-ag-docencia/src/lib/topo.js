@@ -8,7 +8,11 @@ import { PERC, M0452 } from './geo'
 // Os valores UTM vêm do LS7_ifpe.html; os nomes com pessoa são marcos da rede local.
 export const MARCOS = [
   { nome: 'PERC (IBGE, Bloco A)', n: PERC.utmN, e: PERC.utmE, sigma: 0.001, tipo: 'rbmc' },
-  { nome: 'M0451', n: 9108752.854, e: 284999.577, sigma: 0.02, tipo: 'marco' },
+  /* M0451 foi removido numa obra e reimplantado em outro lugar (informação da professora, 15/09/2026).
+     A coordenada oficial de 2023 (N 9108752,854 · E 284999,577) NÃO vale mais. Esta é PROVISÓRIA:
+     mediana de 21 ocupações de 19 alunos em 12/09/2026, deslocada 10,7 m a 195° da antiga; o mesmo
+     método errou 1,9 m no M0452 (controle). Substituir pela medição RTK quando ela fizer. */
+  { nome: 'M0451', n: 9108742.55, e: 284996.85, sigma: 2.5, tipo: 'provisorio', antigo: { n: 9108752.854, e: 284999.577 }, nota: 'reimplantado em obra — coordenada provisória (celulares, 12/09/2026); aguarda RTK' },
   { nome: 'M0452', n: 9108720.996, e: 284958.028, sigma: 0.02, tipo: 'marco' },
   { nome: 'M0453', n: 9108603.791, e: 284922.902, sigma: 0.03, tipo: 'marco' },
   { nome: 'M0454', n: 9108580.430, e: 284976.942, sigma: 0.02, tipo: 'marco' },

@@ -60,6 +60,7 @@ export default function Analise({ tid, turmas, online, showToast }) {
   const [ocultas, setOcultas] = useState(() => new Set())   // leituras tiradas à mão (só nesta tela)
   const [sel, setSel] = useState(null)               // leitura clicada
   const [fundo, setFundo] = useState('nenhum')
+  const [semCruzadas, setSemCruzadas] = useState(true)   // poligonais em laço fora da planta e das tabelas (regra dela, 15/09)
   const [camadas, setCamadas] = useState({ leituras: true, pins: true, polis: true, marcos: true, grade: true })
   const toggleCamada = k => setCamadas(c => ({ ...c, [k]: !c[k] }))
   const [mostrar, setMostrar] = useState(200)
@@ -93,7 +94,7 @@ export default function Analise({ tid, turmas, online, showToast }) {
     return Object.entries(g).map(([id, ls]) => ({ id, ls: ls.slice().sort((a, b) => new Date(a.capturado_em || a.criado_em) - new Date(b.capturado_em || b.criado_em)) })).filter(x => x.ls.length > 1)
   }, [leituras, trilha])
   const pins = useMemo(() => dados.pins.filter(p => temAluno(p.aluno_id) && (!sessaoId || p.sessao_id === sessaoId)), [dados.pins, alunosSel, sessaoId])
-  const polis = useMemo(() => dados.polis.filter(q => temAluno(q.aluno_id)), [dados.polis, alunosSel])
+  const polisTodas = useMemo(() => dados.polis.filter(q => temAluno(q.aluno_id)), [dados.polis, alunosSel])
   const pinPorId = useMemo(() => { const m = {}; dados.pins.forEach(p => m[p.id] = p); return m }, [dados.pins])
   const sessPorId = useMemo(() => { const m = {}; dados.sessoes.forEach(s => m[s.id] = s); return m }, [dados.sessoes])
   // Recalcula cada poligonal pelos pins salvos: mostra se a ordem do aluno cruzou os lados
@@ -104,6 +105,8 @@ export default function Analise({ tid, turmas, online, showToast }) {
     const r = calcularPoligonal(pts), rc = r.cruzada ? calcularPoligonal(ordenarPorAngulo(pts)) : null
     m[q.id] = { r, rc }
   }); return m }, [dados.polis, pinPorId])
+  const polis = useMemo(() => polisTodas.filter(q => !semCruzadas || !(poliCalc[q.id]?.r?.cruzada)), [polisTodas, semCruzadas, poliCalc])
+  const nCruzadas = polisTodas.filter(q => poliCalc[q.id]?.r?.cruzada).length
 
   const kpi = useMemo(() => {
     const alunos = new Set(leituras.map(l => l.aluno_id)).size
@@ -229,6 +232,7 @@ export default function Analise({ tid, turmas, online, showToast }) {
             </select></span>
           <label className="chk-inline"><input type="checkbox" checked={raios} onChange={e => setRaios(e.target.checked)} /> raio de acurácia</label>
           <label className="chk-inline"><input type="checkbox" checked={trilha} onChange={e => setTrilha(e.target.checked)} /> trilha por aluno</label>
+          <label className="chk-inline"><input type="checkbox" checked={semCruzadas} onChange={e => setSemCruzadas(e.target.checked)} /> ocultar poligonais em laço{nCruzadas ? ` (${nCruzadas})` : ''}</label>
           {ocultas.size > 0 && <button className="btn ghost mini" onClick={() => setOcultas(new Set())}>Mostrar {ocultas.size} oculta(s)</button>}
         </div>
         {alunosSel.length > 0 && <div className="ana-legenda" style={{ marginTop: 8 }}>
@@ -300,7 +304,8 @@ export default function Analise({ tid, turmas, online, showToast }) {
                 <title>{`${p.alunos?.nome} · ${p.nome} · ${p.n_leituras} leituras · espalh. ±${metros(Math.hypot(p.desvio_n_m || 0, p.desvio_e_m || 0), 1)} m`}</title></g> })}
 
             {camadas.marcos && marcosVis.map(m => { const x = vista.X(m.e), y = vista.Y(m.n)
-              return <g key={m.nome} transform={`translate(${x},${y})`} className={'ana-marco ' + m.tipo}><line x1={-8} x2={8} y1={0} y2={0} /><line y1={-8} y2={8} x1={0} x2={0} /><circle r={4} fill="none" /><text x={10} y={-6} className="ana-marco-lab">{m.nome}</text></g> })}
+              return <g key={m.nome} transform={`translate(${x},${y})`} className={'ana-marco ' + m.tipo}><line x1={-8} x2={8} y1={0} y2={0} /><line y1={-8} y2={8} x1={0} x2={0} /><circle r={4} fill="none" />{m.tipo === 'provisorio' && <circle r={Math.max(6, (m.sigma || 0) * vista.esc)} fill="none" strokeDasharray="3 3" />}<text x={10} y={-6} className="ana-marco-lab">{m.nome}{m.tipo === 'provisorio' ? ' (provisório)' : ''}</text>
+                {m.antigo && dentro(vista.X(m.antigo.e), vista.Y(m.antigo.n)) && <g transform={`translate(${vista.X(m.antigo.e) - x},${vista.Y(m.antigo.n) - y})`} opacity={0.55}><line x1={-6} x2={6} y1={-6} y2={6} /><line x1={-6} x2={6} y1={6} y2={-6} /><text x={9} y={12} className="ana-marco-lab">antigo</text></g>}</g> })}
 
             <g transform={`translate(${W - PAD - 10 - vista.passo * vista.esc} ${PAD + 16})`} className="ana-escala"><line x1={0} x2={vista.passo * vista.esc} y1={0} y2={0} /><text x={vista.passo * vista.esc / 2} y={-4} textAnchor="middle">{vista.passo} m</text></g>
             <text x={PAD + 6} y={PAD + 16} className="ana-lab">N ↑</text>
@@ -390,7 +395,7 @@ export default function Analise({ tid, turmas, online, showToast }) {
           </div>
           <div className="panel">
             <h2>Marcos na planta</h2>
-            {marcosVis.length ? <ul className="lista-simples">{marcosVis.map(m => <li key={m.nome}><b>{m.nome}</b> · N {metros(m.n, 2)} · E {metros(m.e, 2)} · σ {m.sigma} m</li>)}</ul> : <p className="note">Nenhum marco dentro do enquadramento.</p>}
+            {marcosVis.length ? <ul className="lista-simples">{marcosVis.map(m => <li key={m.nome}><b>{m.nome}</b> · N {metros(m.n, 2)} · E {metros(m.e, 2)} · σ {m.sigma} m{m.nota ? <><br /><span style={{ color: 'var(--miss)' }}>{m.nota}</span></> : null}</li>)}</ul> : <p className="note">Nenhum marco dentro do enquadramento.</p>}
           </div>
         </div>
       </div>
