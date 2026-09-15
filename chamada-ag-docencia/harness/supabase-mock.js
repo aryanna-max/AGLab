@@ -1,0 +1,1 @@
+export const supabase = { auth: { signOut: async () => {} }, rpc: async () => ({ data: null, error: null }), from: () => ({ select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: null }) }) }) }) }

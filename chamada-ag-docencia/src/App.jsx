@@ -6,15 +6,13 @@ import { PERC, M0452, paraUTM25S, distanciaUTM, grausMinSeg, metros, vezesPiorQu
 import { gravarPerfil } from './Escolha.jsx'
 import Radar from './Radar.jsx'
 import Analise from './Analise.jsx'
+import { EH_COMPUTADOR } from './lib/aparelho'
 import { baixarCartao, compartilharCartao } from './lib/cartao'
 
 /* ---------- utils ---------- */
 const todayISO = () => { const d = new Date(); const m = String(d.getMonth() + 1).padStart(2, '0'); const dd = String(d.getDate()).padStart(2, '0'); return `${d.getFullYear()}-${m}-${dd}` }
 const fmtDate = iso => { if (!iso) return ''; const p = iso.split('-'); return p.length === 3 ? `${p[2]}/${p[1]}` : iso }
 const K_TURMA = 'agc2_turma_prof'
-/* Computador: sem toque e sem UA de celular. Nele a geolocalização vem do Wi-Fi/IP e
-   não vale como medição — a posição oficial da professora é a do celular. */
-const EH_COMPUTADOR = !(/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)) && !(navigator.maxTouchPoints > 1)
 const initials = n => { const p = String(n || '').trim().split(/\s+/); return ((p[0]?.[0] || '') + (p.length > 1 ? p[p.length - 1][0] : '')).toUpperCase() || '?' }
 
 function Avatar({ a, big }) {
@@ -609,9 +607,9 @@ function ColetaTurma({ userId, tid, turmas, online, showToast }) {
       const ini = new Date(hoje + 'T' + hIni + ':00'), fim = new Date(hoje + 'T' + hFim + ':00')
       if (!(fim > ini)) { showToast('A janela precisa terminar depois de começar'); setBusy(false); return }
       setSessao(await store.abrirSessao(userId, tid, codigo.trim(), t?.nome || null, tempo, ini.toISOString(), fim.toISOString(), local))
-      showToast('Sessão aberta')
+      showToast('Aula aberta — o mesmo código serve toda semana')
     } catch (e) {
-      showToast(e.message?.includes('duplicate') ? 'Esse código já existe. Use outro.' : 'Erro: ' + e.message)
+      showToast('Erro: ' + e.message)
     } finally { setBusy(false) }
   }
   async function fechar() {
@@ -737,7 +735,21 @@ function Chamada({ userId, tid, turmas, online, setPending, showToast, goConferi
   const [busy, setBusy] = useState(false)
   const [q, setQ] = useState('')
   const [atualizado, setAtualizado] = useState(null)
+  const [conteudo, setConteudo] = useState('')
+  const [conteudoSalvo, setConteudoSalvo] = useState('')
   const t = turmas.find(x => x.id === tid)
+
+  // conteúdo ministrado na aula do dia — texto livre, salvo ao sair do campo
+  useEffect(() => {
+    setConteudo(''); setConteudoSalvo('')
+    if (!chamadaId || !online) return
+    store.conteudoDaChamada(chamadaId).then(c => { setConteudo(c); setConteudoSalvo(c) }).catch(() => {})
+  }, [chamadaId, online])
+  async function gravarConteudo() {
+    if (!chamadaId || conteudo === conteudoSalvo) return
+    try { await store.salvarConteudo(chamadaId, conteudo); setConteudoSalvo(conteudo); showToast('Conteúdo da aula salvo') }
+    catch (e) { showToast('Não consegui salvar o conteúdo') }
+  }
 
   /* Abre (ou garante) a chamada do dia e recarrega a lista a cada 5 s: a presença
      é marcada pelo próprio aluno, ao ler o QR da aula, e aparece aqui sozinha. */
@@ -779,6 +791,10 @@ function Chamada({ userId, tid, turmas, online, setPending, showToast, goConferi
         <div><label className="fld">Data</label><input type="date" value={data} onChange={e => setData(e.target.value)} /></div>
         <div><label className="fld">&nbsp;</label><div className="note" style={{ margin: 0 }}>{atualizado ? 'atualizada ' + atualizado.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : online ? '…' : 'offline — a lista não atualiza'}</div></div>
       </div>
+
+      <label className="fld" style={{ marginTop: 12 }}>Conteúdo da aula {conteudo !== conteudoSalvo && <span className="badge off" style={{ marginLeft: 6 }}>não salvo</span>}</label>
+      <textarea value={conteudo} onChange={e => setConteudo(e.target.value)} onBlur={gravarConteudo} rows={3} disabled={!chamadaId || !online}
+        placeholder="O que foi dado hoje — vai para o diário e para a exportação. Salva ao sair do campo." />
 
       <div className="count-strip" style={{ marginTop: 14 }}>
         <div className="c ok"><div className="n">{counts.p}</div><div className="l">Presentes</div></div>
@@ -882,12 +898,13 @@ function Resumo({ tid, turmas, showToast }) {
   function exportDetalhado() {
     if (!t || !dados) return
     const sep = ';'
-    const lines = [['Matricula', 'Nome', 'Data', 'Presente', 'Hora', 'Origem'].join(sep)]
+    const asp = v => '"' + String(v || '').replace(/"/g, '""') + '"'
+    const lines = [['Matricula', 'Nome', 'Data', 'Presente', 'Hora', 'Origem', 'Conteudo da aula'].join(sep)]
     dates.forEach(c => t.alunos.forEach(a => {
       const pr = presSet[c.id + '|' + a.id]
-      lines.push([a.matricula || '', '"' + a.nome.replace(/"/g, '""') + '"', fmtDate(c.data), pr ? 'P' : 'F',
+      lines.push([a.matricula || '', asp(a.nome), fmtDate(c.data), pr ? 'P' : 'F',
         pr ? new Date(pr.hora).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '',
-        pr ? (ORIGEM[pr.origem] || pr.origem) : ''].join(sep))
+        pr ? (ORIGEM[pr.origem] || pr.origem) : '', asp(c.conteudo)].join(sep))
     }))
     baixar(lines, 'frequencia_detalhada_')
   }
@@ -917,3 +934,6 @@ function Resumo({ tid, turmas, showToast }) {
     </div>
   )
 }
+
+// só para o harness de teste local (harness/), não é usado em produção
+export { Main as MainParaTeste }

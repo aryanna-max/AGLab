@@ -5,6 +5,7 @@ import { decodeFromVideo, parsePayload } from './lib/qr'
 import { gravarPerfil } from './Escolha.jsx'
 import Orbe from './Orbe.jsx'
 import MinhaFoto from './MinhaFoto.jsx'
+import { EH_COMPUTADOR } from './lib/aparelho'
 
 /* App do aluno. Sem conta, sem senha, sem campo de código.
 
@@ -132,6 +133,7 @@ export default function Aluno() {
   const [pos, setPos] = useState(null)
   const [erro, setErro] = useState('')
   const [aviso, setAviso] = useState('')
+  const [medirNaAula, setMedirNaAula] = useState(false)   // na Chamada, medir é um passo explícito (confusão relatada em 15/09)
   const [enviando, setEnviando] = useState(false)
   const [placar, setPlacar] = useState(null)
   const [naFila, setNaFila] = useState(() => ler(K_FILA, []).length)
@@ -314,7 +316,7 @@ export default function Aluno() {
     if (destino === 'chamada') await entrarNaAula(codigoRef.current)
     else { setModo('livre'); modoRef.current = 'livre'; setTela('medir'); ligarGPS() }
   }
-  function voltarHome() { pararGPS(); setPos(null); setPlacar(null); setErro(''); setAviso(''); setTela('home') }
+  function voltarHome() { pararGPS(); setPos(null); setPlacar(null); setErro(''); setAviso(''); setMedirNaAula(false); setTela('home') }
 
   // chegou por link ?aula= (QR lido pela câmera nativa): segue direto o fluxo da chamada
   useEffect(() => {
@@ -375,15 +377,19 @@ export default function Aluno() {
     <div className="wrap">
       <header className="app"><img className="orbe-mini" src="/orbe-mascote.png" alt="" /><h1>Orbe</h1><span className="sub">Topografia · IFPE · aluno</span><span className="spacer" />
         {naFila > 0 && <span className="badge off">{naFila} na fila</span>}{!online && <span className="badge off">sem rede</span>}</header>
+      {EH_COMPUTADOR && <div className="flash dup" style={{ textAlign: 'left' }}>
+        <b>Esta é a tela do aluno, feita para o celular.</b> Aqui no computador o GPS não funciona.
+        Se você é a professora, <span style={{ cursor: 'pointer', textDecoration: 'underline', fontWeight: 700 }} onClick={() => { gravarPerfil('professor'); location.href = '/' }}>entre como professora</span>.
+      </div>}
       <CardPresenca />
       <div className="escolha">
         <button className="card-perfil" onClick={irChamada}>
           <span className="cp-emoji">📋</span><span className="cp-tit">Chamada</span>
-          <span className="cp-sub">Leia o QR da aula. É assim que a presença é registrada — só no horário da aula.</span>
+          <span className="cp-sub">Leia o QR da aula e pronto: a presença fica registrada. Só no horário da aula.</span>
         </button>
         <button className="card-perfil" onClick={irMedir}>
           <span className="cp-emoji">🛰️</span><span className="cp-tit">{NOME_GPS}</span>
-          <span className="cp-sub">Meça a sua posição a qualquer hora e compare com a estação do IBGE. Não marca presença.</span>
+          <span className="cp-sub">Medições, pins e poligonais, a qualquer hora. Não é a chamada.</span>
         </button>
       </div>
       {erro && <div className="flash err">{erro}</div>}
@@ -411,7 +417,20 @@ export default function Aluno() {
       <CardPresenca />
       {!emAula && !presenca && <p className="note">Medição livre — não registra presença. Para a chamada, use o card 📋 na tela inicial.</p>}
 
-      <div className="panel">
+      {emAula && !medirNaAula && <div className="panel" style={{ textAlign: 'center' }}>
+        {presenca
+          ? <><h2 style={{ marginTop: 0 }}>Pronto. A chamada foi feita.</h2>
+              <p className="hint">Pode guardar o celular. Se a professora pedir para medir, toque abaixo.</p></>
+          : <><h2 style={{ marginTop: 0 }}>Aguarde a confirmação</h2>
+              <p className="hint">O celular está procurando satélites para registrar a chamada. Fique onde está.</p>
+              {erro && <div className="flash err" style={{ textAlign: 'left' }}>{erro}</div>}</>}
+        <div className="btnrow" style={{ justifyContent: 'center' }}>
+          <button className="btn" onClick={() => setMedirNaAula(true)} disabled={!presenca && !pos}>🛰️ Medir a posição agora</button>
+          <button className="btn ghost" onClick={voltarHome}>Voltar</button>
+        </div>
+      </div>}
+
+      {(!emAula || medirNaAula) && <div className="panel">
         {!pos && !erro && <div className="spin">Procurando satélites…</div>}
         {erro && <div className="flash err" style={{ textAlign: 'left' }}>{erro}</div>}
         {pos && <>
@@ -453,9 +472,9 @@ export default function Aluno() {
             : <p className="note" style={{ textAlign: 'center' }}><b>Você está com a melhor leitura da turma.</b> Consegue melhorar?</p>)}
           <p className="note">Ande até outro lugar e envie de novo. O que interessa é comparar.</p>
         </>}
-      </div>
+      </div>}
 
-      {pos && ident && <Orbe pos={pos} ident={ident} codigo={modo === 'aula' ? codigoAula : ''}
+      {(!emAula || medirNaAula) && pos && ident && <Orbe pos={pos} ident={ident} codigo={modo === 'aula' ? codigoAula : ''}
         onAviso={m => { setAviso(m); setTimeout(() => setAviso(''), 4000) }} />}
     </div>
   )

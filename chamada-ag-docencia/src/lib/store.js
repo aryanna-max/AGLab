@@ -307,12 +307,26 @@ export async function abrirSessao(userId, turmaId, codigo, titulo, tempo, janela
   const ch = await ensureChamada(userId, turmaId, hojeISO())
   // upload da fila do aluno é aceito até 7 dias depois da aula; presença só dentro da janela
   const expira = new Date(new Date(janelaFim).getTime() + 7 * 24 * 3600 * 1000).toISOString()
+  // O código é único no banco e cada turma tem um dia de aula por semana: o mesmo código
+  // (F61GPS) serve toda semana. Se já existe, a sessão é REABERTA para a aula de hoje.
+  const linha = { owner_id: userId, turma_id: turmaId, codigo: codigo.toUpperCase(), titulo, tempo: tempo || null, aberta: true,
+                  chamada_id: ch.id, janela_inicio: janelaInicio, janela_fim: janelaFim, expira_em: expira, local: local || 'sala' }
   const { data, error } = await supabase.from('sessoes_coleta')
-    .insert({ owner_id: userId, turma_id: turmaId, codigo: codigo.toUpperCase(), titulo, tempo: tempo || null,
-              chamada_id: ch.id, janela_inicio: janelaInicio, janela_fim: janelaFim, expira_em: expira, local: local || 'sala' })
+    .upsert(linha, { onConflict: 'codigo' })
     .select('id,codigo,aberta,criada_em,expira_em,tempo,chamada_id,janela_inicio,janela_fim,local').single()
   if (error) throw error
   return data
+}
+
+/* ---------- conteúdo da aula (texto livre na chamada do dia) ---------- */
+export async function conteudoDaChamada(chamadaId) {
+  const { data, error } = await supabase.from('chamadas').select('conteudo').eq('id', chamadaId).maybeSingle()
+  if (error) throw error
+  return data ? (data.conteudo || '') : ''
+}
+export async function salvarConteudo(chamadaId, texto) {
+  const { error } = await supabase.from('chamadas').update({ conteudo: (texto || '').trim() || null }).eq('id', chamadaId)
+  if (error) throw error
 }
 
 export async function sessoesAbertas(turmaId) {
@@ -399,7 +413,7 @@ export async function minhaUltimaLeitura() {
 /* ---------- resumo ---------- */
 export async function resumoTurma(turmaId) {
   const { data: chs, error } = await supabase
-    .from('chamadas').select('id,data').eq('turma_id', turmaId).order('data')
+    .from('chamadas').select('id,data,conteudo').eq('turma_id', turmaId).order('data')
   if (error) throw error
   const ids = chs.map(c => c.id)
   let pres = []

@@ -4,6 +4,7 @@ import App from './App.jsx'
 import Aluno from './Aluno.jsx'
 import Escolha, { lerPerfil, gravarPerfil } from './Escolha.jsx'
 import './styles.css'
+import { EH_COMPUTADOR } from './lib/aparelho'
 
 /* Quem entra por link com ?aula= (o QR projetado) ou por /aluno vai direto
    para a coleta. Fora isso, vale o perfil guardado no aparelho; sem perfil,
@@ -12,8 +13,15 @@ import './styles.css'
 const porLink = location.pathname.replace(/\/+$/, '').endsWith('/aluno') ||
   new URLSearchParams(location.search).has('aula')
 
+/* No computador não existe "aluno": a tela dele é para o celular (regra dela). Um perfil
+   'aluno' guardado por engano, ou o link /aluno aberto no PC, cai na professora. O link
+   com ?aula= (QR projetado) continua indo ao aluno — quem lê QR está no celular. */
+const temAula = new URLSearchParams(location.search).has('aula')
 function Raiz() {
-  const [perfil, setPerfil] = React.useState(() => porLink ? 'aluno' : lerPerfil())
+  const [perfil, setPerfil] = React.useState(() => {
+    if (EH_COMPUTADOR && !temAula) return 'professor'
+    return porLink ? 'aluno' : lerPerfil()
+  })
   if (perfil === 'aluno') return <Aluno />
   if (perfil === 'professor') return <App />
   return <Escolha onEscolher={p => { gravarPerfil(p); setPerfil(p) }} />
