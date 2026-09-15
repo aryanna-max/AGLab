@@ -8,6 +8,8 @@ import Radar from './Radar.jsx'
 import Analise from './Analise.jsx'
 import { EH_COMPUTADOR } from './lib/aparelho'
 import { baixarCartao, compartilharCartao } from './lib/cartao'
+import Orbe from './Orbe.jsx'
+import { MARCOS, mesclarMarcos } from './lib/topo'
 
 /* ---------- utils ---------- */
 const todayISO = () => { const d = new Date(); const m = String(d.getMonth() + 1).padStart(2, '0'); const dd = String(d.getDate()).padStart(2, '0'); return `${d.getFullYear()}-${m}-${dd}` }
@@ -401,8 +403,55 @@ function PosicaoComputador() {
   )
 }
 
+
+/* ---------- marcos cadastrados pela professora ----------
+   É por aqui que a coordenada RTK do M0451 novo entra, sem mexer no código: mesmo nome substitui o marco fixo. */
+function CadastroMarcos({ userId, online, showToast }) {
+  const [lista, setLista] = useState([])
+  const [f, setF] = useState({ nome: '', n: '', e: '', sigma: '0,02', tipo: 'marco', nota: '' })
+  const [busy, setBusy] = useState(false)
+  const num = v => parseFloat(String(v).replace(/\./g, '').replace(',', '.'))
+  const carregar = useCallback(() => { if (online) store.listarMarcos().then(r => setLista(r || [])).catch(() => {}) }, [online])
+  useEffect(() => { carregar() }, [carregar])
+  async function salvar(ev) {
+    ev.preventDefault()
+    const N = num(f.n), E = num(f.e), S = parseFloat(String(f.sigma).replace(',', '.'))
+    if (!f.nome.trim() || !isFinite(N) || !isFinite(E)) { showToast('Preencha nome, N e E'); return }
+    if (N < 9000000 || N > 9300000 || E < 200000 || E > 400000) { showToast('Coordenada fora da UTM 25 S do Recife — confira N e E'); return }
+    setBusy(true)
+    try {
+      const m = await store.salvarMarco(userId, { nome: f.nome, utm_n: N, utm_e: E, sigma: isFinite(S) ? S : null, tipo: f.tipo, nota: f.nota })
+      mesclarMarcos([{ nome: m.nome, n: m.utm_n, e: m.utm_e, sigma: m.sigma, tipo: m.tipo, nota: m.nota }])
+      showToast('Marco salvo — já vale para você e para os alunos'); setF({ nome: '', n: '', e: '', sigma: '0,02', tipo: 'marco', nota: '' }); carregar()
+    } catch (er) { showToast('Erro: ' + er.message) } finally { setBusy(false) }
+  }
+  return (
+    <div className="panel">
+      <h2>Marcos cadastrados</h2>
+      <p className="hint">Coordenadas <b>oficiais</b> que você mediu (RTK contra a PERC). Um marco com o mesmo nome de um fixo do app (ex.: <b>M0451</b>) <b>substitui</b> a coordenada dele para todo mundo — é assim que o M0451 novo entra quando você medir. Regra: só coordenada obtida oficialmente vira verdade.</p>
+      <form className="row" onSubmit={salvar}>
+        <div style={{ flex: 1, minWidth: 110 }}><label className="fld">Nome</label><input value={f.nome} onChange={e => setF({ ...f, nome: e.target.value })} placeholder="M0451" /></div>
+        <div style={{ flex: 2, minWidth: 150 }}><label className="fld">N (m)</label><input inputMode="decimal" value={f.n} onChange={e => setF({ ...f, n: e.target.value })} placeholder="9108742,430" /></div>
+        <div style={{ flex: 2, minWidth: 150 }}><label className="fld">E (m)</label><input inputMode="decimal" value={f.e} onChange={e => setF({ ...f, e: e.target.value })} placeholder="284996,470" /></div>
+        <div style={{ flex: 1, minWidth: 90 }}><label className="fld">σ (m)</label><input inputMode="decimal" value={f.sigma} onChange={e => setF({ ...f, sigma: e.target.value })} /></div>
+        <div style={{ flex: 1, minWidth: 130 }}><label className="fld">Tipo</label>
+          <select value={f.tipo} onChange={e => setF({ ...f, tipo: e.target.value })}><option value="marco">marco (RTK)</option><option value="rbmc">RBMC</option><option value="referencia">referência (não compara)</option></select></div>
+        <div style={{ flex: 3, minWidth: 180 }}><label className="fld">Nota</label><input value={f.nota} onChange={e => setF({ ...f, nota: e.target.value })} placeholder="RTK R4 contra PERC, 20/09/2026" /></div>
+        <div style={{ flex: 0, minWidth: 110 }}><label className="fld">&nbsp;</label><button className="btn" type="submit" disabled={busy || !online}>Salvar marco</button></div>
+      </form>
+      {lista.length > 0 && <div className="scrollx" style={{ marginTop: 10 }}><table className="matrix"><thead><tr><th className="nm">Marco</th><th>N</th><th>E</th><th>σ</th><th>tipo</th><th>nota</th><th></th></tr></thead>
+        <tbody>{lista.map(m => <tr key={m.id}><td className="nm">{m.nome}</td><td>{metros(m.utm_n, 3)}</td><td>{metros(m.utm_e, 3)}</td><td>{m.sigma != null ? m.sigma : '—'}</td><td>{m.tipo}</td><td style={{ whiteSpace: 'normal', textAlign: 'left' }}>{m.nota || ''}</td>
+          <td><button className="btn danger mini" disabled={busy} onClick={async () => { if (!confirm(`Apagar o marco ${m.nome}?`)) return; await store.apagarMarco(m.id); showToast('Marco apagado — o fixo do app volta a valer após recarregar'); carregar() }}>Apagar</button></td></tr>)}</tbody></table></div>}
+      <p className="note">Marcos fixos do app hoje: {MARCOS.filter(m => m.tipo !== 'referencia').map(m => m.nome + (m.tipo === 'deslocado' ? ' (deslocado)' : m.cadastrado ? ' ✓' : '')).join(' · ')}.</p>
+    </div>
+  )
+}
+
 function Posicao({ userId, online, showToast }) {
   const [lendo, setLendo] = useState(false)
+  // a professora usa o Orbe (Ir até, pins, poligonais) com a conta dela — mesma tela do aluno, outra porta no banco
+  const apiProf = React.useMemo(() => store.apiProfessora(userId), [userId])
+  const identProf = React.useMemo(() => ({ alunoId: 'professora', matricula: '', nome: 'Professora', professora: true }), [])
   const [pos, setPos] = useState(null)      // leitura corrente
   const [melhor, setMelhor] = useState(null) // melhor acurácia da sessão
   const [n, setN] = useState(0)             // quantas atualizações
@@ -431,7 +480,7 @@ function Posicao({ userId, online, showToast }) {
           utm_n: u.n, utm_e: u.e,
           dist_perc_m: distanciaUTM(u.n, u.e, PERC.utmN, PERC.utmE),
           dist_m0452_m: distanciaUTM(u.n, u.e, M0452.utmN, M0452.utmE),
-          ttff_ms: ttffRef.current
+          ttff_ms: ttffRef.current, fixTs: p.timestamp ? new Date(p.timestamp).toISOString() : null
         }
         setPos(leitura); setN(k => k + 1)
         setMelhor(m => (!m || (leitura.acuracia_m || 1e9) < (m.acuracia_m || 1e9)) ? leitura : m)
@@ -458,7 +507,7 @@ function Posicao({ userId, online, showToast }) {
   }
   const carregar = useCallback(async () => {
     if (!online) return
-    try { setSalvas(await store.listarLeituras(20)) } catch (e) {}
+    try { setSalvas((await store.listarLeituras(20)) || []) } catch (e) {}
   }, [online])
   useEffect(() => { carregar() }, [carregar])
 
@@ -552,6 +601,14 @@ function Posicao({ userId, online, showToast }) {
           </tbody></table>
         </div>
       </div>}
+      <div className="panel">
+        <h2>Campo — Ir até, pins e poligonais</h2>
+        <p className="hint">O mesmo Orbe dos alunos, com a sua conta: os seus pins e poligonais ficam separados dos deles (sem aluno). Precisa da posição ligada acima.</p>
+        {!pos && <p className="note">Toque em <b>Começar</b> na posição, acima, para o Orbe receber a sua leitura.</p>}
+      </div>
+      <Orbe pos={pos ? { lat: pos.lat, lon: pos.lon, acc: pos.acuracia_m, alt: pos.altitude_m, altAcc: pos.alt_acuracia_m, utmN: pos.utm_n, utmE: pos.utm_e, distPerc: pos.dist_perc_m, fixTs: pos.fixTs } : null}
+        ident={identProf} codigo="" api={apiProf} onAviso={m => showToast(m)} />
+      <CadastroMarcos userId={userId} online={online} showToast={showToast} />
     </>
   )
 }

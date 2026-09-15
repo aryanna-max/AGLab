@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react'
 import { arquivoParaJpeg } from './lib/foto'
 import { supabase } from './supabaseClient'
 import { paraUTM25S, metros } from './lib/geo'
-import { MARCOS, marcoPorNome, azimute, grausDMS, pontoCardeal, resumirOcupacao, calcularPoligonal, compararComMarcos, ordenarPorAngulo, rumo } from './lib/topo'
+import { MARCOS, marcoPorNome, marcoComparavel, azimute, grausDMS, pontoCardeal, resumirOcupacao, calcularPoligonal, compararComMarcos, ordenarPorAngulo, rumo } from './lib/topo'
 
 /* As três operações de campo, no celular:
    🎯 Ir até     — locar: sair da coordenada para o terreno (distância e azimute ao vivo)
@@ -15,8 +15,24 @@ const MIN_LEITURAS = 5
 
 const ehErroDeRede = e => !e?.code && /fetch|network|conex|Failed|load/i.test(String(e?.message || e))
 
-export default function Orbe({ pos, ident, codigo, onAviso }) {
+/* API padrão: o aluno, pelas RPCs anônimas. A professora passa store.apiProfessora(userId). */
+export function apiAluno(ident, codigo) {
+  const base = () => ({ p_matricula: ident?.matricula || '', p_aluno_id: ident?.alunoId || null })
+  return {
+    meusPins: async () => { const { data } = await supabase.rpc('meus_pins', base()); return data?.ok ? (data.pins || []) : [] },
+    salvarPin: async c => { const { data, error } = await supabase.rpc('salvar_pin', { ...base(), p_codigo: codigo || '', ...c }); if (error) throw error; return data },
+    minhasPoligonais: async () => { const { data } = await supabase.rpc('minhas_poligonais', base()); return data?.ok ? (data.poligonais || []) : [] },
+    salvarPoligonal: async c => { const { data, error } = await supabase.rpc('salvar_poligonal', { ...base(), p_codigo: codigo || '', ...c }); if (error) throw error; return data },
+  }
+}
+
+export default function Orbe({ pos, ident, codigo, onAviso, api }) {
   const [aba, setAba] = useState('ir')
+  const apiRef = useRef(null)
+  if (!apiRef.current || apiRef.current._k !== (api ? 'ext' : `${ident?.alunoId}|${ident?.matricula}|${codigo}`)) {
+    apiRef.current = api || apiAluno(ident, codigo); apiRef.current._k = api ? 'ext' : `${ident?.alunoId}|${ident?.matricula}|${codigo}`
+  }
+  const A = apiRef.current
   return (
     <div className="panel orbe">
       <nav className="tabs orbe-tabs">
@@ -24,8 +40,8 @@ export default function Orbe({ pos, ident, codigo, onAviso }) {
           <button key={k} className={aba === k ? 'active' : ''} onClick={() => setAba(k)}>{l}</button>)}
       </nav>
       {aba === 'ir' && <IrAte pos={pos} />}
-      {aba === 'pins' && <Pins pos={pos} ident={ident} codigo={codigo} onAviso={onAviso} />}
-      {aba === 'poli' && <Poligonal ident={ident} codigo={codigo} onAviso={onAviso} />}
+      {aba === 'pins' && <Pins pos={pos} ident={ident} codigo={codigo} onAviso={onAviso} api={A} />}
+      {aba === 'poli' && <Poligonal ident={ident} codigo={codigo} onAviso={onAviso} api={A} />}
     </div>
   )
 }
@@ -121,7 +137,7 @@ function IrAte({ pos }) {
 }
 
 /* ================= 📍 PINS (ocupação) ================= */
-function Pins({ pos, ident, codigo, onAviso }) {
+function Pins({ pos, ident, codigo, onAviso, api }) {
   const [pins, setPins] = useState([])
   const [nome, setNome] = useState('')
   const [ocupando, setOcupando] = useState(false)
@@ -137,9 +153,9 @@ function Pins({ pos, ident, codigo, onAviso }) {
 
   async function carregar() {
     if (!ident) return
-    try { const { data } = await supabase.rpc('meus_pins', { p_matricula: ident.matricula || '', p_aluno_id: ident.alunoId || null }); if (data?.ok) setPins(data.pins || []) } catch (e) {}
+    try { setPins(await api.meusPins()) } catch (e) {}
   }
-  useEffect(() => { carregar() }, [ident?.alunoId, ident?.matricula])
+  useEffect(() => { carregar() }, [ident?.alunoId, ident?.matricula, api])
 
   function proximoNome() { const k = pins.length + 1; return 'P' + k }
 
@@ -172,15 +188,13 @@ function Pins({ pos, ident, codigo, onAviso }) {
     const marco = marcoPorNome(nm)
     setSalvando(true)
     try {
-      const { data, error } = await supabase.rpc('salvar_pin', {
-        p_matricula: ident.matricula || '', p_aluno_id: ident.alunoId || null, p_codigo: codigo || '',
+      const data = await api.salvarPin({
         p_nome: nm, p_lat: r.lat, p_lon: r.lon, p_utm_n: r.utmN, p_utm_e: r.utmE, p_altitude: r.alt,
         p_n: r.n, p_acc_media: r.acc, p_desvio_n: r.desvioN, p_desvio_e: r.desvioE, p_duracao: (performance.now() - t0.current) / 1000,
-        p_marco_ref: marco && marco.tipo !== 'referencia' ? marco.nome : null,
+        p_marco_ref: marco && marco.tipo !== 'referencia' ? marco.nome : null,   // deslocado também fica registrado: é o nome que o aluno ocupou
         p_foto: foto || null,
         p_leituras: ls.map(l => ({ lat: l.lat, lon: l.lon, acc: l.acc, alt: l.alt, altAcc: l.altAcc, utmN: l.utmN, utmE: l.utmE, distPerc: l.distPerc, capturado_em: l.capturado_em, online: l.online, fixTs: l.fixTs }))
       })
-      if (error) throw error
       if (!data?.ok) { setErro(data?.erro || 'Não consegui salvar o pin.'); return }
       onAviso && onAviso(`Pin ${nm} salvo: média de ${r.n} leituras, espalhamento ±${metros(r.desvioHz, 1)} m`)
       setNome(''); setFoto(null); await carregar()
@@ -230,6 +244,7 @@ function Pins({ pos, ident, codigo, onAviso }) {
           <tbody>{pins.map(p => {
             const m = p.marco_ref ? marcoPorNome(p.marco_ref) : null
             const errM = m ? Math.hypot(p.utm_n - m.n, p.utm_e - m.e) : null
+            const desloc = m && m.tipo === 'deslocado'
             const reocup = primeiroPorNome[p.nome.toLowerCase()] && primeiroPorNome[p.nome.toLowerCase()].id !== p.id
             const ref = reocup ? primeiroPorNome[p.nome.toLowerCase()] : null
             return <tr key={p.id} className={reocup ? 'reocup' : ''}>
@@ -237,17 +252,17 @@ function Pins({ pos, ident, codigo, onAviso }) {
               <td>{metros(p.utm_n, 1)}</td><td>{metros(p.utm_e, 1)}</td><td>{p.n}</td>
               <td>{p.acc != null ? metros(p.acc, 1) : '—'}</td>
               <td>{metros(Math.hypot(p.dn || 0, p.de || 0), 1)}</td>
-              <td className={errM != null ? (errM < 10 ? 'P' : 'F') : ''}>{errM != null ? metros(errM, 1) + ' m' : '—'}</td>
+              <td className={errM != null && !desloc ? (errM < 10 ? 'P' : 'F') : ''} title={desloc ? 'marco reimplantado em obra: a coordenada de 2023 não é mais o lugar do marco — esse número não mede o seu celular' : ''}>{errM != null ? metros(errM, 1) + ' m' + (desloc ? ' ⚠' : '') : '—'}</td>
               <td>{new Date(p.criado_em).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</td>
             </tr> })}</tbody></table>
       </div>}
-      <p className="note"><b>espalh.</b> = desvio-padrão das leituras da ocupação (precisão). <b>vs marco</b> = distância até a coordenada oficial (acurácia). Reocupar o mesmo nome aparece como extra: não entra na poligonal.</p>
+      <p className="note"><b>espalh.</b> = desvio-padrão das leituras da ocupação (precisão). <b>vs marco</b> = distância até a coordenada oficial (acurácia). ⚠ = marco reimplantado em obra (M0451): a coordenada oficial ainda é a de 2023, então a distância não avalia o aparelho. Reocupar o mesmo nome aparece como extra: não entra na poligonal.</p>
     </div>
   )
 }
 
 /* ================= 🔺 POLIGONAL ================= */
-function Poligonal({ ident, codigo, onAviso }) {
+function Poligonal({ ident, codigo, onAviso, api }) {
   const [pins, setPins] = useState([])
   const [sel, setSel] = useState([])          // ids na ordem
   const [res, setRes] = useState(null)
@@ -259,13 +274,13 @@ function Poligonal({ ident, codigo, onAviso }) {
 
   async function carregarSalvas() {
     if (!ident) return
-    try { const { data } = await supabase.rpc('minhas_poligonais', { p_matricula: ident.matricula || '', p_aluno_id: ident.alunoId || null }); if (data?.ok) setSalvas(data.poligonais || []) } catch (e) {}
+    try { setSalvas(await api.minhasPoligonais()) } catch (e) {}
   }
   useEffect(() => { (async () => {
     if (!ident) return
-    try { const { data } = await supabase.rpc('meus_pins', { p_matricula: ident.matricula || '', p_aluno_id: ident.alunoId || null }); if (data?.ok) setPins(data.pins || []) } catch (e) {}
+    try { setPins(await api.meusPins()) } catch (e) {}
     carregarSalvas()
-  })() }, [ident?.alunoId, ident?.matricula])
+  })() }, [ident?.alunoId, ident?.matricula, api])
 
   // abrir uma poligonal salva: recompõe a seleção e recalcula pelos pins (o desenho volta)
   function abrirSalva(q) {
@@ -300,12 +315,10 @@ function Poligonal({ ident, codigo, onAviso }) {
     if (!res) return
     setSalvando(true); setErro('')
     try {
-      const { data, error } = await supabase.rpc('salvar_poligonal', {
-        p_matricula: ident.matricula || '', p_aluno_id: ident.alunoId || null, p_codigo: codigo || '',
+      const data = await api.salvarPoligonal({
         p_nome: 'Poligonal ' + sel.map(id => pins.find(p => p.id === id)?.nome).join('-'),
         p_pin_ids: sel, p_resultado: { ...res, comparacao: comp }
       })
-      if (error) throw error
       if (!data?.ok) { setErro(data?.erro || 'Não consegui salvar.'); return }
       onAviso && onAviso('Poligonal salva'); setSalvaAtual(data.id || null); carregarSalvas()
     } catch (e) { setErro(ehErroDeRede(e) ? 'Sem rede — tente salvar quando tiver sinal.' : 'Falhou: ' + (e.message || 'erro')) }

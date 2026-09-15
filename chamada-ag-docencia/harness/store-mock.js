@@ -16,6 +16,8 @@ const polis = [
   { id: 'q2', nome: 'Poligonal M0451-B-M0452', pin_ids: ['p5', 'p7', 'p6'], resultado: { vertices: 3, perimetro: 91, area: 300 }, criado_em: agora, aluno_id: T2 + '-a2', alunos: { nome: 'Aluno 3' } },
 ]
 const especificos = {
+  listarLeituras: async () => [], salvarLeitura: async () => ({}), listarMarcos: async () => [{ id: 'm1', nome: 'TESTE', utm_n: 9108700, utm_e: 284950, sigma: 0.02, tipo: 'marco', nota: 'mock' }], marcosPublicos: async () => [],
+  apiProfessora: () => ({ meusPins: async () => pins.slice(0, 2), salvarPin: async () => ({ ok: true, pin_id: 'x' }), minhasPoligonais: async () => [], salvarPoligonal: async () => ({ ok: true, id: 'y' }) }),
   getCachedTurmas: () => turmas, loadTurmas: async () => turmas, outboxCount: () => 0, flushOutbox: async () => 0,
   ensureChamada: async () => ({ id: 'c1' }), getPresentes: async () => [T2 + '-a0', T2 + '-a3'],
   sessoesAbertas: async tid => tid === T2 ? [sess] : [], leiturasDaSessao: async () => leit, vivos: async () => [],
@@ -25,9 +27,12 @@ const especificos = {
 }
 
 
+
 export const abrirSessao = especificos['abrirSessao'] || (async () => null)
 export const adicionarAluno = especificos['adicionarAluno'] || (async () => null)
+export const apagarMarco = especificos['apagarMarco'] || (async () => null)
 export const apagarTurma = especificos['apagarTurma'] || (async () => null)
+export const apiProfessora = especificos['apiProfessora'] || (async () => null)
 export const confirmarChamada = especificos['confirmarChamada'] || (async () => null)
 export const conteudoDaChamada = especificos['conteudoDaChamada'] || (async () => null)
 export const desmarcarPresente = especificos['desmarcarPresente'] || (async () => null)
@@ -42,6 +47,7 @@ export const importarFaltantes = especificos['importarFaltantes'] || (async () =
 export const leiturasDaSessao = especificos['leiturasDaSessao'] || (async () => null)
 export const leiturasDaTurma = especificos['leiturasDaTurma'] || (async () => null)
 export const listarLeituras = especificos['listarLeituras'] || (async () => null)
+export const listarMarcos = especificos['listarMarcos'] || (async () => null)
 export const loadTurmas = especificos['loadTurmas'] || (async () => null)
 export const marcarPresente = especificos['marcarPresente'] || (async () => null)
 export const minhaUltimaLeitura = especificos['minhaUltimaLeitura'] || (async () => null)
@@ -52,6 +58,7 @@ export const queueOp = especificos['queueOp'] || (async () => null)
 export const resumoTurma = especificos['resumoTurma'] || (async () => null)
 export const salvarConteudo = especificos['salvarConteudo'] || (async () => null)
 export const salvarLeitura = especificos['salvarLeitura'] || (async () => null)
+export const salvarMarco = especificos['salvarMarco'] || (async () => null)
 export const saveFoto = especificos['saveFoto'] || (async () => null)
 export const sessoesAbertas = especificos['sessoesAbertas'] || (async () => null)
 export const sessoesDaTurma = especificos['sessoesDaTurma'] || (async () => null)

@@ -8,11 +8,12 @@ import { PERC, M0452 } from './geo'
 // Os valores UTM vêm do LS7_ifpe.html; os nomes com pessoa são marcos da rede local.
 export const MARCOS = [
   { nome: 'PERC (IBGE, Bloco A)', n: PERC.utmN, e: PERC.utmE, sigma: 0.001, tipo: 'rbmc' },
-  /* M0451 foi removido numa obra e reimplantado em outro lugar (informação da professora, 15/09/2026).
-     A coordenada oficial de 2023 (N 9108752,854 · E 284999,577) NÃO vale mais. Esta é PROVISÓRIA:
-     mediana de 16 ocupações válidas e não suspeitas (15 alunos) em 12/09/2026, deslocada 10,9 m a 197° da antiga; o mesmo
-     método errou 1,9 m no M0452 (controle). Substituir pela medição RTK quando ela fizer. */
-  { nome: 'M0451', n: 9108742.43, e: 284996.47, sigma: 2.5, tipo: 'provisorio', antigo: { n: 9108752.854, e: 284999.577 }, nota: 'reimplantado em obra — coordenada provisória: mediana de 16 ocupações válidas e não suspeitas (12/09/2026); aguarda RTK' },
+  /* M0451: o marco físico foi removido numa obra e reimplantado em outro lugar (informação dela, 15/09/2026).
+     A REFERÊNCIA CONTINUA SENDO A COORDENADA OFICIAL DE 2023 (regra dela: "não adote coordenada que não foi
+     obtida oficialmente como verdadeira"). Enquanto não houver medição RTK, o marco fica marcado 'deslocado':
+     aparece na planta, mas comparações contra ele não medem o aparelho. Estimativa da posição nova, NÃO oficial,
+     pela mediana de 16 ocupações válidas de alunos (12/09): N 9108742,43 · E 284996,47 (nota técnica). */
+  { nome: 'M0451', n: 9108752.854, e: 284999.577, sigma: 0.02, tipo: 'deslocado', estimativa: { n: 9108742.43, e: 284996.47, sigma: 2.5 }, nota: 'marco reimplantado em obra — coordenada de 2023 mantida como referência até a medição RTK; não usar para avaliar acurácia' },
   { nome: 'M0452', n: 9108720.996, e: 284958.028, sigma: 0.02, tipo: 'marco' },
   { nome: 'M0453', n: 9108603.791, e: 284922.902, sigma: 0.03, tipo: 'marco' },
   { nome: 'M0454', n: 9108580.430, e: 284976.942, sigma: 0.02, tipo: 'marco' },
@@ -27,6 +28,19 @@ export const MARCOS = [
   { nome: 'rejane', n: 9108562.241, e: 284911.353, sigma: 0.02, tipo: 'marco' },
   { nome: 'Bloco F (salas)', n: 9108692.6, e: 284965.3, sigma: 25, tipo: 'referencia' }
 ]
+
+/* Marcos cadastrados pela professora (tabela `marcos`, via RPC marcos_publicos) entram na mesma lista.
+   Mesmo nome substitui o fixo — é assim que a coordenada RTK do M0451 novo vai entrar, sem mexer no código. */
+export function mesclarMarcos(lista) {
+  for (const m of lista || []) {
+    if (!m || !m.nome || m.n == null || m.e == null) continue
+    const novo = { nome: String(m.nome), n: Number(m.n), e: Number(m.e), sigma: m.sigma != null ? Number(m.sigma) : 0.05, tipo: m.tipo || 'marco', nota: m.nota || null, cadastrado: true }
+    const k = MARCOS.findIndex(x => x.nome.toLowerCase() === novo.nome.toLowerCase())
+    if (k >= 0) MARCOS[k] = { ...MARCOS[k], ...novo, estimativa: undefined }; else MARCOS.splice(MARCOS.length - 1, 0, novo)   // antes de "Bloco F (salas)"
+  }
+  return MARCOS
+}
+export const marcoComparavel = m => !!m && m.tipo !== 'referencia' && m.tipo !== 'deslocado'
 
 export function marcoPorNome(nome) {
   const k = String(nome || '').trim().toLowerCase()
@@ -126,7 +140,7 @@ export function calcularPoligonal(pts) {
 
 // Compara uma poligonal medida com a verdadeira (mesmos nomes de marcos)
 export function compararComMarcos(pts) {
-  const pares = pts.map(p => ({ p, m: marcoPorNome(p.nome) })).filter(x => x.m && x.m.tipo !== 'referencia')
+  const pares = pts.map(p => ({ p, m: marcoPorNome(p.nome) })).filter(x => marcoComparavel(x.m))
   if (pares.length < pts.length) return null
   const verdadeira = calcularPoligonal(pares.map(x => ({ nome: x.m.nome, n: x.m.n, e: x.m.e })))
   const medida = calcularPoligonal(pts)

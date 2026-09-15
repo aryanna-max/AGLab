@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import * as store from './lib/store'
 import { PERC, paraUTM25S, deUTM25S, metros } from './lib/geo'
-import { MARCOS, marcoPorNome, calcularPoligonal, ordenarPorAngulo, grausDMS, rumo } from './lib/topo'
+import { MARCOS, marcoPorNome, marcoComparavel, calcularPoligonal, ordenarPorAngulo, grausDMS, rumo } from './lib/topo'
 
 /* Análise — a mesa de trabalho da professora, pensada para o computador.
    Tudo o que os alunos da turma mandaram: leituras (chamada e ambientes),
@@ -58,7 +58,7 @@ function ocupacaoValida(p) {
 }
 function marcoMaisProximo(p) {
   let melhor = null
-  for (const m of MARCOS) { if (m.tipo === 'referencia') continue; const d = Math.hypot(p.utm_n - m.n, p.utm_e - m.e); if (d < RAIO_MARCO && (!melhor || d < melhor.d)) melhor = { m, d } }
+  for (const m of MARCOS) { if (!marcoComparavel(m)) continue; const d = Math.hypot(p.utm_n - m.n, p.utm_e - m.e); if (d < RAIO_MARCO && (!melhor || d < melhor.d)) melhor = { m, d } }
   return melhor
 }
 function estatErro(erros) {
@@ -94,7 +94,7 @@ function AcuraciaMarcos({ pins, t, alunosIdx }) {
   return (
     <div className="panel">
       <h2>Acurácia real nos marcos — RMSE</h2>
-      <p className="hint">Só onde existe verdade: pins ocupados a menos de {RAIO_MARCO} m de um marco de coordenada conhecida, classificados pelo lugar, não pelo nome. Erro = pin − marco. <b>RMSE_h</b> é o número único de acurácia horizontal; <b>95%</b> segue o NSSDA/ASPRS (1,7308 × RMSE_h) e <b>90%</b> o PEC-PCD (1,5175 × RMSE_h). <b>Viés</b> é o erro médio; se ele domina o RMSE, o problema está na referência, não nos aparelhos.</p>
+      <p className="hint">Só onde existe verdade: pins ocupados a menos de {RAIO_MARCO} m de um marco de coordenada conhecida, classificados pelo lugar, não pelo nome. O <b>M0451 fica de fora</b> enquanto estiver marcado como deslocado: a coordenada oficial de 2023 não é mais o lugar do marco, e a estimativa dos alunos não é oficial. Erro = pin − marco. <b>RMSE_h</b> é o número único de acurácia horizontal; <b>95%</b> segue o NSSDA/ASPRS (1,7308 × RMSE_h) e <b>90%</b> o PEC-PCD (1,5175 × RMSE_h). <b>Viés</b> é o erro médio; se ele domina o RMSE, o problema está na referência, não nos aparelhos.</p>
       <div className="btnrow" style={{ alignItems: 'center' }}>
         <label className="chk-inline"><input type="checkbox" checked={soValidas} onChange={e => setSoValidas(e.target.checked)} /> só ocupações válidas (≥ 10 fixações, espalh. ≤ 5 m, acurácia ≤ 50 m){dados.descartadas ? ` — ${dados.descartadas} fora` : ''}</label>
         <label className="chk-inline"><input type="checkbox" checked={porMarco} onChange={e => setPorMarco(e.target.checked)} /> agrupar por marco</label>
@@ -423,8 +423,8 @@ export default function Analise({ tid, turmas, online, showToast }) {
                 <title>{`${p.alunos?.nome} · ${p.nome} · ${p.n_leituras} leituras · espalh. ±${metros(Math.hypot(p.desvio_n_m || 0, p.desvio_e_m || 0), 1)} m`}</title></g> })}
 
             {camadas.marcos && marcosVis.map(m => { const x = vista.X(m.e), y = vista.Y(m.n)
-              return <g key={m.nome} transform={`translate(${x},${y})`} className={'ana-marco ' + m.tipo}><line x1={-8} x2={8} y1={0} y2={0} /><line y1={-8} y2={8} x1={0} x2={0} /><circle r={4} fill="none" />{m.tipo === 'provisorio' && <circle r={Math.max(6, (m.sigma || 0) * vista.esc)} fill="none" strokeDasharray="3 3" />}<text x={10} y={-6} className="ana-marco-lab">{m.nome}{m.tipo === 'provisorio' ? ' (provisório)' : ''}</text>
-                {m.antigo && dentro(vista.X(m.antigo.e), vista.Y(m.antigo.n)) && <g transform={`translate(${vista.X(m.antigo.e) - x},${vista.Y(m.antigo.n) - y})`} opacity={0.55}><line x1={-6} x2={6} y1={-6} y2={6} /><line x1={-6} x2={6} y1={6} y2={-6} /><text x={9} y={12} className="ana-marco-lab">antigo</text></g>}</g> })}
+              return <g key={m.nome} transform={`translate(${x},${y})`} className={'ana-marco ' + m.tipo}><line x1={-8} x2={8} y1={0} y2={0} /><line y1={-8} y2={8} x1={0} x2={0} /><circle r={4} fill="none" /><text x={10} y={-6} className="ana-marco-lab">{m.nome}{m.tipo === 'deslocado' ? ' (2023 · marco deslocado)' : m.cadastrado ? ' ✓' : ''}</text>
+                {m.estimativa && dentro(vista.X(m.estimativa.e), vista.Y(m.estimativa.n)) && <g transform={`translate(${vista.X(m.estimativa.e) - x},${vista.Y(m.estimativa.n) - y})`} opacity={0.7}><circle r={Math.max(6, (m.estimativa.sigma || 2.5) * vista.esc)} fill="none" strokeDasharray="3 3" /><text x={9} y={12} className="ana-marco-lab">estimativa dos alunos · não oficial</text></g>}</g> })}
 
             <g transform={`translate(${W - PAD - 10 - vista.passo * vista.esc} ${PAD + 16})`} className="ana-escala"><line x1={0} x2={vista.passo * vista.esc} y1={0} y2={0} /><text x={vista.passo * vista.esc / 2} y={-4} textAnchor="middle">{vista.passo} m</text></g>
             <text x={PAD + 6} y={PAD + 16} className="ana-lab">N ↑</text>

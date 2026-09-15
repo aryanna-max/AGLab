@@ -410,6 +410,46 @@ export async function minhaUltimaLeitura() {
   return data && data[0] ? data[0] : null
 }
 
+/* ---------- a professora usa o Orbe (Ir até, pins, poligonais) com a conta dela ----------
+   Mesma interface que a RPC do aluno (apiAluno em Orbe.jsx), mas direto nas tabelas via RLS,
+   com aluno_id nulo. As chaves p_* são as da RPC, para o Orbe não saber quem está usando. */
+export function apiProfessora(userId) {
+  const mapPin = p => ({ id: p.id, nome: p.nome, lat: p.lat, lon: p.lon, utm_n: p.utm_n, utm_e: p.utm_e, altitude_m: p.altitude_m, n: p.n_leituras, acc: p.acuracia_media_m, dn: p.desvio_n_m, de: p.desvio_e_m, marco_ref: p.marco_ref, criado_em: p.criado_em, tem_foto: p.tem_foto })
+  return {
+    meusPins: async () => {
+      const { data, error } = await supabase.from('pins').select('id,nome,lat,lon,utm_n,utm_e,altitude_m,n_leituras,acuracia_media_m,desvio_n_m,desvio_e_m,marco_ref,criado_em,tem_foto')
+        .is('aluno_id', null).order('criado_em', { ascending: true }).limit(60)
+      if (error) throw error; return (data || []).map(mapPin)
+    },
+    salvarPin: async c => {
+      const { data, error } = await supabase.from('pins').insert({ owner_id: userId, aluno_id: null, nome: c.p_nome, lat: c.p_lat, lon: c.p_lon, utm_n: c.p_utm_n, utm_e: c.p_utm_e,
+        altitude_m: c.p_altitude, n_leituras: c.p_n, acuracia_media_m: c.p_acc_media, desvio_n_m: c.p_desvio_n, desvio_e_m: c.p_desvio_e, duracao_s: c.p_duracao, marco_ref: c.p_marco_ref, foto: c.p_foto || null }).select('id').single()
+      if (error) throw error; return { ok: true, pin_id: data.id }
+    },
+    minhasPoligonais: async () => {
+      const { data, error } = await supabase.from('poligonais').select('id,nome,pin_ids,resultado,criado_em').is('aluno_id', null).order('criado_em', { ascending: false }).limit(40)
+      if (error) throw error; return data || []
+    },
+    salvarPoligonal: async c => {
+      if (c.p_resultado && c.p_resultado.cruzada) return { ok: false, erro: 'Os lados se cruzam: corrija a ordem antes de salvar.' }
+      const { data, error } = await supabase.from('poligonais').insert({ owner_id: userId, aluno_id: null, nome: c.p_nome, pin_ids: c.p_pin_ids, resultado: c.p_resultado }).select('id').single()
+      if (error) throw error; return { ok: true, id: data.id }
+    }
+  }
+}
+
+/* ---------- marcos cadastrados por ela ---------- */
+export async function listarMarcos() {
+  const { data, error } = await supabase.from('marcos').select('id,nome,utm_n,utm_e,sigma,tipo,nota,criado_em').order('nome')
+  if (error) throw error; return data || []
+}
+export async function salvarMarco(userId, m) {
+  const { data, error } = await supabase.from('marcos').upsert({ owner_id: userId, nome: m.nome.trim(), utm_n: m.utm_n, utm_e: m.utm_e, sigma: m.sigma, tipo: m.tipo || 'marco', nota: m.nota || null }, { onConflict: 'owner_id,nome' }).select('id,nome,utm_n,utm_e,sigma,tipo,nota').single()
+  if (error) throw error; return data
+}
+export async function apagarMarco(id) { const { error } = await supabase.from('marcos').delete().eq('id', id); if (error) throw error }
+export async function marcosPublicos() { const { data, error } = await supabase.rpc('marcos_publicos'); if (error) throw error; return data || [] }
+
 /* ---------- resumo ---------- */
 export async function resumoTurma(turmaId) {
   const { data: chs, error } = await supabase

@@ -5,6 +5,8 @@ import Aluno from './Aluno.jsx'
 import Escolha, { lerPerfil, gravarPerfil } from './Escolha.jsx'
 import './styles.css'
 import { EH_COMPUTADOR } from './lib/aparelho'
+import { mesclarMarcos } from './lib/topo'
+import { supabase } from './supabaseClient'
 
 /* Quem entra por link com ?aula= (o QR projetado) ou por /aluno vai direto
    para a coleta. Fora isso, vale o perfil guardado no aparelho; sem perfil,
@@ -27,7 +29,14 @@ function Raiz() {
   return <Escolha onEscolher={p => { gravarPerfil(p); setPerfil(p) }} />
 }
 
-createRoot(document.getElementById('root')).render(<Raiz />)
+/* Marcos cadastrados pela professora entram na lista antes da primeira tela (2,5 s no máximo; offline segue sem eles). */
+const K_MARCOS = 'agc2_marcos_cache'
+try { mesclarMarcos(JSON.parse(localStorage.getItem(K_MARCOS) || '[]')) } catch (e) {}
+const carregarMarcos = Promise.race([
+  supabase.rpc('marcos_publicos').then(({ data }) => { if (Array.isArray(data)) { mesclarMarcos(data); try { localStorage.setItem(K_MARCOS, JSON.stringify(data)) } catch (e) {} } }).catch(() => {}),
+  new Promise(r => setTimeout(r, 2500))
+])
+carregarMarcos.finally(() => createRoot(document.getElementById('root')).render(<Raiz />))
 
 /* Atualização do app.
 
