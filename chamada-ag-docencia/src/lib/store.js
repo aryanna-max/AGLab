@@ -89,10 +89,12 @@ export async function loadTurmas() {
     .from('turmas').select('id,nome,codigo').order('nome')
   if (error) throw error
   const { data: alunos, error: e2 } = await supabase
-    .from('alunos').select('id,turma_id,matricula,nome,foto,foto_path').order('nome')
+    .from('alunos').select('id,turma_id,matricula,nome,foto,foto_path,foto_data').order('nome')
   if (e2) throw e2
 
   await resolverFotos(alunos)
+  // selfie tirada pelo próprio aluno (data URL pequena): vale quando não há foto no Storage
+  alunos.forEach(a => { if (!a.foto && a.foto_data) a.foto = a.foto_data })
 
   const byT = {}
   turmas.forEach(t => { byT[t.id] = { ...t, alunos: [] } })
@@ -348,7 +350,7 @@ export async function vivos(turmaId) {
 /* ---------- pins e poligonais da turma (professora) ---------- */
 export async function pinsDaTurma(turmaId) {
   const { data, error } = await supabase.from('pins')
-    .select('id,nome,utm_n,utm_e,n_leituras,acuracia_media_m,desvio_n_m,desvio_e_m,marco_ref,criado_em,aluno_id,alunos!inner(nome,turma_id)')
+    .select('id,nome,lat,lon,utm_n,utm_e,altitude_m,n_leituras,acuracia_media_m,desvio_n_m,desvio_e_m,marco_ref,tem_foto,sessao_id,criado_em,aluno_id,alunos!inner(nome,matricula,turma_id)')
     .eq('alunos.turma_id', turmaId).order('criado_em', { ascending: false }).limit(200)
   if (error) throw error
   return data
@@ -359,6 +361,39 @@ export async function poligonaisDaTurma(turmaId) {
     .eq('alunos.turma_id', turmaId).order('criado_em', { ascending: false }).limit(100)
   if (error) throw error
   return data
+}
+
+export async function fotoDoPin(id) {
+  const { data, error } = await supabase.from('pins').select('foto').eq('id', id).maybeSingle()
+  if (error) throw error
+  return data ? data.foto : null
+}
+
+/* ---------- análise (professora, computador) ---------- */
+export async function leiturasDaTurma(turmaId, desdeISO) {
+  let q = supabase.from('leituras_gps')
+    .select('id,rotulo,lat,lon,acuracia_m,altitude_m,alt_acuracia_m,utm_n,utm_e,dist_perc_m,ttff_ms,criado_em,capturado_em,fix_timestamp,online_na_captura,presenca_marcada,sessao_id,extra,aluno_id,alunos!inner(nome,matricula,turma_id)')
+    .eq('alunos.turma_id', turmaId).order('capturado_em', { ascending: false }).limit(5000)
+  if (desdeISO) q = q.gte('criado_em', desdeISO)
+  const { data, error } = await q
+  if (error) throw error
+  return data
+}
+export async function sessoesDaTurma(turmaId) {
+  const { data, error } = await supabase.from('sessoes_coleta')
+    .select('id,codigo,titulo,aberta,criada_em,tempo,local,janela_inicio,janela_fim')
+    .eq('turma_id', turmaId).order('criada_em', { ascending: false }).limit(60)
+  if (error) throw error
+  return data
+}
+/* Última medição da PROFESSORA feita pelo celular (aluno_id nulo). No computador a
+   geolocalização é do Wi-Fi/IP e não vale: a posição oficial dela é esta. */
+export async function minhaUltimaLeitura() {
+  const { data, error } = await supabase.from('leituras_gps')
+    .select('lat,lon,acuracia_m,rotulo,criado_em,capturado_em')
+    .is('aluno_id', null).order('criado_em', { ascending: false }).limit(1)
+  if (error) throw error
+  return data && data[0] ? data[0] : null
 }
 
 /* ---------- resumo ---------- */

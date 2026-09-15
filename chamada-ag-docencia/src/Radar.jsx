@@ -19,8 +19,7 @@ const initials = n => { const p = String(n || '').trim().split(/\s+/); return ((
 const hojeISO = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` }
 const fmtM = m => m >= 10 ? Math.round(m) + ' m' : m.toFixed(1).replace('.', ',') + ' m'
 
-export default function Radar({ userId, turmas, online, showToast }) {
-  const [tid, setTid] = useState(turmas[0]?.id || '')
+export default function Radar({ userId, tid, turmas, online, showToast, ehComputador }) {
   const [vivos, setVivos] = useState([])
   const [presentes, setPresentes] = useState({})
   const [centro, setCentro] = useState(null)
@@ -30,13 +29,22 @@ export default function Radar({ userId, turmas, online, showToast }) {
   const t = turmas.find(x => x.id === tid)
 
   useEffect(() => {
+    if (ehComputador) {
+      // no computador a geolocalização é do Wi-Fi/IP: o centro passa a ser a última medição do celular dela
+      const blocoF = () => setCentro({ ...BLOCO_F, acc: null, origem: 'Bloco F' })
+      store.minhaUltimaLeitura().then(u => {
+        if (u && u.lat != null) { const h = new Date(u.capturado_em || u.criado_em); setCentro({ lat: u.lat, lon: u.lon, acc: u.acuracia_m, origem: 'seu celular · ' + h.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) }) }
+        else blocoF()
+      }).catch(blocoF)
+      return
+    }
     if (!navigator.geolocation) { setCentro({ ...BLOCO_F, acc: null, origem: 'Bloco F' }); return }
     watchRef.current = navigator.geolocation.watchPosition(
       p => setCentro({ lat: p.coords.latitude, lon: p.coords.longitude, acc: p.coords.accuracy, origem: 'você' }),
       () => setCentro(c => c || { ...BLOCO_F, acc: null, origem: 'Bloco F' }),
       { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 })
     return () => { if (watchRef.current != null) navigator.geolocation.clearWatch(watchRef.current) }
-  }, [])
+  }, [ehComputador])
 
   useEffect(() => {
     if (!tid || !online) return
@@ -114,8 +122,6 @@ export default function Radar({ userId, turmas, online, showToast }) {
     <div className="panel">
       <h2>Radar — quem está por perto</h2>
       <p className="hint">Aceso: está com o Orbe ou a Chamada aberta agora. Apagado: marcou presença hoje, mas não está transmitindo.</p>
-      <label className="fld">Turma</label>
-      <select value={tid} onChange={e => setTid(e.target.value)}>{turmas.map(x => <option key={x.id} value={x.id}>{x.nome}</option>)}</select>
 
       <div className="count-strip" style={{ marginTop: 12 }}>
         <div className="c ok"><div className="n">{nAceso}</div><div className="l">ao vivo</div></div>
@@ -160,7 +166,7 @@ export default function Radar({ userId, turmas, online, showToast }) {
           <text x={cx + 11} y={cy + 4} className="radar-lab">{centro?.origem || '…'}</text>
         </svg>
       </div>
-      <p className="note">Centro: {centro?.origem === 'você' ? `o seu celular (±${Math.round(centro.acc || 0)} m)` : 'o Bloco F (localização negada ou indisponível)'}. Norte para cima. Quem estiver além do raio fica na borda. Bolinhas muito próximas são afastadas um pouco para não se cobrirem — a distância escrita é a real.</p>
+      <p className="note">Centro: {centro?.origem === 'você' ? `o seu celular (±${Math.round(centro.acc || 0)} m)` : centro?.origem?.startsWith('seu celular') ? `a última medição do seu celular (${centro.origem.slice(14)}) — no computador a localização local não vale` : 'o Bloco F (localização negada ou indisponível)'}. Norte para cima. Quem estiver além do raio fica na borda. Bolinhas muito próximas são afastadas um pouco para não se cobrirem — a distância escrita é a real.</p>
       {!online && <p className="note" style={{ color: 'var(--miss)' }}>Offline — o radar precisa de internet.</p>}
     </div>
   )

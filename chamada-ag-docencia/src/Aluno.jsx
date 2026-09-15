@@ -4,7 +4,7 @@ import { PERC, paraUTM25S, distanciaUTM, metros, vezesPiorQuePerc } from './lib/
 import { decodeFromVideo, parsePayload } from './lib/qr'
 import { gravarPerfil } from './Escolha.jsx'
 import Orbe from './Orbe.jsx'
-import { baixarCartao, compartilharCartao } from './lib/cartao'
+import MinhaFoto from './MinhaFoto.jsx'
 
 /* App do aluno. Sem conta, sem senha, sem campo de código.
 
@@ -199,7 +199,7 @@ export default function Aluno() {
       const { data, error } = await supabase.rpc('validar_sessao', { p_codigo: '', p_matricula: matricula || '', p_aluno_id: alunoId || null })
       if (error) throw error
       if (!data?.ok) { setErro(data?.erro || 'Não encontrei você.'); return false }
-      const i = { alunoId: data.aluno_id, matricula: data.matricula, nome: data.nome, turma: data.turma, turmaId: data.turma_id }
+      const i = { alunoId: data.aluno_id, matricula: data.matricula, nome: data.nome, turma: data.turma, turmaId: data.turma_id, temFoto: data.tem_foto }
       gravar(K_IDENT, i); setIdent(i); identRef.current = i; setMatInput(i.matricula || '')
       return true
     } catch (e) {
@@ -212,9 +212,6 @@ export default function Aluno() {
       setErro('Falhou a conferência: ' + (e.message || 'erro')); return false
     } finally { setConferindo(false) }
   }
-  const meuCartao = () => ({ id: ident.alunoId, nome: ident.nome || ident.matricula, matricula: ident.matricula })
-  const minhaTurma = () => ({ id: ident.turmaId, nome: ident.turma })
-
   function trocarIdent() { gravar(K_IDENT, null); setIdent(null); identRef.current = null; setMatInput(''); setPlacar(null) }
 
   /* ---------- GPS ---------- */
@@ -302,7 +299,7 @@ export default function Aluno() {
       if (error) throw error
       if (!data?.ok) { setErro(data?.erro || 'QR inválido.'); setTela('home'); return }
       setAula({ turma: data.turma, local: data.local, janela_aberta: data.janela_aberta })
-      if (data.nome && (data.nome !== id?.nome || !id?.turmaId)) { const i = { ...id, nome: data.nome, turma: data.turma, turmaId: data.turma_id }; gravar(K_IDENT, i); setIdent(i); identRef.current = i }
+      if (data.nome && (data.nome !== id?.nome || !id?.turmaId || id?.temFoto !== data.tem_foto)) { const i = { ...id, nome: data.nome, turma: data.turma, turmaId: data.turma_id, temFoto: data.tem_foto }; gravar(K_IDENT, i); setIdent(i); identRef.current = i }
     } catch (e) {
       if (!ehErroDeRede(e)) { setErro('Falhou: ' + (e.message || 'erro')); setTela('home'); return }
       setAviso('Sem rede — a chamada vai subir quando a conexão voltar.'); setTimeout(() => setAviso(''), 4000)
@@ -391,14 +388,7 @@ export default function Aluno() {
       </div>
       {erro && <div className="flash err">{erro}</div>}
       {aviso && <div className="flash dup">{aviso}</div>}
-      {ident && ident.turmaId && <div className="panel">
-        <h2>Meu cartão de QR</h2>
-        <p className="hint">É o seu crachá: a professora lê este QR para registrar presença. Guarde no celular ou imprima.</p>
-        <div className="btnrow">
-          <button className="btn" onClick={() => compartilharCartao(meuCartao(), minhaTurma(), () => baixarCartao(meuCartao(), minhaTurma()))}>Salvar no celular</button>
-          <button className="btn ghost" onClick={() => baixarCartao(meuCartao(), minhaTurma())}>Baixar imagem</button>
-        </div>
-      </div>}
+      {ident && <MinhaFoto ident={ident} online={online} pedir={ident.temFoto === false} />}
 
       <p className="note" style={{ textAlign: 'center' }}>
         {ident ? <>Você: <b>{ident.nome || ident.matricula}</b> · <span style={{ cursor: 'pointer', textDecoration: 'underline' }} onClick={trocarIdent}>trocar</span></>

@@ -1,16 +1,20 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react'
 import { supabase } from './supabaseClient'
 import * as store from './lib/store'
-import { qrDataUrl, decodeFromVideo, parsePayload, QR_PREFIX } from './lib/qr'
+import { qrDataUrl, QR_PREFIX } from './lib/qr'
 import { PERC, M0452, paraUTM25S, distanciaUTM, grausMinSeg, metros, vezesPiorQuePerc } from './lib/geo'
 import { gravarPerfil } from './Escolha.jsx'
 import Radar from './Radar.jsx'
-import { marcoPorNome } from './lib/topo'
+import Analise from './Analise.jsx'
 import { baixarCartao, compartilharCartao } from './lib/cartao'
 
 /* ---------- utils ---------- */
 const todayISO = () => { const d = new Date(); const m = String(d.getMonth() + 1).padStart(2, '0'); const dd = String(d.getDate()).padStart(2, '0'); return `${d.getFullYear()}-${m}-${dd}` }
 const fmtDate = iso => { if (!iso) return ''; const p = iso.split('-'); return p.length === 3 ? `${p[2]}/${p[1]}` : iso }
+const K_TURMA = 'agc2_turma_prof'
+/* Computador: sem toque e sem UA de celular. Nele a geolocalização vem do Wi-Fi/IP e
+   não vale como medição — a posição oficial da professora é a do celular. */
+const EH_COMPUTADOR = !(/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)) && !(navigator.maxTouchPoints > 1)
 const initials = n => { const p = String(n || '').trim().split(/\s+/); return ((p[0]?.[0] || '') + (p.length > 1 ? p[p.length - 1][0] : '')).toUpperCase() || '?' }
 
 function Avatar({ a, big }) {
@@ -87,6 +91,13 @@ function Main({ session }) {
   const [pending, setPending] = useState(store.outboxCount())
   const toastT = useRef(null)
 
+  /* UMA turma para o app inteiro. Escolhida na barra abaixo do cabeçalho, vale em
+     todas as abas, e fica guardada no aparelho: abrir o app já cai na turma da aula. */
+  const [tid, setTidRaw] = useState(() => { try { return localStorage.getItem(K_TURMA) || '' } catch (e) { return '' } })
+  const setTid = useCallback(id => { setTidRaw(id); try { localStorage.setItem(K_TURMA, id) } catch (e) {} }, [])
+  useEffect(() => { if (turmas.length && !turmas.some(t => t.id === tid)) setTid(turmas[0].id) }, [turmas, tid, setTid])
+  const turma = turmas.find(t => t.id === tid)
+
   const showToast = useCallback(msg => {
     setToast(msg); if (toastT.current) clearTimeout(toastT.current)
     toastT.current = setTimeout(() => setToast(''), 2500)
@@ -100,6 +111,8 @@ function Main({ session }) {
   }, [])
 
   useEffect(() => { refresh() }, [refresh])
+  // as selfies dos alunos chegam sozinhas: recarrega as turmas de vez em quando
+  useEffect(() => { const it = setInterval(() => { if (navigator.onLine) refresh() }, 60000); return () => clearInterval(it) }, [refresh])
 
   useEffect(() => {
     const on = async () => { setOnline(true); const n = await store.flushOutbox(userId); setPending(store.outboxCount()); if (n) { showToast(`${n} marcação(ões) sincronizada(s)`); refresh() } }
@@ -112,7 +125,7 @@ function Main({ session }) {
   const turmasMap = {}; turmas.forEach(t => turmasMap[t.id] = t)
 
   return (
-    <div className="wrap">
+    <div className={'wrap' + (tab === 'analise' ? ' wide' : '')}>
       <header className="app">
         <h1>Orbe</h1><span className="sub">Topografia · IFPE</span>
         <span className="sub" style={{ opacity: .6 }} title="versão que está rodando neste aparelho">v{__BUILD_ID__}</span>
@@ -124,20 +137,29 @@ function Main({ session }) {
 
       <div className="lgpd"><b>Dentro da lei (LGPD).</b> Dados no seu banco privado em São Paulo, só a sua conta acessa. As fotos servem para você conferir na tela — sem biometria. Guarde o termo de consentimento assinado dos alunos.</div>
 
+      {turmas.length > 0 && <div className="turma-bar">
+        <span className="tb-lab">Turma</span>
+        <select value={tid} onChange={e => setTid(e.target.value)}>{turmas.map(x => <option key={x.id} value={x.id}>{x.nome}</option>)}</select>
+        {turma && <span className="tb-n">{turma.alunos.length} alunos</span>}
+        {EH_COMPUTADOR && <span className="badge" title="Neste aparelho a localização vem do Wi-Fi/IP e não vale como dado. A sua posição oficial é a do celular.">💻 computador</span>}
+      </div>}
+
       <nav className="tabs">
-        {[['chamada', 'Chamada'], ['turmas', 'Turmas & Fotos'], ['conferir', 'Conferir faltantes'], ['resumo', 'Resumo / Exportar'], ['posicao', 'Posição · GNSS'], ['radar', 'Radar']].map(([k, l]) =>
+        {[['chamada', 'Chamada'], ['analise', 'Análise'], ['radar', 'Radar'], ['conferir', 'Conferir faltantes'], ['resumo', 'Resumo / Exportar'], ['posicao', 'Minha posição'], ['turmas', 'Turmas & Fotos']].map(([k, l]) =>
           <button key={k} className={tab === k ? 'active' : ''} onClick={() => setTab(k)}>{l}</button>)}
       </nav>
 
       {loading ? <div className="spin">Carregando turmas…</div> :
         turmas.length === 0 ? <SeedPanel userId={userId} onDone={refresh} showToast={showToast} /> :
+          !turma ? <div className="spin">Escolhendo a turma…</div> :
           <>
-            {tab === 'chamada' && <><ColetaTurma userId={userId} turmas={turmas} online={online} showToast={showToast} /><Chamada userId={userId} turmas={turmas} turmasMap={turmasMap} online={online} setPending={setPending} showToast={showToast} goConferir={() => setTab('conferir')} /></>}
-            {tab === 'turmas' && <><GerenciarTurmas userId={userId} turmas={turmas} refresh={refresh} showToast={showToast} online={online} /><TurmasFotos turmas={turmas} refresh={refresh} showToast={showToast} online={online} /></>}
-            {tab === 'conferir' && <Conferir userId={userId} turmas={turmas} online={online} setPending={setPending} showToast={showToast} />}
-            {tab === 'resumo' && <Resumo turmas={turmas} showToast={showToast} />}
-            {tab === 'radar' && <Radar userId={userId} turmas={turmas} online={online} showToast={showToast} />}
-            {tab === 'posicao' && <><Posicao userId={userId} online={online} showToast={showToast} /><PinsTurma turmas={turmas} online={online} /></>}
+            {tab === 'chamada' && <><ColetaTurma userId={userId} tid={tid} turmas={turmas} online={online} showToast={showToast} /><Chamada userId={userId} tid={tid} turmas={turmas} online={online} setPending={setPending} showToast={showToast} goConferir={() => setTab('conferir')} /></>}
+            {tab === 'analise' && <Analise tid={tid} turmas={turmas} online={online} showToast={showToast} />}
+            {tab === 'radar' && <Radar userId={userId} tid={tid} turmas={turmas} online={online} showToast={showToast} ehComputador={EH_COMPUTADOR} />}
+            {tab === 'conferir' && <Conferir userId={userId} tid={tid} turmas={turmas} online={online} setPending={setPending} showToast={showToast} />}
+            {tab === 'resumo' && <Resumo tid={tid} turmas={turmas} showToast={showToast} />}
+            {tab === 'posicao' && (EH_COMPUTADOR ? <PosicaoComputador /> : <Posicao userId={userId} online={online} showToast={showToast} />)}
+            {tab === 'turmas' && <><GerenciarTurmas userId={userId} tid={tid} turmas={turmas} refresh={refresh} showToast={showToast} online={online} /><TurmasFotos tid={tid} turmas={turmas} refresh={refresh} showToast={showToast} online={online} /></>}
           </>}
 
       {toast && <div className="toast">{toast}</div>}
@@ -146,12 +168,12 @@ function Main({ session }) {
 }
 
 /* ---------- gerenciar turmas (importar as que faltam · apagar) ---------- */
-function GerenciarTurmas({ userId, turmas, refresh, showToast, online }) {
+function GerenciarTurmas({ userId, tid, turmas, refresh, showToast, online }) {
+  const turmaAtual = turmas.find(x => x.id === tid)
   const [faltam, setFaltam] = useState(null)
   const [busy, setBusy] = useState(false)
   const [confirmar, setConfirmar] = useState(null)   // turma escolhida para apagar
   const [texto, setTexto] = useState('')
-  const [alvoTurma, setAlvoTurma] = useState(turmas[0]?.id || '')
   const [novoNome, setNovoNome] = useState('')
   const [novaMat, setNovaMat] = useState('')
 
@@ -190,20 +212,15 @@ function GerenciarTurmas({ userId, turmas, refresh, showToast, online }) {
       </>}
       {faltam && faltam.length === 0 && <p className="note">As 3 turmas de 2026.2 já estão importadas.</p>}
 
-      <label className="fld" style={{ marginTop: 18 }}>Incluir aluno</label>
+      <label className="fld" style={{ marginTop: 18 }}>Incluir aluno em <b>{turmaAtual?.nome}</b></label>
       <form className="row" onSubmit={async e => {
         e.preventDefault()
-        const t = turmas.find(x => x.id === alvoTurma) || turmas[0]
+        const t = turmaAtual
         if (!t || !novoNome.trim()) return
         setBusy(true)
         try { await store.adicionarAluno(userId, t.id, novoNome, novaMat); showToast('Aluno incluído'); setNovoNome(''); setNovaMat(''); refresh() }
         catch (er) { alert(er.message) } finally { setBusy(false) }
       }}>
-        <div style={{ flex: 2, minWidth: 180 }}>
-          <select value={alvoTurma} onChange={e => setAlvoTurma(e.target.value)}>
-            {turmas.map(t => <option key={t.id} value={t.id}>{t.nome}</option>)}
-          </select>
-        </div>
         <div style={{ flex: 3, minWidth: 180 }}><input value={novoNome} onChange={e => setNovoNome(e.target.value)} placeholder="Nome completo" /></div>
         <div style={{ flex: 2, minWidth: 150 }}><input value={novaMat} onChange={e => setNovaMat(e.target.value)} placeholder="Matrícula (opcional)" autoCorrect="off" /></div>
         <div style={{ flex: 0, minWidth: 110 }}><button className="btn" type="submit" disabled={busy || !online || !novoNome.trim()}>Incluir</button></div>
@@ -295,8 +312,7 @@ function fileToDataUrl(file, max, cb) {
 }
 
 /* ---------- TURMAS & FOTOS ---------- */
-function TurmasFotos({ turmas, refresh, showToast, online }) {
-  const [tid, setTid] = useState(turmas[0]?.id || '')
+function TurmasFotos({ tid, turmas, refresh, showToast, online }) {
   const [selfie, setSelfie] = useState(null)
   const [cards, setCards] = useState(null)
   const [umPorPagina, setUmPorPagina] = useState(false)
@@ -321,9 +337,7 @@ function TurmasFotos({ turmas, refresh, showToast, online }) {
     <>
       <div className="panel">
         <h2>Fotos dos alunos</h2>
-        <p className="hint">A foto aparece grande na sua tela quando o aluno lê o QR — sua conferência visual. “Selfie” abre a câmera; “Arquivo” escolhe uma imagem.</p>
-        <label className="fld">Turma</label>
-        <select value={tid} onChange={e => setTid(e.target.value)}>{turmas.map(x => <option key={x.id} value={x.id}>{x.nome}</option>)}</select>
+        <p className="hint">A foto aparece na lista e no radar. O aluno tira a própria selfie no app dele (chega aqui sozinha); você também pode tirar ou escolher uma imagem.</p>
         <ul className="people" style={{ maxHeight: 420 }}>
           {t?.alunos.map(a =>
             <li key={a.id}>
@@ -365,6 +379,30 @@ function TurmasFotos({ turmas, refresh, showToast, online }) {
 }
 
 /* ---------- POSIÇÃO · GNSS (instrumento didático) ---------- */
+/* No computador não se mede nada: a geolocalização do navegador vem do Wi-Fi/IP.
+   Mostra a última medição que a professora fez pelo celular — a posição oficial dela. */
+function PosicaoComputador() {
+  const [ult, setUlt] = useState(undefined)
+  useEffect(() => { store.minhaUltimaLeitura().then(setUlt).catch(() => setUlt(null)) }, [])
+  const u = ult && ult.lat != null ? paraUTM25S(ult.lat, ult.lon) : null
+  return (
+    <div className="panel">
+      <h2>Minha posição</h2>
+      <div className="flash dup" style={{ textAlign: 'left' }}>Você está no <b>computador</b>. Aqui a "localização" vem do Wi-Fi ou do endereço IP — não é medição e não entra nos dados. <b>A sua posição oficial é a do celular.</b> Para medir, abra o Orbe no telefone, nesta mesma aba.</div>
+      {ult === undefined ? <p className="note">Buscando a última medição do seu celular…</p> : u ? <>
+        <label className="fld" style={{ marginTop: 12 }}>Última medição feita pelo seu celular</label>
+        <div className="gps-grid">
+          <div className="gp"><div className="gl">Quando</div><div className="gv">{new Date(ult.capturado_em || ult.criado_em).toLocaleString('pt-BR')}</div></div>
+          <div className="gp"><div className="gl">Ambiente</div><div className="gv">{ult.rotulo}</div></div>
+          <div className="gp"><div className="gl">UTM 25 S · N</div><div className="gv">{metros(u.n, 1)}</div></div>
+          <div className="gp"><div className="gl">UTM 25 S · E</div><div className="gv">{metros(u.e, 1)}</div></div>
+          <div className="gp"><div className="gl">Acurácia</div><div className="gv">± {metros(ult.acuracia_m, 1)} m</div></div>
+          <div className="gp"><div className="gl">Até a PERC</div><div className="gv">{metros(distanciaUTM(u.n, u.e, PERC.utmN, PERC.utmE), 0)} m</div></div>
+        </div></> : <p className="note">Nenhuma medição sua no servidor ainda. Salve uma pelo celular, nesta mesma aba.</p>}
+    </div>
+  )
+}
+
 function Posicao({ userId, online, showToast }) {
   const [lendo, setLendo] = useState(false)
   const [pos, setPos] = useState(null)      // leitura corrente
@@ -521,8 +559,7 @@ function Posicao({ userId, online, showToast }) {
 }
 
 /* ---------- COLETA DA TURMA (aula prática) ---------- */
-function ColetaTurma({ userId, turmas, online, showToast }) {
-  const [tid, setTid] = useState(turmas[0]?.id || '')
+function ColetaTurma({ userId, tid, turmas, online, showToast }) {
   const [codigo, setCodigo] = useState('')
   const [tempo, setTempo] = useState('ensolarado')
   const [local, setLocal] = useState('sala')
@@ -606,10 +643,6 @@ function ColetaTurma({ userId, turmas, online, showToast }) {
 
       {!sessao?.aberta && <>
         <div className="row">
-          <div><label className="fld">Turma</label>
-            <select value={tid} onChange={e => setTid(e.target.value)}>
-              {turmas.map(x => <option key={x.id} value={x.id}>{x.nome}</option>)}
-            </select></div>
           <div><label className="fld">Código da aula</label>
             <input value={codigo} onChange={e => setCodigo(e.target.value.toUpperCase())} maxLength={12} /></div>
           <div><label className="fld">Aula começa</label><input type="time" value={hIni} onChange={e => setHIni(e.target.value)} /></div>
@@ -696,235 +729,56 @@ function ColetaTurma({ userId, turmas, online, showToast }) {
 }
 
 /* ---------- PINS E POLIGONAIS DA TURMA ---------- */
-function PinsTurma({ turmas, online }) {
-  const [tid, setTid] = useState(turmas[0]?.id || '')
-  const [pins, setPins] = useState([]); const [polis, setPolis] = useState([])
-  useEffect(() => {
-    if (!tid || !online) return
-    let vivo = true
-    const puxa = () => Promise.all([store.pinsDaTurma(tid), store.poligonaisDaTurma(tid)]).then(([p, q]) => { if (vivo) { setPins(p); setPolis(q) } }).catch(() => {})
-    puxa(); const it = setInterval(puxa, 10000)
-    return () => { vivo = false; clearInterval(it) }
-  }, [tid, online])
-  return (
-    <div className="panel">
-      <h2>Pins e poligonais da turma</h2>
-      <p className="hint">O que os alunos levantaram no Orbe. Pin = média de uma ocupação; "vs marco" = distância até a coordenada oficial.</p>
-      <label className="fld">Turma</label>
-      <select value={tid} onChange={e => setTid(e.target.value)}>{turmas.map(x => <option key={x.id} value={x.id}>{x.nome}</option>)}</select>
-      {polis.length > 0 && <div className="scrollx" style={{ marginTop: 12 }}>
-        <table className="matrix"><thead><tr><th className="nm">Aluno</th><th>poligonal</th><th>vért.</th><th>perímetro</th><th>área</th><th>erro médio/vért.</th><th>quando</th></tr></thead>
-          <tbody>{polis.map(q => { const r = q.resultado || {}, c = r.comparacao; return <tr key={q.id}>
-            <td className="nm">{q.alunos?.nome}</td><td>{q.nome}</td><td>{r.vertices}</td>
-            <td>{r.perimetro != null ? metros(r.perimetro, 1) + ' m' : '—'}</td><td>{r.area != null ? metros(r.area, 0) + ' m²' : '—'}</td>
-            <td className={c ? (c.erroMedioVertice < 10 ? 'P' : 'F') : ''}>{c ? metros(c.erroMedioVertice, 1) + ' m' : '—'}</td>
-            <td>{new Date(q.criado_em).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</td>
-          </tr> })}</tbody></table></div>}
-      {pins.length > 0 ? <div className="scrollx" style={{ marginTop: 12 }}>
-        <table className="matrix"><thead><tr><th className="nm">Aluno</th><th>pin</th><th>leit.</th><th>±hz</th><th>espalh.</th><th>vs marco</th><th>quando</th></tr></thead>
-          <tbody>{pins.map(p => { const m = p.marco_ref ? marcoPorNome(p.marco_ref) : null; const err = m ? Math.hypot(p.utm_n - m.n, p.utm_e - m.e) : null; return <tr key={p.id}>
-            <td className="nm">{p.alunos?.nome}</td><td>{p.nome}</td><td>{p.n_leituras}</td>
-            <td>{p.acuracia_media_m != null ? metros(p.acuracia_media_m, 1) : '—'}</td>
-            <td>{metros(Math.hypot(p.desvio_n_m || 0, p.desvio_e_m || 0), 1)}</td>
-            <td className={err != null ? (err < 10 ? 'P' : 'F') : ''}>{err != null ? metros(err, 1) + ' m' : '—'}</td>
-            <td>{new Date(p.criado_em).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</td>
-          </tr> })}</tbody></table></div>
-        : <p className="empty" style={{ marginTop: 10 }}>Nenhum pin ainda.</p>}
-    </div>
-  )
-}
-
 /* ---------- CHAMADA ---------- */
-function Chamada({ userId, turmas, online, setPending, showToast, goConferir }) {
-  const [tid, setTid] = useState(turmas[0]?.id || '')
+function Chamada({ userId, tid, turmas, online, setPending, showToast, goConferir }) {
   const [data, setData] = useState(todayISO())
   const [chamadaId, setChamadaId] = useState(null)
   const [present, setPresent] = useState({})
-  const [scanning, setScanning] = useState(false)
-  const [flash, setFlash] = useState({ msg: 'Aponte um QR para a câmera…', cls: '' })
-  const [confirmA, setConfirmA] = useState(null)
   const [busy, setBusy] = useState(false)
   const [q, setQ] = useState('')
-  const [hit, setHit] = useState('')
-  const videoRef = useRef(null), canvasRef = useRef(null), streamRef = useRef(null)
-  const scanRef = useRef(false), lastRef = useRef({ t: '', at: 0 }), confT = useRef(null)
-  const hitT = useRef(null), audioRef = useRef(null), lastScanRef = useRef(0)
-  // espelhos do estado, para o loop de leitura enxergar sempre o valor atual
-  const presentRef = useRef({}), chamadaRef = useRef(null), onlineRef = useRef(true)
-  const tRef = useRef(null), tidRef = useRef('')
+  const [atualizado, setAtualizado] = useState(null)
   const t = turmas.find(x => x.id === tid)
 
-  // abre/garante a chamada do dia
+  /* Abre (ou garante) a chamada do dia e recarrega a lista a cada 5 s: a presença
+     é marcada pelo próprio aluno, ao ler o QR da aula, e aparece aqui sozinha. */
   useEffect(() => {
-    let alive = true
+    let alive = true, it = null
     setChamadaId(null); setPresent({})
-    if (!tid) return
-    if (!online) { setFlash({ msg: 'Offline: a chamada será sincronizada depois.', cls: 'dup' }); return }
+    if (!tid || !online) return
     setBusy(true)
+    const puxa = async ch => { const p = await store.getPresentes(ch.id); if (!alive) return; const m = {}; p.forEach(id => m[id] = true); setPresent(m); setAtualizado(new Date()) }
     store.ensureChamada(userId, tid, data)
-      .then(async ch => { if (!alive) return; setChamadaId(ch.id); const p = await store.getPresentes(ch.id); const m = {}; p.forEach(id => m[id] = true); setPresent(m) })
-      .catch(e => showToast('Erro ao abrir chamada'))
+      .then(async ch => { if (!alive) return; setChamadaId(ch.id); await puxa(ch); it = setInterval(() => puxa(ch).catch(() => {}), 5000) })
+      .catch(() => showToast('Erro ao abrir chamada'))
       .finally(() => alive && setBusy(false))
-    return () => { alive = false }
+    return () => { alive = false; if (it) clearInterval(it) }
   }, [tid, data, online, userId, showToast])
 
   const counts = (() => { const tot = t ? t.alunos.length : 0; let p = 0; if (t) t.alunos.forEach(a => { if (present[a.id]) p++ }); return { tot, p, f: tot - p } })()
 
-  /* O loop de leitura é agendado uma vez, quando a câmera abre, e carrega
-     consigo a versão das funções daquele instante. Sem estes espelhos ele
-     enxergaria para sempre o estado do começo do escaneamento — era por
-     isso que reler o mesmo QR aparecia como presença nova. */
-  useEffect(() => { presentRef.current = present }, [present])
-  useEffect(() => { chamadaRef.current = chamadaId }, [chamadaId])
-  useEffect(() => { onlineRef.current = online }, [online])
-  useEffect(() => { tRef.current = t; tidRef.current = tid })
-
-  function doFlash(msg, cls) { setFlash({ msg, cls }) }
-  function showConfirm(aluno, statusText, kind) {
-    setConfirmA({ aluno, statusText, kind }); if (confT.current) clearTimeout(confT.current)
-    confT.current = setTimeout(() => setConfirmA(null), 4000)
-  }
-
-  /* ---- sinal de leitura: pisca o quadro e apita ----
-     O visual é o principal: o iPhone não tem vibração para web, e com o
-     aparelho no silencioso o som não sai. O pisca funciona sempre. */
-  function pulse(kind) {
-    setHit(kind)
-    if (hitT.current) clearTimeout(hitT.current)
-    hitT.current = setTimeout(() => setHit(''), 320)
-    beep(kind)
-  }
-  // o contexto de áudio precisa nascer dentro de um toque do usuário (iOS)
-  function unlockAudio() {
-    try {
-      const AC = window.AudioContext || window.webkitAudioContext
-      if (!AC) return
-      if (!audioRef.current) audioRef.current = new AC()
-      if (audioRef.current.state === 'suspended') audioRef.current.resume()
-    } catch (e) {}
-  }
-  function beep(kind) {
-    const ctx = audioRef.current
-    if (!ctx || ctx.state !== 'running') return
-    try {
-      const o = ctx.createOscillator(), g = ctx.createGain()
-      o.type = 'sine'
-      o.frequency.value = kind === 'ok' ? 880 : kind === 'dup' ? 587 : 300
-      const t0 = ctx.currentTime
-      g.gain.setValueAtTime(0.0001, t0)
-      g.gain.exponentialRampToValueAtTime(0.3, t0 + 0.01)
-      g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.16)
-      o.connect(g); g.connect(ctx.destination)
-      o.start(t0); o.stop(t0 + 0.18)
-    } catch (e) {}
-  }
-
-  async function mark(alunoId, origem = 'manual') {
-    setPresent(p => ({ ...p, [alunoId]: true })); presentRef.current = { ...presentRef.current, [alunoId]: true }
-    const chamadaId = chamadaRef.current, online = onlineRef.current
-    if (chamadaId && online) { try { await store.marcarPresente(userId, chamadaId, alunoId, origem) } catch (e) { store.queueOp({ type: 'present', chamadaId, alunoId, origem }); setPending(store.outboxCount()) } }
-    else if (chamadaId) { store.queueOp({ type: 'present', chamadaId, alunoId, origem }); setPending(store.outboxCount()) }
-    else { showToast('Sem chamada aberta (offline). Abra online uma vez.') }
+  async function mark(alunoId) {
+    setPresent(p => ({ ...p, [alunoId]: true }))
+    if (chamadaId && online) { try { await store.marcarPresente(userId, chamadaId, alunoId, 'manual') } catch (e) { store.queueOp({ type: 'present', chamadaId, alunoId, origem: 'manual' }); setPending(store.outboxCount()) } }
+    else if (chamadaId) { store.queueOp({ type: 'present', chamadaId, alunoId, origem: 'manual' }); setPending(store.outboxCount()) }
+    else showToast('Sem chamada aberta (offline). Abra online uma vez.')
   }
   async function unmark(alunoId) {
     setPresent(p => { const n = { ...p }; delete n[alunoId]; return n })
-    const n = { ...presentRef.current }; delete n[alunoId]; presentRef.current = n
-    const chamadaId = chamadaRef.current, online = onlineRef.current
     if (chamadaId && online) { try { await store.desmarcarPresente(chamadaId, alunoId) } catch (e) { store.queueOp({ type: 'absent', chamadaId, alunoId }); setPending(store.outboxCount()) } }
     else if (chamadaId) { store.queueOp({ type: 'absent', chamadaId, alunoId }); setPending(store.outboxCount()) }
   }
-  function toggle(alunoId) { presentRef.current[alunoId] ? unmark(alunoId) : mark(alunoId) }
-
-  function onDecoded(text) {
-    const now = Date.now()
-    if (text === lastRef.current.t && now - lastRef.current.at < 1500) return
-    lastRef.current = { t: text, at: now }
-    const p = parsePayload(text)
-    const turma = tRef.current
-    if (!p) { doFlash('QR não reconhecido.', 'err'); pulse('err'); return }
-    if (!turma) { doFlash('Selecione uma turma.', 'err'); pulse('err'); return }
-    if (p.turmaId !== tidRef.current) { doFlash('Esse QR é de outra turma.', 'err'); pulse('err'); return }
-    const aluno = turma.alunos.find(a => a.id === p.alunoId)
-    if (!aluno) { doFlash('Aluno não está nesta turma.', 'err'); pulse('err'); return }
-    if (presentRef.current[aluno.id]) { doFlash('Já registrado', 'dup'); pulse('dup'); showConfirm(aluno, '✓ Já registrado', 'dup'); return }
-    mark(aluno.id, 'qr_professora'); doFlash('Presença registrada', 'ok'); pulse('ok'); showConfirm(aluno, '✓ Presença confirmada', 'ok')
-  }
-
-  function loop(ts) {
-    if (!scanRef.current) return
-    requestAnimationFrame(loop)
-    // decodifica ~12x por segundo em vez de a cada quadro. O olho não nota
-    // diferença ao apontar o QR, e sobra CPU (e bateria) no celular.
-    if (ts && ts - lastScanRef.current < 80) return
-    lastScanRef.current = ts || 0
-    const d = decodeFromVideo(videoRef.current, canvasRef.current)
-    if (d) onDecoded(d)
-  }
-  function startCam() {
-    if (!t) { alert('Selecione uma turma.'); return }
-    if (!navigator.mediaDevices?.getUserMedia) { alert('Sem acesso à câmera. Use a marcação manual tocando nos nomes.'); return }
-    unlockAudio()   // precisa acontecer dentro do toque, senão o iOS não libera o som
-    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
-      .then(s => { streamRef.current = s; setScanning(true) })
-      .catch(e => {
-        streamRef.current?.getTracks().forEach(x => x.stop()); streamRef.current = null
-        alert('Não consegui abrir a câmera (' + (e?.name || 'erro') + '). Use a marcação manual.')
-      })
-  }
-
-  // O <video> só existe no DOM depois que `scanning` vira true. Acoplar o stream
-  // aqui, e não dentro do .then do getUserMedia, evita videoRef.current === null
-  // (o TypeError caía no catch e era reportado como falha de câmera).
-  useEffect(() => {
-    if (!scanning) return
-    const v = videoRef.current, s = streamRef.current
-    if (!v || !s) return
-    v.srcObject = s
-    const p = v.play()
-    if (p && p.catch) p.catch(() => {})   // iOS rejeita play() em alguns casos
-    scanRef.current = true
-    doFlash('Câmera pronta. Aponte os QR.', '')
-    requestAnimationFrame(loop)
-  }, [scanning])
-
-  function stopCam() {
-    scanRef.current = false; setScanning(false)
-    streamRef.current?.getTracks().forEach(x => x.stop()); streamRef.current = null
-    if (videoRef.current) videoRef.current.srcObject = null
-    setConfirmA(null)
-  }
-  useEffect(() => () => stopCam(), [])
+  const toggle = alunoId => present[alunoId] ? unmark(alunoId) : mark(alunoId)
 
   const rows = t ? t.alunos.filter(a => !q || a.nome.toLowerCase().includes(q.toLowerCase()) || (a.matricula || '').includes(q)) : []
 
   return (
     <div className="panel">
-      <h2>Fazer a chamada</h2>
-      <p className="hint">A lista preenche sozinha conforme você lê o QR. No fim, confira só os faltantes.</p>
+      <h2>Lista de hoje</h2>
+      <p className="hint">Preenche sozinha quando o aluno lê o QR da aula no celular dele. Toque num nome para marcar ou desmarcar à mão — a sua decisão prevalece.</p>
       <div className="row">
-        <div><label className="fld">Turma</label><select value={tid} onChange={e => { stopCam(); setTid(e.target.value) }}>{turmas.map(x => <option key={x.id} value={x.id}>{x.nome}</option>)}</select></div>
         <div><label className="fld">Data</label><input type="date" value={data} onChange={e => setData(e.target.value)} /></div>
+        <div><label className="fld">&nbsp;</label><div className="note" style={{ margin: 0 }}>{atualizado ? 'atualizada ' + atualizado.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : online ? '…' : 'offline — a lista não atualiza'}</div></div>
       </div>
-      <div className="btnrow">
-        {!scanning ? <button className="btn" onClick={startCam}>Abrir câmera e ler QR</button> : <button className="btn ghost" onClick={stopCam}>Parar câmera</button>}
-      </div>
-
-      {scanning && <div style={{ marginTop: 12 }}>
-        <div className="videowrap">
-          <video ref={videoRef} playsInline muted />
-          <div className="scanline" />
-          <div className={'hitflash' + (hit ? ' on ' + hit : '')} />
-          {confirmA && <div className={'confirm-over ' + (confirmA.kind || 'ok')}>
-            <Avatar a={confirmA.aluno} big />
-            <div className="co-txt">
-              <div className="co-nome">{confirmA.aluno.nome}</div>
-              {confirmA.aluno.matricula && <div className="co-mat">Mat. {confirmA.aluno.matricula}</div>}
-              <div className="co-status">{confirmA.statusText}</div>
-            </div>
-          </div>}
-        </div>
-        <div className={'flash ' + flash.cls}>{flash.msg}</div>
-      </div>}
 
       <div className="count-strip" style={{ marginTop: 14 }}>
         <div className="c ok"><div className="n">{counts.p}</div><div className="l">Presentes</div></div>
@@ -932,8 +786,7 @@ function Chamada({ userId, turmas, online, setPending, showToast, goConferir }) 
         <div className="c"><div className="n">{counts.tot}</div><div className="l">Turma</div></div>
       </div>
 
-      <label className="fld" style={{ marginTop: 14 }}>Marcação manual (toque para alternar)</label>
-      <input type="text" value={q} onChange={e => setQ(e.target.value)} placeholder="Buscar aluno…" />
+      <input type="text" value={q} onChange={e => setQ(e.target.value)} placeholder="Buscar aluno…" style={{ marginTop: 12 }} />
       <ul className="people">
         {busy ? <li className="empty">Abrindo chamada…</li> :
           rows.map(a => { const isP = !!present[a.id]; return (
@@ -942,15 +795,13 @@ function Chamada({ userId, turmas, online, setPending, showToast, goConferir }) 
               <span className={'tag ' + (isP ? 'P' : 'F')}>{isP ? 'Presente' : 'Falta'}</span>
             </li>) })}
       </ul>
-      <div className="btnrow"><button className="btn" onClick={() => { stopCam(); goConferir() }}>Encerrar e conferir faltantes ▸</button></div>
-      <canvas ref={canvasRef} hidden />
+      <div className="btnrow"><button className="btn" onClick={goConferir}>Encerrar e conferir faltantes ▸</button></div>
     </div>
   )
 }
 
 /* ---------- CONFERIR ---------- */
-function Conferir({ userId, turmas, online, setPending, showToast }) {
-  const [tid, setTid] = useState(turmas[0]?.id || '')
+function Conferir({ userId, tid, turmas, online, setPending, showToast }) {
   const [data, setData] = useState(todayISO())
   const [chamadaId, setChamadaId] = useState(null)
   const [present, setPresent] = useState({})
@@ -981,7 +832,6 @@ function Conferir({ userId, turmas, online, setPending, showToast }) {
       <h2>Conferir faltantes</h2>
       <p className="hint">Estes não leram o QR. Chame os nomes; se algum estava presente, toque em “estava presente”.</p>
       <div className="row">
-        <div><label className="fld">Turma</label><select value={tid} onChange={e => setTid(e.target.value)}>{turmas.map(x => <option key={x.id} value={x.id}>{x.nome}</option>)}</select></div>
         <div><label className="fld">Data</label><input type="date" value={data} onChange={e => setData(e.target.value)} /></div>
       </div>
       {!online && <p className="note" style={{ color: 'var(--miss)' }}>Offline — a conferência precisa de internet para carregar a chamada.</p>}
@@ -1002,8 +852,7 @@ function Conferir({ userId, turmas, online, setPending, showToast }) {
 }
 
 /* ---------- RESUMO ---------- */
-function Resumo({ turmas, showToast }) {
-  const [tid, setTid] = useState(turmas[0]?.id || '')
+function Resumo({ tid, turmas, showToast }) {
   const [dados, setDados] = useState(null)
   const [busy, setBusy] = useState(false)
   const t = turmas.find(x => x.id === tid)
@@ -1052,8 +901,6 @@ function Resumo({ turmas, showToast }) {
   return (
     <div className="panel">
       <h2>Resumo & exportar</h2>
-      <label className="fld">Turma</label>
-      <select value={tid} onChange={e => setTid(e.target.value)}>{turmas.map(x => <option key={x.id} value={x.id}>{x.nome}</option>)}</select>
       <div className="btnrow">
         <button className="btn" onClick={exportCSV} disabled={!dados || !dates.length}>Exportar ata (P/F)</button>
         <button className="btn ghost" onClick={exportDetalhado} disabled={!dados || !dates.length}>Exportar detalhado (hora e origem)</button>

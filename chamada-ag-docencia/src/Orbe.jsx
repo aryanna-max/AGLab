@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
+import { arquivoParaJpeg } from './lib/foto'
 import { supabase } from './supabaseClient'
 import { paraUTM25S, metros } from './lib/geo'
 import { MARCOS, marcoPorNome, azimute, grausDMS, pontoCardeal, resumirOcupacao, calcularPoligonal, compararComMarcos } from './lib/topo'
@@ -104,6 +105,9 @@ function Pins({ pos, ident, codigo, onAviso }) {
   const [ocupando, setOcupando] = useState(false)
   const [prog, setProg] = useState(0)
   const [coletadas, setColetadas] = useState([])
+  const [foto, setFoto] = useState(null)          // foto do ponto (JPEG pequeno em data URL), opcional
+  const [fotoBusy, setFotoBusy] = useState(false)
+  const fotoRef = useRef(null)
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState('')
   const posRef = useRef(pos); useEffect(() => { posRef.current = pos }, [pos])
@@ -151,12 +155,13 @@ function Pins({ pos, ident, codigo, onAviso }) {
         p_nome: nm, p_lat: r.lat, p_lon: r.lon, p_utm_n: r.utmN, p_utm_e: r.utmE, p_altitude: r.alt,
         p_n: r.n, p_acc_media: r.acc, p_desvio_n: r.desvioN, p_desvio_e: r.desvioE, p_duracao: (performance.now() - t0.current) / 1000,
         p_marco_ref: marco && marco.tipo !== 'referencia' ? marco.nome : null,
+        p_foto: foto || null,
         p_leituras: ls.map(l => ({ lat: l.lat, lon: l.lon, acc: l.acc, alt: l.alt, altAcc: l.altAcc, utmN: l.utmN, utmE: l.utmE, distPerc: l.distPerc, capturado_em: l.capturado_em, online: l.online, fixTs: l.fixTs }))
       })
       if (error) throw error
       if (!data?.ok) { setErro(data?.erro || 'Não consegui salvar o pin.'); return }
       onAviso && onAviso(`Pin ${nm} salvo: média de ${r.n} leituras, espalhamento ±${metros(r.desvioHz, 1)} m`)
-      setNome(''); await carregar()
+      setNome(''); setFoto(null); await carregar()
     } catch (e) { setErro(ehErroDeRede(e) ? 'Sem rede — o pin precisa de conexão para ser salvo. Tente de novo com sinal.' : 'Falhou: ' + (e.message || 'erro')) }
     finally { setSalvando(false) }
   }
@@ -173,7 +178,18 @@ function Pins({ pos, ident, codigo, onAviso }) {
           <div><label className="fld">Nome do pin</label><input value={nome} onChange={ev => setNome(ev.target.value)} placeholder={proximoNome() + ' — ou o nome de um marco, ex. M0452'} maxLength={40} /></div>
           <div><label className="fld">&nbsp;</label><button className="btn" onClick={comecar} disabled={!pos || salvando}>{salvando ? 'Salvando…' : '📍 Ocupar e marcar'}</button></div>
         </div>
-        <p className="note">Se o nome for o de um marco conhecido (M0451, M0452, M0455…), o app compara com a coordenada oficial.</p>
+        <div className="foto-ponto">
+          {foto ? <img src={foto} alt="" onClick={() => fotoRef.current && fotoRef.current.click()} /> : null}
+          <button className="btn ghost mini" disabled={fotoBusy} onClick={() => fotoRef.current && fotoRef.current.click()}>{fotoBusy ? 'Processando…' : foto ? '📷 Trocar foto do ponto' : '📷 Foto do ponto (opcional)'}</button>
+          {foto && <button className="btn ghost mini" onClick={() => setFoto(null)}>Remover</button>}
+          <input ref={fotoRef} type="file" accept="image/*" capture="environment" hidden onChange={async ev => {
+            const f = ev.target.files && ev.target.files[0]; ev.target.value = ''
+            if (!f) return
+            setFotoBusy(true)
+            try { setFoto(await arquivoParaJpeg(f, { lado: 640, qualidade: 0.72 })) } catch (e) { setErro('Não consegui ler a foto.') } finally { setFotoBusy(false) }
+          }} />
+        </div>
+        <p className="note">A foto do ponto vai junto com o pin e entra no relatório da professora. Se o nome for o de um marco conhecido (M0451, M0452, M0455…), o app compara com a coordenada oficial.</p>
       </> : <div className="ocup">
         <svg viewBox="0 0 100 100" className="ocup-anel">
           <circle cx="50" cy="50" r={R} fill="none" stroke="var(--line)" strokeWidth="8" />
@@ -195,7 +211,7 @@ function Pins({ pos, ident, codigo, onAviso }) {
             const reocup = primeiroPorNome[p.nome.toLowerCase()] && primeiroPorNome[p.nome.toLowerCase()].id !== p.id
             const ref = reocup ? primeiroPorNome[p.nome.toLowerCase()] : null
             return <tr key={p.id} className={reocup ? 'reocup' : ''}>
-              <td className="nm">{p.nome}{reocup ? <span className="badge" style={{ marginLeft: 6 }}>reocupação · Δ {metros(Math.hypot(p.utm_n - ref.utm_n, p.utm_e - ref.utm_e), 1)} m</span> : ''}</td>
+              <td className="nm">{p.tem_foto ? "📷 " : ""}{p.nome}{reocup ? <span className="badge" style={{ marginLeft: 6 }}>reocupação · Δ {metros(Math.hypot(p.utm_n - ref.utm_n, p.utm_e - ref.utm_e), 1)} m</span> : ''}</td>
               <td>{metros(p.utm_n, 1)}</td><td>{metros(p.utm_e, 1)}</td><td>{p.n}</td>
               <td>{p.acc != null ? metros(p.acc, 1) : '—'}</td>
               <td>{metros(Math.hypot(p.dn || 0, p.de || 0), 1)}</td>
