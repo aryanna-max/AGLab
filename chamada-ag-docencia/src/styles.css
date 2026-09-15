@@ -349,3 +349,23 @@ table.matrix tr.sel-row td{background:rgba(123,79,0,.10)}
 .ent-acoes{margin-top:6px;align-items:center}
 .ent-acoes select,.ent-acoes input{margin:0}
 .ent-acoes .btnrow{margin:0;flex-wrap:nowrap}
+
+/* ---------- missões em equipe ---------- */
+.eq-grade{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px;margin:10px 0}
+.eq-box{border:1px solid var(--line);border-radius:12px;padding:10px 12px;background:var(--panel)}
+.eq-box h3{margin:0 0 6px;font-size:15px}
+.eq-box input.eq-nome{margin:0 0 6px;font-weight:700}
+.eq-membros{list-style:none;padding:0;margin:0;font-size:14px}
+.eq-membros li{display:flex;justify-content:space-between;gap:6px;padding:3px 0;border-bottom:1px dashed var(--line)}
+.eq-membros li:last-child{border-bottom:0}
+.eq-membros .fn{opacity:.7;font-size:13px}
+.eq-membros li.eu{font-weight:700}
+.fn-chips{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0}
+.fn-chips button{border:1px solid var(--line);background:var(--panel);color:inherit;border-radius:999px;padding:6px 12px;font:inherit;font-size:14px;cursor:pointer}
+.fn-chips button.on{background:#2e75b6;border-color:#2e75b6;color:#fff}
+.fn-chips button.ja{border-style:dashed}
+.tag.equipe{background:#e6f0e9;color:#1e6b36}
+.aloc{width:100%;border-collapse:collapse;font-size:14px}
+.aloc td{padding:4px 6px;border-bottom:1px solid var(--line)}
+.aloc select{margin:0;padding:4px 6px}
+.aloc tr.pres td:first-child::after{content:' ●';color:var(--ok);font-size:11px}

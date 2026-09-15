@@ -1,5 +1,7 @@
 /* Cardápio sugerido de missões — ponto de partida que a professora importa, edita e amplia.
-   Agrupado por frente só para orientar: qualquer missão pode ir para qualquer turma. */
+   Agrupado por frente só para orientar: qualquer missão pode ir para qualquer turma.
+   equipe: true → a professora forma as equipes ao lançar. funcoes são só sugestões mostradas
+   aos alunos: ela não atribui função, cada aluno escolhe a sua no app. */
 
 export const FRENTES = [
   ['planimetria', 'Planimetria'],
@@ -38,28 +40,28 @@ export const CARDAPIO_SUGERIDO = [
     niveis: { bronze: 'Poligonal fechada nos dois sentidos, sem cruzar', prata: 'Diferença de 180° nos azimutes explicada', ouro: 'Relação entre sentido, ângulos internos e externos explicada' },
   },
   {
-    frente: 'planimetria', titulo: 'Cadastro de rede · caso BRK Ambiental',
+    frente: 'planimetria', titulo: 'Cadastro de rede · caso BRK Ambiental', equipe: true, funcoes: ['Localizador', 'Operador do celular', 'Fotógrafo', 'Anotador'],
     descricao: 'Cadastre os poços de visita de um trecho de rede do campus, como uma empresa de topografia faz para a concessionária.',
     etapas: ['Localize os poços do trecho indicado', 'Ocupe cada tampa e faça um pin com foto', 'Nomeie os pins na ordem do escoamento (PV1, PV2…)', 'Anote material, estado e poço a jusante de cada um'],
     entrega: 'Lista dos poços: nome, material, estado, poço a jusante. Os pins com foto ficam no app.',
     niveis: { bronze: 'Todos os poços com pin e foto', prata: 'Ficha completa de cada poço', ouro: 'Croqui da ligação entre os poços e observações de campo' },
   },
   {
-    frente: 'planimetria', titulo: 'Trena contra celular',
+    frente: 'planimetria', titulo: 'Trena contra celular', equipe: true, funcoes: ['Operador da trena', 'Auxiliar da trena', 'Operador do celular', 'Anotador'],
     descricao: 'Meça os lados de um lote à trena e compare com os lados que o celular calculou pela poligonal.',
     etapas: ['Levante os vértices do lote com pins', 'Feche a poligonal', 'Meça cada lado à trena', 'Compare trena × celular'],
     entrega: 'Tabela lado a lado e a diferença de área em m² e em porcentagem.',
     niveis: { bronze: 'Poligonal fechada e lados medidos', prata: 'Tabela de comparação correta', ouro: 'Conclusão: por que obra não se loca com GPS de celular' },
   },
   {
-    frente: 'altimetria', titulo: 'Caderneta de nivelamento',
+    frente: 'altimetria', titulo: 'Caderneta de nivelamento', equipe: true, funcoes: ['Operador do nível', 'Porta-mira', 'Anotador', 'Calculista'],
     descricao: 'Nivelamento geométrico entre os pontos indicados, com caderneta e fechamento. Cota nova = cota conhecida + ré − vante.',
     etapas: ['Monte e nivele o instrumento', 'Faça as leituras de ré e vante em cada lance', 'Calcule as cotas', 'Feche o circuito e calcule o erro de fechamento'],
     entrega: 'Caderneta completa, erro de fechamento e comparação com a tolerância da NBR 13.133:2021.',
     niveis: { bronze: 'Caderneta completa e fechada', prata: 'Erro dentro da tolerância', ouro: 'Erro na metade da tolerância ou circuito refeito no sentido contrário' },
   },
   {
-    frente: 'altimetria', titulo: 'Transporte de RN',
+    frente: 'altimetria', titulo: 'Transporte de RN', equipe: true, funcoes: ['Operador do nível', 'Porta-mira', 'Anotador', 'Calculista'],
     descricao: 'Leve a cota de um marco de referência até um ponto do Bloco F e volte, fechando o circuito.',
     etapas: ['Leitura de ré no marco de partida', 'Lances até o ponto de chegada', 'Volta até o marco', 'Cálculo do fechamento'],
     entrega: 'Cota transportada e erro de fechamento.',
@@ -80,14 +82,14 @@ export const CARDAPIO_SUGERIDO = [
     niveis: { bronze: 'Diferença calculada', prata: 'Ondulação geoidal citada', ouro: 'Separou o efeito do geoide do erro do aparelho' },
   },
   {
-    frente: 'altimetria', titulo: 'Rampa acessível',
+    frente: 'altimetria', titulo: 'Rampa acessível', equipe: true, funcoes: ['Operador do nível', 'Porta-mira', 'Anotador'],
     descricao: 'Nivele uma rampa ou calçada do campus e compare a inclinação com o limite da NBR 9050.',
     etapas: ['Cota do início e do fim da rampa', 'Comprimento da rampa', 'Cálculo da inclinação', 'Comparação com a norma'],
     entrega: 'Inclinação em % e se a rampa atende à norma.',
     niveis: { bronze: 'Inclinação calculada', prata: 'Comparação correta com a norma', ouro: 'Proposta de correção quando não atende' },
   },
   {
-    frente: 'planialtimetria', titulo: 'Celular contra RTK',
+    frente: 'planialtimetria', titulo: 'Celular contra RTK', equipe: true, funcoes: ['Operador do RTK', 'Operador do celular', 'Anotador'],
     descricao: 'Relevante com o RTK os pontos que você levantou com o celular e compare ponto a ponto.',
     etapas: ['Ocupe cada ponto com o RTK', 'Registre as coordenadas do RTK', 'Compare com os pins do celular'],
     entrega: 'Erro de cada ponto e o RMSE do seu levantamento a celular.',

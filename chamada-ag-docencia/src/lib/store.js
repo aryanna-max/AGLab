@@ -458,14 +458,15 @@ export async function listarMissoes() {
 }
 export async function salvarMissao(userId, m) {
   const linha = { owner_id: userId, titulo: m.titulo.trim(), frente: m.frente || 'geral', descricao: m.descricao || null,
-    etapas: (m.etapas || []).map(e => String(e).trim()).filter(Boolean), entrega: m.entrega || null, niveis: m.niveis || {}, arquivada: !!m.arquivada }
+    etapas: (m.etapas || []).map(e => String(e).trim()).filter(Boolean), entrega: m.entrega || null, niveis: m.niveis || {}, arquivada: !!m.arquivada,
+    equipe: !!m.equipe, funcoes: (m.funcoes || []).map(f => String(f).trim()).filter(Boolean) }
   const q = m.id ? supabase.from('missoes').update(linha).eq('id', m.id) : supabase.from('missoes').insert(linha)
   const { data, error } = await q.select('*').single()
   if (error) throw error; return data
 }
 export async function apagarMissao(id) { const { error } = await supabase.from('missoes').delete().eq('id', id); if (error) throw error }
 export async function importarCardapio(userId, lista) {
-  const linhas = lista.map(m => ({ owner_id: userId, titulo: m.titulo, frente: m.frente, descricao: m.descricao, etapas: m.etapas, entrega: m.entrega, niveis: m.niveis }))
+  const linhas = lista.map(m => ({ owner_id: userId, titulo: m.titulo, frente: m.frente, descricao: m.descricao, etapas: m.etapas, entrega: m.entrega, niveis: m.niveis, equipe: !!m.equipe, funcoes: m.funcoes || [] }))
   const { error } = await supabase.from('missoes').insert(linhas)
   if (error) throw error
 }
@@ -479,11 +480,11 @@ export async function janelaDeHoje(turmaId) {
 }
 export async function lancarMissao(userId, l) {
   const { data, error } = await supabase.from('missao_lancamentos').insert({ owner_id: userId, missao_id: l.missao_id, turma_id: l.turma_id,
-    prazo_tipo: l.prazo_tipo, prazo_em: l.prazo_em, mostrar_ranking: l.mostrar_ranking !== false }).select('*').single()
+    prazo_tipo: l.prazo_tipo, prazo_em: l.prazo_em, mostrar_ranking: l.mostrar_ranking !== false, em_equipe: !!l.em_equipe }).select('*').single()
   if (error) throw error; return data
 }
 export async function lancamentosDaTurma(turmaId) {
-  const { data, error } = await supabase.from('missao_lancamentos').select('*,missoes(titulo,frente,etapas,niveis,entrega)')
+  const { data, error } = await supabase.from('missao_lancamentos').select('*,missoes(titulo,frente,etapas,niveis,entrega,equipe,funcoes)')
     .eq('turma_id', turmaId).order('criado_em', { ascending: false })
   if (error) throw error; return data || []
 }
@@ -495,6 +496,49 @@ export async function entregasDaTurma(turmaId) {
     .eq('missao_lancamentos.turma_id', turmaId)
   if (error) throw error; return data || []
 }
+/* ---------- equipes de um lançamento ---------- */
+export async function equipesDoLancamento(lancamentoId) {
+  const { data, error } = await supabase.from('missao_equipes').select('id,nome,missao_equipe_membros(aluno_id,funcao)')
+    .eq('lancamento_id', lancamentoId).order('nome')
+  if (error) throw error
+  return (data || []).map(e => ({ id: e.id, nome: e.nome, membros: e.missao_equipe_membros || [] }))
+}
+// substitui todas as equipes do lançamento. As entregas já existentes são realinhadas à nova equipe.
+// A função de cada membro é escolhida pelo próprio aluno: quem continua na formação mantém a que escolheu.
+export async function salvarEquipes(userId, lancamentoId, equipes) {
+  await supabase.from('missao_entregas').update({ equipe_id: null }).eq('lancamento_id', lancamentoId)
+  const { error: e1 } = await supabase.from('missao_equipes').delete().eq('lancamento_id', lancamentoId)
+  if (e1) throw e1
+  for (const eq of equipes) {
+    if (!eq.membros.length) continue
+    const { data, error } = await supabase.from('missao_equipes').insert({ owner_id: userId, lancamento_id: lancamentoId, nome: eq.nome }).select('id').single()
+    if (error) throw error
+    const { error: e2 } = await supabase.from('missao_equipe_membros').insert(eq.membros.map(m => ({ owner_id: userId, lancamento_id: lancamentoId, equipe_id: data.id, aluno_id: m.aluno_id, funcao: m.funcao || null })))
+    if (e2) throw e2
+    await supabase.from('missao_entregas').update({ equipe_id: data.id }).eq('lancamento_id', lancamentoId).in('aluno_id', eq.membros.map(m => m.aluno_id))
+  }
+}
+// presentes na chamada de hoje, sem criar chamada (para sortear equipes só entre quem veio)
+export async function presentesDeHoje(turmaId) {
+  const { data, error } = await supabase.from('chamadas').select('id').eq('turma_id', turmaId).eq('data', hojeISO()).maybeSingle()
+  if (error) throw error
+  return data ? getPresentes(data.id) : []
+}
+// equipes do último lançamento em equipe desta turma (para repetir a formação)
+export async function ultimasEquipesDaTurma(turmaId, excetoLancamentoId) {
+  const { data, error } = await supabase.from('missao_lancamentos').select('id').eq('turma_id', turmaId).eq('em_equipe', true)
+    .neq('id', excetoLancamentoId).order('criado_em', { ascending: false }).limit(1)
+  if (error) throw error
+  if (!data || !data[0]) return null
+  return equipesDoLancamento(data[0].id)
+}
+export async function avaliarVarios(userId, lancamentoId, alunoIds, campos) {
+  const agora = new Date().toISOString()
+  const { error } = await supabase.from('missao_entregas')
+    .upsert(alunoIds.map(id => ({ owner_id: userId, lancamento_id: lancamentoId, aluno_id: id, ...campos, atualizado_em: agora })), { onConflict: 'lancamento_id,aluno_id' })
+  if (error) throw error
+}
+
 export async function avaliarEntrega(userId, lancamentoId, alunoId, campos) {
   // a professora pode avaliar mesmo quem não abriu a missão (ex.: entregou no papel): cria a linha se faltar
   const { data, error } = await supabase.from('missao_entregas')

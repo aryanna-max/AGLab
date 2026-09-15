@@ -11,7 +11,9 @@ const NOME_FRENTE = Object.fromEntries(FRENTES)
 const NIVEIS = [['', '—'], ['bronze', '🥉 Bronze'], ['prata', '🥈 Prata'], ['ouro', '🥇 Ouro']]
 const PONTOS = { bronze: 1, prata: 2, ouro: 3 }
 const fmtDH = iso => iso ? new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—'
-const vazio = () => ({ titulo: '', frente: 'planimetria', descricao: '', etapas: [''], entrega: '', niveis: { bronze: '', prata: '', ouro: '' } })
+const vazio = () => ({ titulo: '', frente: 'planimetria', descricao: '', etapas: [''], entrega: '', niveis: { bronze: '', prata: '', ouro: '' }, equipe: false, funcoes: [] })
+const primeiroNome = n => (n || '').trim().split(' ')[0]
+const embaralhar = arr => { const a = arr.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]] } return a }
 
 export default function MissoesProfessora({ userId, tid, turmas, online, showToast }) {
   const [aba, setAba] = useState('entregas')   // entregas | cardapio
@@ -68,7 +70,7 @@ function Cardapio({ userId, missoes, turmas, tid, recarregar, showToast, onLanco
       {lista.length === 0 ? <p className="empty">Nenhuma missão aqui ainda.</p> :
         <ul className="people">
           {lista.map(m => <li key={m.id} style={{ alignItems: 'flex-start' }}>
-            <span className="left"><span className="who"><span><span className="tag" style={{ marginRight: 6 }}>{NOME_FRENTE[m.frente] || m.frente}</span>{m.titulo}{m.arquivada ? ' · arquivada' : ''}</span>
+            <span className="left"><span className="who"><span><span className="tag" style={{ marginRight: 6 }}>{NOME_FRENTE[m.frente] || m.frente}</span>{m.equipe && <span className="tag equipe" style={{ marginRight: 6 }}>equipe</span>}{m.titulo}{m.arquivada ? ' · arquivada' : ''}</span>
               <span className="m">{(m.etapas || []).length} etapa(s){m.entrega ? ' · ' + m.entrega.slice(0, 90) + (m.entrega.length > 90 ? '…' : '') : ''}</span></span></span>
             <span className="btnrow" style={{ margin: 0, flexWrap: 'nowrap' }}>
               {!m.arquivada && <button className="btn mini" onClick={() => setLancando(m)}>Lançar</button>}
@@ -83,12 +85,14 @@ function Cardapio({ userId, missoes, turmas, tid, recarregar, showToast, onLanco
 
 function EditorMissao({ userId, inicial, onFechar, showToast }) {
   const [m, setM] = useState(() => ({ ...vazio(), ...inicial, etapas: (inicial.etapas && inicial.etapas.length ? inicial.etapas : ['']), niveis: { bronze: '', prata: '', ouro: '', ...(inicial.niveis || {}) } }))
+  const [funcoesTxt, setFuncoesTxt] = useState(() => (inicial.funcoes || []).join(', '))
   const [busy, setBusy] = useState(false)
   const set = (k, v) => setM(x => ({ ...x, [k]: v }))
   async function salvar(extra = {}) {
     if (!m.titulo.trim()) { showToast('Dê um título à missão'); return }
     setBusy(true)
-    try { await store.salvarMissao(userId, { ...m, ...extra }); showToast('Missão salva'); onFechar(true) }
+    const funcoes = m.equipe ? funcoesTxt.split(',').map(s => s.trim()).filter(Boolean) : []
+    try { await store.salvarMissao(userId, { ...m, funcoes, ...extra }); showToast('Missão salva'); onFechar(true) }
     catch (e) { showToast('Erro: ' + e.message) } finally { setBusy(false) }
   }
   return (
@@ -99,6 +103,12 @@ function EditorMissao({ userId, inicial, onFechar, showToast }) {
         <div style={{ flex: 1, minWidth: 160 }}><label className="fld">Frente</label>
           <select value={m.frente} onChange={e => set('frente', e.target.value)}>{FRENTES.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></div>
       </div>
+      <label className="chk-inline" style={{ marginTop: 10 }}><input type="checkbox" checked={!!m.equipe} onChange={e => set('equipe', e.target.checked)} /> Missão em equipe (etapas e entrega são da equipe; o nível vale para todos)</label>
+      {m.equipe && <>
+        <label className="fld">Funções que a equipe pode dividir (opcional, separadas por vírgula)</label>
+        <input value={funcoesTxt} onChange={e => setFuncoesTxt(e.target.value)} placeholder="Operador do nível, Porta-mira, Anotador, Calculista" />
+        <p className="note" style={{ marginTop: 4 }}>Você não atribui: cada aluno escolhe a própria função no app, e a equipe combina entre si.</p>
+      </>}
       <label className="fld">O que é a missão</label>
       <textarea rows={3} value={m.descricao || ''} onChange={e => set('descricao', e.target.value)} placeholder="Contexto e objetivo, em linguagem direta." />
       <label className="fld">Etapas (o aluno marca cada uma, e fica gravado)</label>
@@ -131,6 +141,7 @@ function Lancar({ userId, missao, turmas, tid, showToast, onFechar }) {
   const [data, setData] = useState(() => { const d = new Date(); d.setDate(d.getDate() + 7); return d.toISOString().slice(0, 10) })
   const [hora, setHora] = useState('23:59')
   const [ranking, setRanking] = useState(true)
+  const [emEquipe, setEmEquipe] = useState(!!missao.equipe)
   const [busy, setBusy] = useState(false)
   useEffect(() => { setJanela(undefined); store.janelaDeHoje(turmaId).then(setJanela).catch(() => setJanela(null)) }, [turmaId])
 
@@ -139,8 +150,8 @@ function Lancar({ userId, missao, turmas, tid, showToast, onFechar }) {
     if (!prazo) { showToast('Defina o prazo'); return }
     setBusy(true)
     try {
-      await store.lancarMissao(userId, { missao_id: missao.id, turma_id: turmaId, prazo_tipo: tipo, prazo_em: prazo, mostrar_ranking: ranking })
-      showToast('Missão lançada'); onFechar(true)
+      await store.lancarMissao(userId, { missao_id: missao.id, turma_id: turmaId, prazo_tipo: tipo, prazo_em: prazo, mostrar_ranking: ranking, em_equipe: emEquipe })
+      showToast(emEquipe ? 'Missão lançada. Agora forme as equipes.' : 'Missão lançada'); onFechar(true)
     } catch (e) { showToast('Erro: ' + e.message) } finally { setBusy(false) }
   }
   return (
@@ -158,6 +169,7 @@ function Lancar({ userId, missao, turmas, tid, showToast, onFechar }) {
         <div><label className="fld">Data</label><input type="date" value={data} onChange={e => setData(e.target.value)} /></div>
         <div><label className="fld">Hora</label><input type="time" value={hora} onChange={e => setHora(e.target.value)} /></div>
       </div>}
+      <label className="chk-inline" style={{ marginTop: 10 }}><input type="checkbox" checked={emEquipe} onChange={e => setEmEquipe(e.target.checked)} /> em equipe (você forma as equipes depois de lançar)</label>
       <label className="chk-inline" style={{ marginTop: 10 }}><input type="checkbox" checked={ranking} onChange={e => setRanking(e.target.checked)} /> mostrar ranking desta missão para a turma</label>
       <div className="btnrow">
         <button className="btn" onClick={lancar} disabled={busy || !prazo}>{busy ? 'Lançando…' : 'Lançar para a turma'}</button>
@@ -188,6 +200,7 @@ function Lancadas({ userId, tid, turma, online, showToast, irCardapio }) {
 
   if (!turma) return null
   const lanc = lancs.find(l => l.id === aberto)
+  if (lanc && lanc.em_equipe) return <EntregasEquipe userId={userId} lanc={lanc} turma={turma} entregas={entregas.filter(e => e.lancamento_id === lanc.id)} showToast={showToast} onVoltar={() => { setAberto(null); carregar() }} recarregar={carregar} />
   if (lanc) return <Entregas userId={userId} lanc={lanc} turma={turma} entregas={entregas.filter(e => e.lancamento_id === lanc.id)} showToast={showToast} onVoltar={() => { setAberto(null); carregar() }} recarregar={carregar} />
 
   return (
@@ -198,7 +211,7 @@ function Lancadas({ userId, tid, turma, online, showToast, irCardapio }) {
           <div className="scrollx"><table className="matrix"><thead><tr><th className="nm">Missão</th><th>prazo</th><th>enviadas</th><th>fora do prazo</th><th>avaliadas</th><th>estado</th></tr></thead>
             <tbody>{lancs.map(l => { const es = entregas.filter(e => e.lancamento_id === l.id); const aberta = !l.encerrado && new Date(l.prazo_em) > new Date()
               return <tr key={l.id} style={{ cursor: 'pointer' }} onClick={() => setAberto(l.id)}>
-                <td className="nm">{l.missoes?.titulo}</td><td>{fmtDH(l.prazo_em)}</td>
+                <td className="nm">{l.em_equipe && <span className="tag equipe" style={{ marginRight: 6 }}>equipe</span>}{l.missoes?.titulo}</td><td>{fmtDH(l.prazo_em)}</td>
                 <td>{es.filter(e => e.enviada_em).length}/{turma.alunos.length}</td>
                 <td className={es.some(e => e.fora_do_prazo) ? 'F' : ''}>{es.filter(e => e.fora_do_prazo).length}</td>
                 <td>{es.filter(e => e.nivel).length}</td>
@@ -238,12 +251,7 @@ function Entregas({ userId, lanc, turma, entregas, showToast, onVoltar, recarreg
       <div className="btnrow" style={{ marginTop: 0 }}><button className="btn ghost mini" onClick={onVoltar}>↩ Lançadas</button></div>
       <h2 style={{ marginTop: 6 }}>{lanc.missoes?.titulo}</h2>
       <p className="hint">Prazo {fmtDH(lanc.prazo_em)} · {aberta ? 'aberta' : 'encerrada'} · {entregas.filter(e => e.enviada_em).length} de {turma.alunos.length} enviaram</p>
-      <div className="btnrow">
-        {aberta && <button className="btn ghost mini" onClick={async () => { await store.atualizarLancamento(lanc.id, { encerrado: true }); showToast('Missão encerrada'); onVoltar() }}>Encerrar agora</button>}
-        {!aberta && <button className="btn ghost mini" onClick={async () => { const d = new Date(); d.setDate(d.getDate() + 2); await store.atualizarLancamento(lanc.id, { encerrado: false, prazo_em: d.toISOString() }); showToast('Prazo reaberto por 2 dias'); onVoltar() }}>Reabrir por 2 dias</button>}
-        <button className="btn ghost mini" onClick={async () => { await store.atualizarLancamento(lanc.id, { mostrar_ranking: !lanc.mostrar_ranking }); showToast(lanc.mostrar_ranking ? 'Ranking oculto para a turma' : 'Ranking visível'); onVoltar() }}>{lanc.mostrar_ranking ? 'Ocultar ranking' : 'Mostrar ranking'}</button>
-        <button className="btn danger mini" onClick={async () => { if (!confirm('Apagar este lançamento e as entregas dele?')) return; await store.apagarLancamento(lanc.id); showToast('Lançamento apagado'); onVoltar() }}>Apagar lançamento</button>
-      </div>
+      <AcoesLancamento lanc={lanc} aberta={aberta} showToast={showToast} onVoltar={onVoltar} />
       <ul className="people entregas">
         {ordem.map(a => { const e = porAluno[a.id]; const r = rascunho[a.id] ?? e?.devolutiva ?? ''
           const nFeitas = Object.keys(e?.etapas_feitas || {}).length
@@ -264,6 +272,177 @@ function Entregas({ userId, lanc, turma, entregas, showToast, onVoltar, recarreg
             </div>
           </li> })}
       </ul>
+    </div>
+  )
+}
+
+function AcoesLancamento({ lanc, aberta, showToast, onVoltar, extra }) {
+  return (
+    <div className="btnrow">
+      {extra}
+      {aberta && <button className="btn ghost mini" onClick={async () => { await store.atualizarLancamento(lanc.id, { encerrado: true }); showToast('Missão encerrada'); onVoltar() }}>Encerrar agora</button>}
+      {!aberta && <button className="btn ghost mini" onClick={async () => { const d = new Date(); d.setDate(d.getDate() + 2); await store.atualizarLancamento(lanc.id, { encerrado: false, prazo_em: d.toISOString() }); showToast('Prazo reaberto por 2 dias'); onVoltar() }}>Reabrir por 2 dias</button>}
+      <button className="btn ghost mini" onClick={async () => { await store.atualizarLancamento(lanc.id, { mostrar_ranking: !lanc.mostrar_ranking }); showToast(lanc.mostrar_ranking ? 'Ranking oculto para a turma' : 'Ranking visível'); onVoltar() }}>{lanc.mostrar_ranking ? 'Ocultar ranking' : 'Mostrar ranking'}</button>
+      <button className="btn danger mini" onClick={async () => { if (!confirm('Apagar este lançamento e as entregas dele?')) return; await store.apagarLancamento(lanc.id); showToast('Lançamento apagado'); onVoltar() }}>Apagar lançamento</button>
+    </div>
+  )
+}
+
+/* ================= MISSÃO EM EQUIPE =================
+   A professora forma as equipes. As funções dentro da equipe não são atribuídas por ela:
+   cada aluno escolhe a sua no app. Etapas e entrega andam juntas no servidor; a avaliação
+   vale para a equipe toda, com ajuste individual só para exceção. */
+function EntregasEquipe({ userId, lanc, turma, entregas, showToast, onVoltar, recarregar }) {
+  const [equipes, setEquipes] = useState(null)
+  const [formando, setFormando] = useState(false)
+  const [rascunho, setRascunho] = useState({})
+  const [ajuste, setAjuste] = useState(null)
+  const nome = useMemo(() => Object.fromEntries(turma.alunos.map(a => [a.id, a.nome])), [turma])
+  const porAluno = useMemo(() => { const m = {}; entregas.forEach(e => { m[e.aluno_id] = e }); return m }, [entregas])
+  const carregarEquipes = useCallback(() => store.equipesDoLancamento(lanc.id).then(eqs => { setEquipes(eqs); return eqs }).catch(e => { showToast('Erro: ' + e.message); return null }), [lanc.id, showToast])
+  useEffect(() => { carregarEquipes().then(eqs => { if (eqs && !eqs.length) setFormando(true) }) }, [carregarEquipes])
+  useEffect(() => { if (!formando) carregarEquipes() }, [entregas])   // as funções escolhidas pelos alunos chegam junto com a atualização das entregas
+
+  const etapas = lanc.missoes?.etapas || []
+  const aberta = !lanc.encerrado && new Date(lanc.prazo_em) > new Date()
+
+  if (equipes === null) return <div className="panel"><p className="note">Carregando equipes…</p></div>
+  if (formando) return <FormarEquipes userId={userId} lanc={lanc} turma={turma} equipes={equipes} showToast={showToast} onFechar={salvou => { setFormando(false); if (salvou) { carregarEquipes(); recarregar() } }} />
+
+  const naEquipe = new Set(equipes.flatMap(eq => eq.membros.map(m => m.aluno_id)))
+  const semEquipe = turma.alunos.filter(a => !naEquipe.has(a.id))
+  // a entrega da equipe é a linha mais adiantada entre os membros (o servidor grava em todos)
+  const entregaDa = eq => eq.membros.map(m => porAluno[m.aluno_id]).filter(Boolean).sort((a, b) => (b.enviada_em || '').localeCompare(a.enviada_em || ''))[0]
+  const enviadas = equipes.filter(eq => entregaDa(eq)?.enviada_em).length
+
+  async function avaliarEquipe(eq, campos) {
+    try { await store.avaliarVarios(userId, lanc.id, eq.membros.map(m => m.aluno_id), campos); showToast('Salvo para a equipe toda'); recarregar() }
+    catch (e) { showToast('Erro: ' + e.message) }
+  }
+  async function avaliarUm(alunoId, campos) {
+    try { await store.avaliarEntrega(userId, lanc.id, alunoId, campos); showToast('Salvo'); recarregar() }
+    catch (e) { showToast('Erro: ' + e.message) }
+  }
+
+  return (
+    <div className="panel">
+      <div className="btnrow" style={{ marginTop: 0 }}><button className="btn ghost mini" onClick={onVoltar}>↩ Lançadas</button></div>
+      <h2 style={{ marginTop: 6 }}><span className="tag equipe" style={{ marginRight: 6, verticalAlign: 'middle' }}>equipe</span>{lanc.missoes?.titulo}</h2>
+      <p className="hint">Prazo {fmtDH(lanc.prazo_em)} · {aberta ? 'aberta' : 'encerrada'} · {enviadas} de {equipes.length} equipe(s) enviaram</p>
+      <AcoesLancamento lanc={lanc} aberta={aberta} showToast={showToast} onVoltar={onVoltar} extra={<button className="btn mini" onClick={() => setFormando(true)}>Formar equipes</button>} />
+      {semEquipe.length > 0 && <p className="note" style={{ color: 'var(--miss)' }}>Sem equipe ({semEquipe.length}): {semEquipe.map(a => a.nome.trim().split(' ').slice(0, 2).join(' ')).join(', ')}. Quem está sem equipe não consegue marcar etapas nem enviar.</p>}
+      <ul className="people entregas">
+        {equipes.map(eq => {
+          const e = entregaDa(eq); const r = rascunho[eq.id] ?? e?.devolutiva ?? ''
+          const nFeitas = Object.keys(e?.etapas_feitas || {}).length
+          const misto = new Set(eq.membros.map(m => porAluno[m.aluno_id]?.nivel || '')).size > 1
+          return <li key={eq.id} className="entrega-li">
+            <div className="ent-cab">
+              <span className="who"><span><b>{eq.nome}</b> · {eq.membros.length} membro(s)</span>
+                <span className="m">{e?.enviada_em ? `enviada ${fmtDH(e.enviada_em)}${e.enviada_por ? ' por ' + primeiroNome(nome[e.enviada_por]) : ''}` : e ? 'em andamento' : 'não abriu'}{etapas.length ? ` · ${nFeitas}/${etapas.length} etapas` : ''}{e?.fora_do_prazo ? ' · ' : ''}{e?.fora_do_prazo && <b style={{ color: 'var(--miss)' }}>fora do prazo</b>}</span></span>
+              <span className={'tag ' + (e?.status === 'aceita' ? 'P' : e?.status === 'refazer' ? 'F' : '')}>{e?.status || '—'}</span>
+            </div>
+            <ul className="eq-membros" style={{ margin: '6px 0' }}>
+              {eq.membros.map(m => <li key={m.aluno_id}><span>{nome[m.aluno_id] || '?'}</span><span className="fn">{m.funcao || 'função não escolhida'}{misto && porAluno[m.aluno_id]?.nivel ? ' · ' + porAluno[m.aluno_id].nivel : ''}</span></li>)}
+            </ul>
+            {e?.texto && <p className="ent-texto">{e.texto}</p>}
+            <div className="row ent-acoes">
+              <div style={{ flex: 0, minWidth: 130 }}><select value={misto ? '' : (e?.nivel || '')} onChange={ev => avaliarEquipe(eq, { nivel: ev.target.value || null })}>{NIVEIS.map(([k, l]) => <option key={k} value={k}>{k === '' && misto ? 'misto' : l}</option>)}</select></div>
+              <div style={{ flex: 1, minWidth: 180 }}><input value={r} onChange={ev => setRascunho(x => ({ ...x, [eq.id]: ev.target.value }))} onBlur={() => { if (r !== (e?.devolutiva || '')) avaliarEquipe(eq, { devolutiva: r }) }} placeholder="Devolutiva para a equipe (salva ao sair do campo)" /></div>
+              <div style={{ flex: 0 }} className="btnrow">
+                <button className="btn mini" onClick={() => avaliarEquipe(eq, { status: 'aceita' })}>Aceitar</button>
+                <button className="btn ghost mini" onClick={() => avaliarEquipe(eq, { status: 'refazer' })}>Refazer</button>
+              </div>
+            </div>
+            <div className="btnrow" style={{ marginTop: 6 }}><button className="btn ghost mini" onClick={() => setAjuste(ajuste === eq.id ? null : eq.id)}>{ajuste === eq.id ? 'Fechar ajuste individual' : 'Ajustar nível de um membro'}</button></div>
+            {ajuste === eq.id && <table className="aloc"><tbody>{eq.membros.map(m => <tr key={m.aluno_id}><td>{nome[m.aluno_id]}</td><td style={{ width: 150 }}>
+              <select value={porAluno[m.aluno_id]?.nivel || ''} onChange={ev => avaliarUm(m.aluno_id, { nivel: ev.target.value || null })}>{NIVEIS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></td></tr>)}</tbody></table>}
+          </li>
+        })}
+      </ul>
+      <p className="note">Nível, devolutiva e decisão valem para a equipe toda. O ajuste individual é para exceção, como quem faltou ao campo.</p>
+    </div>
+  )
+}
+
+function FormarEquipes({ userId, lanc, turma, equipes, showToast, onFechar }) {
+  const alunos = useMemo(() => turma.alunos.slice().sort((a, b) => a.nome.localeCompare(b.nome)), [turma])
+  const [nomes, setNomes] = useState(() => equipes.length ? equipes.map(e => e.nome) : ['Equipe 1'])
+  const [grupo, setGrupo] = useState(() => { const g = {}; equipes.forEach((e, i) => e.membros.forEach(m => { g[m.aluno_id] = i })); return g })   // aluno_id → índice da equipe
+  const funcaoEscolhida = useMemo(() => { const f = {}; equipes.forEach(e => e.membros.forEach(m => { f[m.aluno_id] = m.funcao })); return f }, [equipes])
+  const [tamanho, setTamanho] = useState(4)
+  const [presentes, setPresentes] = useState(null)
+  const [busy, setBusy] = useState(false)
+  useEffect(() => { store.presentesDeHoje(turma.id).then(p => setPresentes(new Set(p))).catch(() => setPresentes(new Set())) }, [turma.id])
+
+  // embaralha e distribui em rodízio: os tamanhos das equipes diferem no máximo em 1
+  function sortear(ids) {
+    if (!ids.length) { showToast('Ninguém para sortear'); return }
+    const n = Math.max(1, Math.round(ids.length / Math.max(2, tamanho)))
+    const g = {}; embaralhar(ids).forEach((id, i) => { g[id] = i % n })
+    setNomes(Array.from({ length: n }, (_, i) => `Equipe ${i + 1}`)); setGrupo(g)
+  }
+  async function repetirUltima() {
+    try {
+      const ult = await store.ultimasEquipesDaTurma(turma.id, lanc.id)
+      if (!ult || !ult.length) { showToast('Nenhuma missão em equipe anterior nesta turma'); return }
+      const g = {}; ult.forEach((e, i) => e.membros.forEach(m => { g[m.aluno_id] = i }))
+      setNomes(ult.map(e => e.nome)); setGrupo(g); showToast('Formação da última missão copiada. Confira e salve.')
+    } catch (e) { showToast('Erro: ' + e.message) }
+  }
+  function removerEquipe(i) {
+    setNomes(ns => ns.filter((_, j) => j !== i))
+    setGrupo(g => { const n = {}; Object.entries(g).forEach(([id, k]) => { if (k < i) n[id] = k; else if (k > i) n[id] = k - 1 }); return n })
+  }
+  async function salvar() {
+    const lista = nomes.map((nm, i) => ({ nome: nm.trim() || `Equipe ${i + 1}`, membros: alunos.filter(a => grupo[a.id] === i).map(a => ({ aluno_id: a.id, funcao: funcaoEscolhida[a.id] || null })) })).filter(e => e.membros.length)
+    if (!lista.length) { showToast('Coloque pelo menos um aluno numa equipe'); return }
+    setBusy(true)
+    try { await store.salvarEquipes(userId, lanc.id, lista); showToast(`${lista.length} equipe(s) salva(s)`); onFechar(true) }
+    catch (e) { showToast('Erro: ' + e.message) } finally { setBusy(false) }
+  }
+
+  const sem = alunos.filter(a => grupo[a.id] == null)
+  const sugestoes = lanc.missoes?.funcoes || []
+  return (
+    <div className="panel">
+      <div className="btnrow" style={{ marginTop: 0 }}><button className="btn ghost mini" onClick={() => onFechar(false)}>↩ Voltar</button></div>
+      <h2 style={{ marginTop: 6 }}>Formar equipes · {lanc.missoes?.titulo}</h2>
+      <p className="hint">Você forma as equipes. A função, cada aluno escolhe no próprio app{sugestoes.length ? ` (sugeridas: ${sugestoes.join(', ')})` : ''}.</p>
+      <div className="row" style={{ alignItems: 'flex-end' }}>
+        <div style={{ flex: 0, minWidth: 110 }}><label className="fld">Por equipe</label><input type="number" min={2} max={10} value={tamanho} onChange={e => setTamanho(Number(e.target.value) || 4)} /></div>
+        <div style={{ flex: 1 }} className="btnrow">
+          <button className="btn mini" disabled={!presentes || !presentes.size} onClick={() => sortear(alunos.filter(a => presentes.has(a.id)).map(a => a.id))}>Sortear entre os presentes hoje{presentes ? ` (${presentes.size})` : ''}</button>
+          <button className="btn ghost mini" onClick={() => sortear(alunos.map(a => a.id))}>Sortear entre todos ({alunos.length})</button>
+          <button className="btn ghost mini" onClick={repetirUltima}>Repetir a última formação</button>
+          <button className="btn ghost mini" onClick={() => setNomes(ns => [...ns, `Equipe ${ns.length + 1}`])}>+ equipe</button>
+        </div>
+      </div>
+      <div className="eq-grade">
+        {nomes.map((nm, i) => { const ms = alunos.filter(a => grupo[a.id] === i)
+          return <div key={i} className="eq-box">
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              <input className="eq-nome" value={nm} onChange={e => setNomes(ns => ns.map((x, j) => j === i ? e.target.value : x))} />
+              <button className="btn ghost mini" title="Remover a equipe (os membros ficam sem equipe)" onClick={() => removerEquipe(i)}>✕</button>
+            </div>
+            {ms.length === 0 ? <p className="note" style={{ margin: 0 }}>vazia</p> :
+              <ul className="eq-membros">{ms.map(a => <li key={a.id}><span>{a.nome}</span><span className="fn">{presentes?.has(a.id) ? 'presente' : ''}</span></li>)}</ul>}
+          </div> })}
+      </div>
+      <h3 style={{ margin: '12px 0 4px' }}>Alunos{sem.length ? ` · ${sem.length} sem equipe` : ''}</h3>
+      <div className="scrollx"><table className="aloc"><tbody>
+        {alunos.map(a => <tr key={a.id} className={presentes?.has(a.id) ? 'pres' : ''}><td>{a.nome}</td><td style={{ width: 170 }}>
+          <select value={grupo[a.id] ?? ''} onChange={e => { const v = e.target.value; setGrupo(g => { const n = { ...g }; if (v === '') delete n[a.id]; else n[a.id] = Number(v); return n }) }}>
+            <option value="">— sem equipe —</option>
+            {nomes.map((nm, i) => <option key={i} value={i}>{nm || `Equipe ${i + 1}`}</option>)}
+          </select></td></tr>)}
+      </tbody></table></div>
+      <p className="note">● presente na chamada de hoje.</p>
+      <div className="btnrow">
+        <button className="btn" onClick={salvar} disabled={busy}>{busy ? 'Salvando…' : 'Salvar equipes'}</button>
+        <button className="btn ghost" onClick={() => onFechar(false)}>Cancelar</button>
+      </div>
+      {equipes.length > 0 && <p className="note">Salvar substitui a formação atual. Quem continua numa equipe mantém a função que escolheu.</p>}
     </div>
   )
 }
