@@ -743,7 +743,7 @@ function Chamada({ userId, tid, turmas, online, setPending, showToast, goConferi
   useEffect(() => {
     setConteudo(''); setConteudoSalvo('')
     if (!chamadaId || !online) return
-    store.conteudoDaChamada(chamadaId).then(c => { setConteudo(c); setConteudoSalvo(c) }).catch(() => {})
+    store.conteudoDaChamada(chamadaId).then(c => { setConteudo(c || ''); setConteudoSalvo(c || '') }).catch(() => {})
   }, [chamadaId, online])
   async function gravarConteudo() {
     if (!chamadaId || conteudo === conteudoSalvo) return

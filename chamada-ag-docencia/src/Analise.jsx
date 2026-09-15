@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import * as store from './lib/store'
 import { PERC, paraUTM25S, deUTM25S, metros } from './lib/geo'
-import { MARCOS, marcoPorNome, calcularPoligonal, ordenarPorAngulo } from './lib/topo'
+import { MARCOS, marcoPorNome, calcularPoligonal, ordenarPorAngulo, grausDMS, rumo } from './lib/topo'
 
 /* Análise — a mesa de trabalho da professora, pensada para o computador.
    Tudo o que os alunos da turma mandaram: leituras (chamada e ambientes),
@@ -47,7 +47,10 @@ export default function Analise({ tid, turmas, online, showToast }) {
   const [loading, setLoading] = useState(false)
   const [erro, setErro] = useState('')
   const [sessaoId, setSessaoId] = useState('')
-  const [alunoId, setAlunoId] = useState('')
+  const [alunosSel, setAlunosSel] = useState([])   // vazio = todos; 2+ = modo comparação
+  const [selPoli, setSelPoli] = useState(null)     // poligonal clicada (planta ou tabela)
+  const temAluno = id => !alunosSel.length || alunosSel.includes(id)
+  const addAluno = id => { if (id && !alunosSel.includes(id)) setAlunosSel(a => [...a, id]) }
   const [rotulos, setRotulos] = useState(() => new Set(Object.keys(COR)))
   const [soChamada, setSoChamada] = useState(false)
   const [maxAcc, setMaxAcc] = useState('')           // filtro: leituras piores que isso saem de tudo
@@ -71,12 +74,12 @@ export default function Analise({ tid, turmas, online, showToast }) {
       .finally(() => vivo && setLoading(false))
     return () => { vivo = false }
   }, [tid, periodo, online])
-  useEffect(() => { setSessaoId(''); setAlunoId(''); setMostrar(200) }, [tid])
+  useEffect(() => { setSessaoId(''); setAlunosSel([]); setSelPoli(null); setMostrar(200) }, [tid])
 
   const leituras = useMemo(() => dados.leituras.filter(l =>
-    (!sessaoId || l.sessao_id === sessaoId) && (!alunoId || l.aluno_id === alunoId) &&
+    (!sessaoId || l.sessao_id === sessaoId) && temAluno(l.aluno_id) &&
     rotulos.has(l.rotulo || 'outro') && (!soChamada || ehChamada(l)) && !ocultas.has(l.id) &&
-    (maxAcc === '' || (l.acuracia_m != null && l.acuracia_m <= maxAcc))), [dados.leituras, sessaoId, alunoId, rotulos, soChamada, ocultas, maxAcc])
+    (maxAcc === '' || (l.acuracia_m != null && l.acuracia_m <= maxAcc))), [dados.leituras, sessaoId, alunosSel, rotulos, soChamada, ocultas, maxAcc])
   const alunosIdx = useMemo(() => { const m = {}; let i = 0; (t ? t.alunos : []).forEach(a => { m[a.id] = i++ }); return m }, [t])
   const sessIdx = useMemo(() => { const m = {}; dados.sessoes.forEach((s, i) => { m[s.id] = i }); return m }, [dados.sessoes])
   const corDe = l => corPor === 'aluno' ? hsl(alunosIdx[l.aluno_id] ?? 0, (t ? t.alunos.length : 1))
@@ -89,8 +92,10 @@ export default function Analise({ tid, turmas, online, showToast }) {
     const g = {}; leituras.forEach(l => { (g[l.aluno_id] = g[l.aluno_id] || []).push(l) })
     return Object.entries(g).map(([id, ls]) => ({ id, ls: ls.slice().sort((a, b) => new Date(a.capturado_em || a.criado_em) - new Date(b.capturado_em || b.criado_em)) })).filter(x => x.ls.length > 1)
   }, [leituras, trilha])
-  const pins = useMemo(() => dados.pins.filter(p => (!alunoId || p.aluno_id === alunoId) && (!sessaoId || p.sessao_id === sessaoId)), [dados.pins, alunoId, sessaoId])
-  const polis = useMemo(() => dados.polis.filter(q => !alunoId || q.aluno_id === alunoId), [dados.polis, alunoId])
+  const pins = useMemo(() => dados.pins.filter(p => temAluno(p.aluno_id) && (!sessaoId || p.sessao_id === sessaoId)), [dados.pins, alunosSel, sessaoId])
+  const polis = useMemo(() => dados.polis.filter(q => temAluno(q.aluno_id)), [dados.polis, alunosSel])
+  const pinPorId = useMemo(() => { const m = {}; dados.pins.forEach(p => m[p.id] = p); return m }, [dados.pins])
+  const sessPorId = useMemo(() => { const m = {}; dados.sessoes.forEach(s => m[s.id] = s); return m }, [dados.sessoes])
   // Recalcula cada poligonal pelos pins salvos: mostra se a ordem do aluno cruzou os lados
   // ("laço", área inválida) e qual seria a área com a ordem corrigida em volta do centro.
   const poliCalc = useMemo(() => { const m = {}; dados.polis.forEach(q => {
@@ -99,8 +104,6 @@ export default function Analise({ tid, turmas, online, showToast }) {
     const r = calcularPoligonal(pts), rc = r.cruzada ? calcularPoligonal(ordenarPorAngulo(pts)) : null
     m[q.id] = { r, rc }
   }); return m }, [dados.polis, pinPorId])
-  const pinPorId = useMemo(() => { const m = {}; dados.pins.forEach(p => m[p.id] = p); return m }, [dados.pins])
-  const sessPorId = useMemo(() => { const m = {}; dados.sessoes.forEach(s => m[s.id] = s); return m }, [dados.sessoes])
 
   const kpi = useMemo(() => {
     const alunos = new Set(leituras.map(l => l.aluno_id)).size
@@ -211,9 +214,9 @@ export default function Analise({ tid, turmas, online, showToast }) {
             <option value="">Todas as aulas</option>
             {dados.sessoes.map(s => <option key={s.id} value={s.id}>{s.codigo} · {fmtHora(s.criada_em)}{s.local ? ' · ' + s.local : ''}</option>)}
           </select>
-          <select value={alunoId} onChange={e => setAlunoId(e.target.value)}>
-            <option value="">Todos os alunos ({alunosCom.length} com dados)</option>
-            {t.alunos.map(a => <option key={a.id} value={a.id}>{a.nome}{alunosCom.includes(a) ? '' : ' · sem dados'}</option>)}
+          <select value="" onChange={e => addAluno(e.target.value)}>
+            <option value="">{alunosSel.length ? '+ comparar com outro aluno…' : `Todos os alunos (${alunosCom.length} com dados) — escolher…`}</option>
+            {t.alunos.filter(a => !alunosSel.includes(a.id)).map(a => <option key={a.id} value={a.id}>{a.nome}{alunosCom.includes(a) ? '' : ' · sem dados'}</option>)}
           </select>
           <label className="chk-inline"><input type="checkbox" checked={soChamada} onChange={e => setSoChamada(e.target.checked)} /> só leituras de chamada</label>
           <span className="chk-inline">acurácia até
@@ -228,6 +231,11 @@ export default function Analise({ tid, turmas, online, showToast }) {
           <label className="chk-inline"><input type="checkbox" checked={trilha} onChange={e => setTrilha(e.target.checked)} /> trilha por aluno</label>
           {ocultas.size > 0 && <button className="btn ghost mini" onClick={() => setOcultas(new Set())}>Mostrar {ocultas.size} oculta(s)</button>}
         </div>
+        {alunosSel.length > 0 && <div className="ana-legenda" style={{ marginTop: 8 }}>
+          {alunosSel.map(id => { const a = t.alunos.find(x => x.id === id); return <span key={id} className="chip on" style={{ '--c': hsl(alunosIdx[id] ?? 0, t.alunos.length), cursor: 'default' }}><i />{a ? a.nome : '?'} <b style={{ cursor: 'pointer', marginLeft: 4 }} onClick={() => setAlunosSel(s => s.filter(x => x !== id))} title="tirar da comparação">×</b></span> })}
+          <button className="btn ghost mini" onClick={() => setAlunosSel([])}>Todos os alunos</button>
+          {alunosSel.length >= 2 && corPor !== 'aluno' && <button className="btn ghost mini" onClick={() => setCorPor('aluno')}>colorir por aluno</button>}
+        </div>}
         <div className="btnrow">
           <button className="btn" onClick={exportarLeituras} disabled={!leituras.length}>CSV leituras ({leituras.length})</button>
           <button className="btn ghost" onClick={exportarPins} disabled={!pins.length}>CSV pins ({pins.length})</button>
@@ -246,6 +254,22 @@ export default function Analise({ tid, turmas, online, showToast }) {
         </div>
       </div>
 
+      {alunosSel.length >= 2 && <div className="panel">
+        <h2>Comparação — {alunosSel.length} alunos</h2>
+        <div className="scrollx"><table className="matrix"><thead><tr><th className="nm">Aluno</th><th>leituras</th><th>chamadas</th><th>acurácia mediana</th><th>melhor</th><th>pior</th><th>sala</th><th>corredor</th><th>pátio</th><th>pins</th><th>espalh. médio</th><th>poligonais</th><th>aparelho</th></tr></thead>
+          <tbody>{alunosSel.map(id => {
+            const a = t.alunos.find(x => x.id === id); const ls = leituras.filter(l => l.aluno_id === id); const accs = ls.map(l => l.acuracia_m).filter(v => v != null)
+            const ps = pins.filter(p => p.aluno_id === id); const esp = ps.map(p => Math.hypot(p.desvio_n_m || 0, p.desvio_e_m || 0))
+            const porAmb = k => { const m = mediana(ls.filter(l => (l.rotulo || 'outro') === k).map(l => l.acuracia_m)); return m != null ? '± ' + metros(m, 1) : '—' }
+            const plat = [...new Set(ls.map(l => l.extra?.plataforma).filter(Boolean))].join('/') || '—'
+            return <tr key={id}><td className="nm"><i className="dot" style={{ background: hsl(alunosIdx[id] ?? 0, t.alunos.length) }} />{a?.nome}</td>
+              <td>{ls.length}</td><td>{ls.filter(ehChamada).length}</td><td>{accs.length ? '± ' + metros(mediana(accs), 1) + ' m' : '—'}</td>
+              <td className="P">{accs.length ? '± ' + metros(Math.min(...accs), 1) : '—'}</td><td className="F">{accs.length ? '± ' + metros(Math.max(...accs), 0) : '—'}</td>
+              <td>{porAmb('sala')}</td><td>{porAmb('corredor')}</td><td>{porAmb('patio')}</td>
+              <td>{ps.length}</td><td>{esp.length ? '± ' + metros(esp.reduce((s, v) => s + v, 0) / esp.length, 1) + ' m' : '—'}</td><td>{polis.filter(q => q.aluno_id === id).length}</td><td>{plat}</td></tr> })}</tbody></table></div>
+        <p className="note">Mesmo ambiente, mesma aula, celulares diferentes: a diferença entre linhas é o aparelho e o jeito de segurar. "Espalh. médio" é a precisão média das ocupações (pins) de cada um.</p>
+      </div>}
+
       <div className="ana-grid">
         <div className="panel ana-map">
           <h2>Planta UTM 25 S</h2>
@@ -259,7 +283,9 @@ export default function Analise({ tid, turmas, online, showToast }) {
             <text transform={`translate(12 ${H / 2}) rotate(-90)`} className="ana-lab" textAnchor="middle">N (m)</text>
 
             {camadas.polis && polis.map(q => { const pts = (q.pin_ids || []).map(id => pinPorId[id]).filter(Boolean); if (pts.length < 2) return null
-              return <polygon key={q.id} points={pts.map(p => `${vista.X(p.utm_e)},${vista.Y(p.utm_n)}`).join(' ')} className="ana-poli"><title>{`${q.alunos?.nome} · ${q.nome}`}</title></polygon> })}
+              return <polygon key={q.id} points={pts.map(p => `${vista.X(p.utm_e)},${vista.Y(p.utm_n)}`).join(' ')} className={'ana-poli' + (selPoli && selPoli.id === q.id ? ' sel' : '')} style={{ cursor: 'pointer' }} onClick={() => setSelPoli(q)}><title>{`${q.alunos?.nome} · ${q.nome} — clique para detalhes`}</title></polygon> })}
+            {selPoli && camadas.polis && (selPoli.pin_ids || []).map((id, i) => { const p = pinPorId[id]; if (!p) return null; const x = vista.X(p.utm_e), y = vista.Y(p.utm_n); if (!dentro(x, y)) return null
+              return <g key={'sv' + id} transform={`translate(${x},${y})`}><circle r={9} className="ana-poli-v" /><text y={4} textAnchor="middle" className="ana-poli-vn">{i + 1}</text></g> })}
 
             {camadas.leituras && raios && pontos.map(({ l, n, e }) => { const x = vista.X(e), y = vista.Y(n); if (!dentro(x, y) || l.acuracia_m == null) return null
               return <circle key={'r' + l.id} cx={x} cy={y} r={Math.max(1, l.acuracia_m * vista.esc)} fill={corDe(l)} fillOpacity={0.06} stroke={corDe(l)} strokeOpacity={0.35} /> })}
@@ -297,6 +323,35 @@ export default function Analise({ tid, turmas, online, showToast }) {
         </div>
 
         <div className="ana-lado">
+          {selPoli && (() => { const pc = poliCalc[selPoli.id]; const r = pc ? pc.r : (selPoli.resultado || {}); const c = (selPoli.resultado || {}).comparacao
+            const pts = (selPoli.pin_ids || []).map(id => pinPorId[id]).filter(Boolean)
+            return <div className="panel" style={{ borderColor: '#7B4F00' }}>
+              <h2 style={{ marginTop: 0 }}>Poligonal — {selPoli.nome.replace(/^Poligonal /, '')}</h2>
+              <p className="hint" style={{ marginBottom: 6 }}><b>{selPoli.alunos?.nome}</b> · {fmtHora(selPoli.criado_em)} · aula {sessPorId[selPoli.sessao_id]?.codigo || '—'}{r.cruzada ? ' · ' : ''}{r.cruzada ? <span className="badge" style={{ background: 'var(--miss)', color: '#fff' }}>laço — área inválida</span> : null}</p>
+              <div className="count-strip">
+                <div className="c"><div className="n">{r.perimetro != null ? metros(r.perimetro, 1) : '—'}</div><div className="l">perímetro (m)</div></div>
+                <div className={'c' + (r.cruzada ? ' miss' : '')}><div className="n">{r.cruzada ? '✗' : r.area != null ? metros(r.area, 0) : '—'}</div><div className="l">área (m²)</div></div>
+                <div className="c"><div className="n">{r.sentido === 'horário' ? '↻' : r.sentido ? '↺' : '—'}</div><div className="l">{r.sentido || 'sentido'}</div></div>
+              </div>
+              {pc && pc.rc && <p className="note">Com a ordem corrigida: {metros(pc.rc.perimetro, 1)} m · {metros(pc.rc.area, 0)} m².</p>}
+              <label className="fld">Vértices (na ordem do aluno)</label>
+              <div className="scrollx"><table className="matrix"><thead><tr><th>#</th><th className="nm">pin</th><th>N</th><th>E</th><th>±hz</th><th>âng. interno</th></tr></thead>
+                <tbody>{pts.map((p, i) => <tr key={p.id}><td>{i + 1}</td><td className="nm">{p.nome}{p.tem_foto ? ' 📷' : ''}</td><td>{metros(p.utm_n, 2)}</td><td>{metros(p.utm_e, 2)}</td><td>{p.acuracia_media_m != null ? metros(p.acuracia_media_m, 1) : '—'}</td><td>{r.angulos && r.angulos[i] ? grausDMS(r.angulos[i].interno) : '—'}</td></tr>)}</tbody></table></div>
+              {r.angulos && <p className="note">Soma dos internos {grausDMS(r.somaAngulos)} · teórico {r.somaTeorica}° · erro {r.erroAngular != null ? (r.erroAngular >= 0 ? '+' : '') + r.erroAngular.toFixed(4) + '°' : '—'} (por GPS cada vértice é independente: o "erro" aqui é só arredondamento).</p>}
+              <label className="fld">Lados</label>
+              <div className="scrollx"><table className="matrix"><thead><tr><th className="nm">lado</th><th>distância</th><th>azimute</th><th>rumo</th></tr></thead>
+                <tbody>{(r.lados || []).map((l, i) => <tr key={i}><td className="nm">{l.de} → {l.para}</td><td>{metros(l.dist, 2)} m</td><td>{grausDMS(l.azimute)}</td><td>{rumo(l.azimute)}</td></tr>)}</tbody></table></div>
+              {c && <>
+                <label className="fld">Comparação com os marcos oficiais</label>
+                <div className="scrollx"><table className="matrix"><thead><tr><th className="nm">vértice</th><th>erro</th><th>ΔN</th><th>ΔE</th></tr></thead>
+                  <tbody>{c.errosVertice.map(v => <tr key={v.vertice}><td className="nm">{v.vertice}</td><td className={v.erro < 10 ? 'P' : 'F'}>{metros(v.erro, 2)} m</td><td>{(v.dN >= 0 ? '+' : '') + metros(v.dN, 2)}</td><td>{(v.dE >= 0 ? '+' : '') + metros(v.dE, 2)}</td></tr>)}</tbody></table></div>
+                <p className="note">Perímetro real {metros(c.perimetro.real, 1)} m ({c.perimetro.erroPct >= 0 ? '+' : ''}{c.perimetro.erroPct.toFixed(1)}%) · área real {metros(c.area.real, 0)} m² ({c.area.erroPct >= 0 ? '+' : ''}{c.area.erroPct.toFixed(1)}%).</p>
+              </>}
+              <div className="btnrow">
+                <button className="btn ghost mini" onClick={() => addAluno(selPoli.aluno_id)}>{alunosSel.length ? 'Comparar este aluno' : 'Só este aluno'}</button>
+                <button className="btn ghost mini" onClick={() => setSelPoli(null)}>Fechar</button>
+              </div>
+            </div> })()}
           {sel && <div className="panel" style={{ borderColor: 'var(--brand)' }}>
             <h2 style={{ marginTop: 0 }}>Leitura selecionada</h2>
             <p className="hint" style={{ marginBottom: 6 }}><b>{sel.alunos?.nome}</b> · {NOME[sel.rotulo] || sel.rotulo}{sel.extra?.local_descricao ? ' · ' + sel.extra.local_descricao : ''}{ehChamada(sel) ? ' · CHAMADA' : ''}</p>
@@ -309,7 +364,7 @@ export default function Analise({ tid, turmas, online, showToast }) {
             </ul>
             <div className="btnrow">
               <button className="btn ghost mini" onClick={() => { setOcultas(o => { const n = new Set(o); n.add(sel.id); return n }); setSel(null) }}>Ocultar esta leitura</button>
-              <button className="btn ghost mini" onClick={() => setAlunoId(sel.aluno_id)}>Só este aluno</button>
+              <button className="btn ghost mini" onClick={() => addAluno(sel.aluno_id)}>{alunosSel.length ? 'Comparar este aluno' : 'Só este aluno'}</button>
               <button className="btn ghost mini" onClick={() => setSel(null)}>Fechar</button>
             </div>
             <p className="note">Ocultar vale só nesta tela — nada é apagado do banco. Para um aparelho ruim recorrente, use "acurácia até".</p>
@@ -359,7 +414,7 @@ export default function Analise({ tid, turmas, online, showToast }) {
         <p className="hint">Área e perímetro <b>recalculados pelos pins salvos</b>. <b>Laço</b> = o aluno tocou os pins fora da ordem do contorno e os lados se cruzam: a área que ele viu não vale. "Corrigida" reordena os vértices em volta do centro.</p>
         {polis.length ? <div className="scrollx tbl-wrap"><table className="matrix"><thead><tr><th className="nm">Aluno</th><th>poligonal</th><th>vért.</th><th>perímetro</th><th>área</th><th>área corrigida</th><th>erro médio/vért.</th><th>vértices (pins)</th><th>quando</th></tr></thead>
           <tbody>{polis.map(q => { const r0 = q.resultado || {}, c = r0.comparacao, pc = poliCalc[q.id], r = pc ? pc.r : r0
-            return <tr key={q.id} className={r.cruzada ? 'reocup' : ''}><td className="nm">{q.alunos?.nome}</td><td>{q.nome}{r.cruzada ? <span className="badge" style={{ marginLeft: 6, background: 'var(--miss)', color: '#fff' }}>laço</span> : null}</td><td>{r.vertices}</td>
+            return <tr key={q.id} className={(r.cruzada ? 'reocup' : '') + (selPoli && selPoli.id === q.id ? ' sel-row' : '')} style={{ cursor: 'pointer' }} onClick={() => setSelPoli(q)}><td className="nm">{q.alunos?.nome}</td><td>{q.nome}{r.cruzada ? <span className="badge" style={{ marginLeft: 6, background: 'var(--miss)', color: '#fff' }}>laço</span> : null}</td><td>{r.vertices}</td>
               <td>{r.perimetro != null ? metros(r.perimetro, 1) + ' m' : '—'}</td>
               <td className={r.cruzada ? 'F' : ''}>{r.area != null ? metros(r.area, 0) + ' m²' : '—'}</td>
               <td>{pc && pc.rc ? metros(pc.rc.area, 0) + ' m²' : r.cruzada ? '—' : '='}</td>

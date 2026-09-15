@@ -295,3 +295,7 @@ tr.reocup td{opacity:.75;font-style:italic}
 .ir-n{font-size:18px;font-weight:800;fill:#c0392b}.ir-card{font-size:11px;font-weight:600;fill:var(--muted)}
 .ir-ponta{fill:var(--brand2)}.ir-haste{fill:var(--brand2)}.ir-box.chegou .ir-ponta,.ir-box.chegou .ir-haste{fill:var(--ok)}
 .ir-centro{fill:var(--panel);stroke:var(--brand2);stroke-width:2}
+
+.ana-poli.sel{stroke-width:3;stroke-dasharray:none;fill:rgba(123,79,0,.18)}
+.ana-poli-v{fill:#7B4F00;stroke:#fff;stroke-width:1.5}.ana-poli-vn{font-size:10px;font-weight:800;fill:#fff}
+table.matrix tr.sel-row td{background:rgba(123,79,0,.10)}
