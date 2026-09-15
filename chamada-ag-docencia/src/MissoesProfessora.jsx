@@ -85,14 +85,12 @@ function Cardapio({ userId, missoes, turmas, tid, recarregar, showToast, onLanco
 
 function EditorMissao({ userId, inicial, onFechar, showToast }) {
   const [m, setM] = useState(() => ({ ...vazio(), ...inicial, etapas: (inicial.etapas && inicial.etapas.length ? inicial.etapas : ['']), niveis: { bronze: '', prata: '', ouro: '', ...(inicial.niveis || {}) } }))
-  const [funcoesTxt, setFuncoesTxt] = useState(() => (inicial.funcoes || []).join(', '))
   const [busy, setBusy] = useState(false)
   const set = (k, v) => setM(x => ({ ...x, [k]: v }))
   async function salvar(extra = {}) {
     if (!m.titulo.trim()) { showToast('Dê um título à missão'); return }
     setBusy(true)
-    const funcoes = m.equipe ? funcoesTxt.split(',').map(s => s.trim()).filter(Boolean) : []
-    try { await store.salvarMissao(userId, { ...m, funcoes, ...extra }); showToast('Missão salva'); onFechar(true) }
+    try { await store.salvarMissao(userId, { ...m, funcoes: [], ...extra }); showToast('Missão salva'); onFechar(true) }
     catch (e) { showToast('Erro: ' + e.message) } finally { setBusy(false) }
   }
   return (
@@ -104,11 +102,6 @@ function EditorMissao({ userId, inicial, onFechar, showToast }) {
           <select value={m.frente} onChange={e => set('frente', e.target.value)}>{FRENTES.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></div>
       </div>
       <label className="chk-inline" style={{ marginTop: 10 }}><input type="checkbox" checked={!!m.equipe} onChange={e => set('equipe', e.target.checked)} /> Missão em equipe (etapas e entrega são da equipe; o nível vale para todos)</label>
-      {m.equipe && <>
-        <label className="fld">Funções que a equipe pode dividir (opcional, separadas por vírgula)</label>
-        <input value={funcoesTxt} onChange={e => setFuncoesTxt(e.target.value)} placeholder="Operador do nível, Porta-mira, Anotador, Calculista" />
-        <p className="note" style={{ marginTop: 4 }}>Você não atribui: cada aluno escolhe a própria função no app, e a equipe combina entre si.</p>
-      </>}
       <label className="fld">O que é a missão</label>
       <textarea rows={3} value={m.descricao || ''} onChange={e => set('descricao', e.target.value)} placeholder="Contexto e objetivo, em linguagem direta." />
       <label className="fld">Etapas (o aluno marca cada uma, e fica gravado)</label>
@@ -289,9 +282,10 @@ function AcoesLancamento({ lanc, aberta, showToast, onVoltar, extra }) {
 }
 
 /* ================= MISSÃO EM EQUIPE =================
-   A professora forma as equipes. As funções dentro da equipe não são atribuídas por ela:
-   cada aluno escolhe a sua no app. Etapas e entrega andam juntas no servidor; a avaliação
-   vale para a equipe toda, com ajuste individual só para exceção. */
+   A professora forma as equipes; não há funções definidas, eles se dividem na atividade.
+   Todos os celulares da equipe registram, mas só um envia: esse envio é o oficial e é o que
+   vale (reabre só com "Refazer"). A avaliação vale para a equipe toda, com ajuste individual
+   só para exceção. */
 function EntregasEquipe({ userId, lanc, turma, entregas, showToast, onVoltar, recarregar }) {
   const [equipes, setEquipes] = useState(null)
   const [formando, setFormando] = useState(false)
@@ -301,7 +295,6 @@ function EntregasEquipe({ userId, lanc, turma, entregas, showToast, onVoltar, re
   const porAluno = useMemo(() => { const m = {}; entregas.forEach(e => { m[e.aluno_id] = e }); return m }, [entregas])
   const carregarEquipes = useCallback(() => store.equipesDoLancamento(lanc.id).then(eqs => { setEquipes(eqs); return eqs }).catch(e => { showToast('Erro: ' + e.message); return null }), [lanc.id, showToast])
   useEffect(() => { carregarEquipes().then(eqs => { if (eqs && !eqs.length) setFormando(true) }) }, [carregarEquipes])
-  useEffect(() => { if (!formando) carregarEquipes() }, [entregas])   // as funções escolhidas pelos alunos chegam junto com a atualização das entregas
 
   const etapas = lanc.missoes?.etapas || []
   const aberta = !lanc.encerrado && new Date(lanc.prazo_em) > new Date()
@@ -343,7 +336,7 @@ function EntregasEquipe({ userId, lanc, turma, entregas, showToast, onVoltar, re
               <span className={'tag ' + (e?.status === 'aceita' ? 'P' : e?.status === 'refazer' ? 'F' : '')}>{e?.status || '—'}</span>
             </div>
             <ul className="eq-membros" style={{ margin: '6px 0' }}>
-              {eq.membros.map(m => <li key={m.aluno_id}><span>{nome[m.aluno_id] || '?'}</span><span className="fn">{m.funcao || 'função não escolhida'}{misto && porAluno[m.aluno_id]?.nivel ? ' · ' + porAluno[m.aluno_id].nivel : ''}</span></li>)}
+              {eq.membros.map(m => <li key={m.aluno_id}><span>{e?.enviada_em && m.aluno_id === e.enviada_por ? '📱 ' : ''}{nome[m.aluno_id] || '?'}</span><span className="fn">{[e?.enviada_em && m.aluno_id === e.enviada_por ? 'enviou' : '', misto ? porAluno[m.aluno_id]?.nivel : ''].filter(Boolean).join(' · ')}</span></li>)}
             </ul>
             {e?.texto && <p className="ent-texto">{e.texto}</p>}
             <div className="row ent-acoes">
@@ -369,7 +362,6 @@ function FormarEquipes({ userId, lanc, turma, equipes, showToast, onFechar }) {
   const alunos = useMemo(() => turma.alunos.slice().sort((a, b) => a.nome.localeCompare(b.nome)), [turma])
   const [nomes, setNomes] = useState(() => equipes.length ? equipes.map(e => e.nome) : ['Equipe 1'])
   const [grupo, setGrupo] = useState(() => { const g = {}; equipes.forEach((e, i) => e.membros.forEach(m => { g[m.aluno_id] = i })); return g })   // aluno_id → índice da equipe
-  const funcaoEscolhida = useMemo(() => { const f = {}; equipes.forEach(e => e.membros.forEach(m => { f[m.aluno_id] = m.funcao })); return f }, [equipes])
   const [tamanho, setTamanho] = useState(4)
   const [presentes, setPresentes] = useState(null)
   const [busy, setBusy] = useState(false)
@@ -395,7 +387,7 @@ function FormarEquipes({ userId, lanc, turma, equipes, showToast, onFechar }) {
     setGrupo(g => { const n = {}; Object.entries(g).forEach(([id, k]) => { if (k < i) n[id] = k; else if (k > i) n[id] = k - 1 }); return n })
   }
   async function salvar() {
-    const lista = nomes.map((nm, i) => ({ nome: nm.trim() || `Equipe ${i + 1}`, membros: alunos.filter(a => grupo[a.id] === i).map(a => ({ aluno_id: a.id, funcao: funcaoEscolhida[a.id] || null })) })).filter(e => e.membros.length)
+    const lista = nomes.map((nm, i) => ({ nome: nm.trim() || `Equipe ${i + 1}`, membros: alunos.filter(a => grupo[a.id] === i).map(a => ({ aluno_id: a.id })) })).filter(e => e.membros.length)
     if (!lista.length) { showToast('Coloque pelo menos um aluno numa equipe'); return }
     setBusy(true)
     try { await store.salvarEquipes(userId, lanc.id, lista); showToast(`${lista.length} equipe(s) salva(s)`); onFechar(true) }
@@ -403,12 +395,11 @@ function FormarEquipes({ userId, lanc, turma, equipes, showToast, onFechar }) {
   }
 
   const sem = alunos.filter(a => grupo[a.id] == null)
-  const sugestoes = lanc.missoes?.funcoes || []
   return (
     <div className="panel">
       <div className="btnrow" style={{ marginTop: 0 }}><button className="btn ghost mini" onClick={() => onFechar(false)}>↩ Voltar</button></div>
       <h2 style={{ marginTop: 6 }}>Formar equipes · {lanc.missoes?.titulo}</h2>
-      <p className="hint">Você forma as equipes. A função, cada aluno escolhe no próprio app{sugestoes.length ? ` (sugeridas: ${sugestoes.join(', ')})` : ''}.</p>
+      <p className="hint">Sem funções definidas: a equipe se divide na atividade. Todos os celulares registram, mas só um envia. Esse envio é o oficial e é o que vale; reabre só se você pedir Refazer.</p>
       <div className="row" style={{ alignItems: 'flex-end' }}>
         <div style={{ flex: 0, minWidth: 110 }}><label className="fld">Por equipe</label><input type="number" min={2} max={10} value={tamanho} onChange={e => setTamanho(Number(e.target.value) || 4)} /></div>
         <div style={{ flex: 1 }} className="btnrow">
@@ -442,7 +433,7 @@ function FormarEquipes({ userId, lanc, turma, equipes, showToast, onFechar }) {
         <button className="btn" onClick={salvar} disabled={busy}>{busy ? 'Salvando…' : 'Salvar equipes'}</button>
         <button className="btn ghost" onClick={() => onFechar(false)}>Cancelar</button>
       </div>
-      {equipes.length > 0 && <p className="note">Salvar substitui a formação atual. Quem continua numa equipe mantém a função que escolheu.</p>}
+      {equipes.length > 0 && <p className="note">Salvar substitui a formação atual. O que já foi marcado continua registrado.</p>}
     </div>
   )
 }

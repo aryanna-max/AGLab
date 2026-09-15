@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { fmtPrazo, marcarEtapa, enviarMissao, marcarVista, missaoVista, escolherFuncao } from './lib/alunoApi'
+import { fmtPrazo, marcarEtapa, enviarMissao, marcarVista, missaoVista } from './lib/alunoApi'
 
 /* Missões do aluno: as que a professora lançou para a turma dele, com prazo,
    etapas (gravadas na hora), entrega, nível alcançado, devolutiva e ranking. */
@@ -16,7 +16,7 @@ export default function MissoesAluno({ ident, online, missoes }) {
 
   const lista = dados?.missoes || []
   const atual = lista.find(m => m.lancamento_id === abertaId)
-  if (atual) return <Detalhe m={atual} ident={ident} online={online} agora={agora} jaExercidas={dados?.funcoes_ja_exercidas || []} onVoltar={() => { setAbertaId(null); recarregar() }} recarregar={recarregar} />
+  if (atual) return <Detalhe m={atual} ident={ident} online={online} agora={agora} onVoltar={() => { setAbertaId(null); recarregar() }} recarregar={recarregar} />
 
   const abertas = lista.filter(m => m.aberta), encerradas = lista.filter(m => !m.aberta)
   const sem = dados?.semestre
@@ -57,7 +57,7 @@ function CardMissao({ m, agora, onAbrir }) {
   )
 }
 
-function Detalhe({ m, ident, online, agora, jaExercidas, onVoltar, recarregar }) {
+function Detalhe({ m, ident, online, agora, onVoltar, recarregar }) {
   const [feitas, setFeitas] = useState(m.minha?.etapas_feitas || {})
   const [texto, setTexto] = useState(m.minha?.texto || '')
   const [busy, setBusy] = useState(false)
@@ -66,7 +66,9 @@ function Detalhe({ m, ident, online, agora, jaExercidas, onVoltar, recarregar })
   const etapas = m.etapas || []
   const status = m.minha?.status
   const semEquipe = m.em_equipe && !m.equipe
-  const podeEditar = status !== 'aceita' && !semEquipe
+  // equipe: todos os celulares registram, mas só um envia. O envio é o oficial e é o que vale (reabre só com refazer)
+  const equipeEnviou = m.em_equipe && !!m.minha?.enviada_em && status !== 'refazer'
+  const podeEditar = status !== 'aceita' && !semEquipe && !equipeEnviou
   // em equipe, o que um colega marca aparece aqui: confere a cada 30 s com a tela aberta
   const feitasServidor = JSON.stringify(m.minha?.etapas_feitas || {})
   useEffect(() => { setFeitas(JSON.parse(feitasServidor)) }, [feitasServidor])
@@ -83,10 +85,15 @@ function Detalhe({ m, ident, online, agora, jaExercidas, onVoltar, recarregar })
     catch (e) { setMsg({ tipo: 'err', t: e.message }); setFeitas(f => { const n = { ...f }; if (agoraFeita) delete n[i]; else n[i] = true; return n }) }
   }
   async function enviar() {
+    if (m.em_equipe) {
+      const faltam = etapas.length - Object.keys(feitas).length
+      const aviso = (faltam > 0 ? `Ainda faltam ${faltam} etapa(s).\n\n` : '') + 'Este envio é o oficial da equipe. Depois de enviado, é o que vale: ninguém da equipe envia de novo.\n\nConferiram juntos?'
+      if (!confirm(aviso)) return
+    }
     setBusy(true); setMsg(null)
     try {
       const r = await enviarMissao(ident, m.lancamento_id, texto)
-      setMsg(r.fora_do_prazo ? { tipo: 'dup', t: 'Enviada fora do prazo. Ficou registrada e a professora decide.' } : { tipo: 'ok', t: 'Missão enviada.' })
+      setMsg(r.fora_do_prazo ? { tipo: 'dup', t: 'Enviada fora do prazo. Ficou registrada e a professora decide.' } : { tipo: 'ok', t: m.em_equipe ? 'Envio oficial da equipe registrado.' : 'Missão enviada.' })
       recarregar()
     } catch (e) { setMsg({ tipo: 'err', t: e.message }) } finally { setBusy(false) }
   }
@@ -104,7 +111,7 @@ function Detalhe({ m, ident, online, agora, jaExercidas, onVoltar, recarregar })
 
       {m.em_equipe && (semEquipe
         ? <div className="panel"><h2 style={{ marginTop: 0 }}>Missão em equipe</h2><p className="note">A professora ainda não colocou você numa equipe. Quando ela formar as equipes, a sua aparece aqui.</p></div>
-        : <Equipe m={m} ident={ident} online={online} jaExercidas={jaExercidas} recarregar={recarregar} podeEditar={podeEditar} />)}
+        : <Equipe m={m} />)}
 
       {etapas.length > 0 && <div className="panel">
         <h2 style={{ marginTop: 0 }}>Etapas · {nFeitas}/{etapas.length}</h2>
@@ -113,7 +120,7 @@ function Detalhe({ m, ident, online, agora, jaExercidas, onVoltar, recarregar })
             <label><input type="checkbox" checked={!!feitas[i]} disabled={!podeEditar} onChange={() => toggle(i)} /> <span>{e}</span></label>
           </li>)}
         </ul>
-        <p className="note">{m.em_equipe ? 'As etapas são da equipe: o que um marca, todos veem.' : 'Cada etapa marcada fica gravada no servidor na hora.'}</p>
+        <p className="note">Cada etapa marcada fica gravada no servidor na hora.</p>
       </div>}
 
       {m.niveis && (m.niveis.bronze || m.niveis.prata || m.niveis.ouro) && <div className="panel">
@@ -127,13 +134,14 @@ function Detalhe({ m, ident, online, agora, jaExercidas, onVoltar, recarregar })
         <h2 style={{ marginTop: 0 }}>Entrega</h2>
         {m.entrega && <p className="hint">{m.entrega}</p>}
         {status && <p className="note">Situação: <b>{STATUS[status] || status}</b>{m.minha?.enviada_em ? ` · enviada ${new Date(m.minha.enviada_em).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}` : ''}{m.minha?.enviada_por && m.em_equipe ? ` por ${m.minha.enviada_por}` : ''}{m.minha?.fora_do_prazo ? ' · fora do prazo' : ''}</p>}
-        {m.em_equipe && podeEditar && <p className="note">A entrega é uma só para a equipe. Qualquer membro envia, e o nível vale para todos.</p>}
+        {equipeEnviou && <div className="devolutiva"><b>📱 Envio oficial da equipe, {m.minha.enviada_por_mim ? 'pelo seu celular' : `pelo celular de ${m.minha.enviada_por || 'um colega'}`}</b><p>{m.minha.texto || '(sem texto)'}</p><p className="note" style={{ margin: '6px 0 0' }}>É o que vale. Só a professora pode pedir para refazer.</p></div>}
+        {m.em_equipe && podeEditar && <p className="note">Todos da equipe podem marcar etapas. Só um celular envia, e esse envio é o oficial: conferam juntos antes, porque depois de enviado é o que vale.</p>}
         {m.minha?.nivel && <p className="nivel-grande">{NIVEL[m.minha.nivel]}</p>}
         {m.minha?.devolutiva && <div className="devolutiva"><b>Devolutiva da professora</b><p>{m.minha.devolutiva}</p></div>}
         {podeEditar && <>
           <textarea value={texto} onChange={e => setTexto(e.target.value)} rows={4} placeholder="Resultados, observações, nomes dos pins e poligonais que você usou…" />
           <div className="btnrow">
-            <button className="btn" onClick={enviar} disabled={busy || !online}>{busy ? 'Enviando…' : status === 'enviada' || status === 'refazer' ? 'Enviar de novo' : m.em_equipe ? 'Enviar pela equipe' : 'Enviar missão'}</button>
+            <button className="btn" onClick={enviar} disabled={busy || !online}>{busy ? 'Enviando…' : m.em_equipe ? (status === 'refazer' ? 'Enviar de novo pela equipe' : 'Enviar pela equipe') : status === 'enviada' || status === 'refazer' ? 'Enviar de novo' : 'Enviar missão'}</button>
           </div>
           {pz.vencido && <p className="note">O prazo passou. Ainda dá para enviar: fica marcado como fora do prazo e a professora decide.</p>}
         </>}
@@ -149,47 +157,17 @@ function Detalhe({ m, ident, online, agora, jaExercidas, onVoltar, recarregar })
   )
 }
 
-/* A professora forma a equipe; a função, o próprio aluno escolhe. As sugestões vêm da missão,
-   e as funções que ele já exerceu em missões anteriores aparecem tracejadas, para incentivar o rodízio. */
-function Equipe({ m, ident, online, jaExercidas, recarregar, podeEditar }) {
+/* A professora forma a equipe. Não há funções definidas: o aluno vê quem está com ele e quem fez o envio oficial. */
+function Equipe({ m }) {
   const eq = m.equipe
-  const [minha, setMinha] = useState(eq.minha_funcao || '')
-  const [outra, setOutra] = useState('')
-  const [busy, setBusy] = useState(false)
-  const [erro, setErro] = useState(null)
-  useEffect(() => { setMinha(eq.minha_funcao || '') }, [eq.minha_funcao])
-  const sugestoes = m.funcoes || []
-  const ja = new Set(jaExercidas || [])
-  const ocupadas = new Set((eq.membros || []).filter(x => !x.eu && x.funcao).map(x => x.funcao))
-
-  async function escolher(f) {
-    if (!online) { setErro('Sem rede: a função precisa de conexão para ficar gravada.'); return }
-    const nova = f === minha ? '' : f
-    setBusy(true); setErro(null)
-    try { await escolherFuncao(ident, m.lancamento_id, nova); setMinha(nova); setOutra(''); recarregar() }
-    catch (e) { setErro(e.message) } finally { setBusy(false) }
-  }
-
   return (
     <div className="panel">
       <h2 style={{ marginTop: 0 }}>{eq.nome}</h2>
       <ul className="eq-membros">
-        {(eq.membros || []).map((x, i) => <li key={i} className={x.eu ? 'eu' : ''}><span>{x.nome}{x.eu ? ' (você)' : ''}</span><span className="fn">{x.funcao || '—'}</span></li>)}
+        {(eq.membros || []).map((x, i) => { const enviou = m.minha?.enviada_em && (x.eu ? m.minha.enviada_por_mim : !m.minha.enviada_por_mim && x.nome === m.minha.enviada_por)
+          return <li key={i} className={x.eu ? 'eu' : ''}><span>{enviou ? '📱 ' : ''}{x.nome}{x.eu ? ' (você)' : ''}</span>{enviou && <span className="fn">enviou</span>}</li> })}
       </ul>
-      {podeEditar && <>
-        <label className="fld" style={{ marginTop: 12 }}>Sua função{minha ? `: ${minha}` : ''}</label>
-        {sugestoes.length > 0 && <div className="fn-chips">
-          {sugestoes.map(f => <button key={f} className={(minha === f ? 'on' : '') + (ja.has(f) && minha !== f ? ' ja' : '')} disabled={busy} onClick={() => escolher(f)}>
-            {f}{ocupadas.has(f) && minha !== f ? ' · já tem' : ''}
-          </button>)}
-        </div>}
-        <div className="row" style={{ alignItems: 'center' }}>
-          <div style={{ flex: 1 }}><input value={outra} onChange={e => setOutra(e.target.value)} placeholder={sugestoes.length ? 'Outra função' : 'Qual é a sua função na equipe?'} maxLength={60} /></div>
-          <div style={{ flex: 0 }}><button className="btn ghost mini" disabled={busy || !outra.trim()} onClick={() => escolher(outra.trim())}>Usar</button></div>
-        </div>
-        <p className="note">Combinem entre vocês quem faz o quê. Toque de novo na sua função para desmarcar.{ja.size ? ' Tracejadas: funções que você já fez em outra missão. Vale experimentar outra.' : ''}</p>
-      </>}
-      {erro && <div className="flash err" style={{ textAlign: 'left' }}>{erro}</div>}
+      <p className="note">Sem funções definidas: dividam a atividade entre vocês. Todos os celulares registram; só um envia a missão.</p>
     </div>
   )
 }

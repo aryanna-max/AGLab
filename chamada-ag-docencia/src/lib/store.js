@@ -498,13 +498,12 @@ export async function entregasDaTurma(turmaId) {
 }
 /* ---------- equipes de um lançamento ---------- */
 export async function equipesDoLancamento(lancamentoId) {
-  const { data, error } = await supabase.from('missao_equipes').select('id,nome,missao_equipe_membros(aluno_id,funcao)')
+  const { data, error } = await supabase.from('missao_equipes').select('id,nome,missao_equipe_membros(aluno_id)')
     .eq('lancamento_id', lancamentoId).order('nome')
   if (error) throw error
   return (data || []).map(e => ({ id: e.id, nome: e.nome, membros: e.missao_equipe_membros || [] }))
 }
 // substitui todas as equipes do lançamento. As entregas já existentes são realinhadas à nova equipe.
-// A função de cada membro é escolhida pelo próprio aluno: quem continua na formação mantém a que escolheu.
 export async function salvarEquipes(userId, lancamentoId, equipes) {
   await supabase.from('missao_entregas').update({ equipe_id: null }).eq('lancamento_id', lancamentoId)
   const { error: e1 } = await supabase.from('missao_equipes').delete().eq('lancamento_id', lancamentoId)
@@ -513,7 +512,7 @@ export async function salvarEquipes(userId, lancamentoId, equipes) {
     if (!eq.membros.length) continue
     const { data, error } = await supabase.from('missao_equipes').insert({ owner_id: userId, lancamento_id: lancamentoId, nome: eq.nome }).select('id').single()
     if (error) throw error
-    const { error: e2 } = await supabase.from('missao_equipe_membros').insert(eq.membros.map(m => ({ owner_id: userId, lancamento_id: lancamentoId, equipe_id: data.id, aluno_id: m.aluno_id, funcao: m.funcao || null })))
+    const { error: e2 } = await supabase.from('missao_equipe_membros').insert(eq.membros.map(m => ({ owner_id: userId, lancamento_id: lancamentoId, equipe_id: data.id, aluno_id: m.aluno_id })))
     if (e2) throw e2
     await supabase.from('missao_entregas').update({ equipe_id: data.id }).eq('lancamento_id', lancamentoId).in('aluno_id', eq.membros.map(m => m.aluno_id))
   }

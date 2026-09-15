@@ -65,14 +65,7 @@ export async function enviarMissao(ident, lancamentoId, texto) {
   return data
 }
 
-export async function escolherFuncao(ident, lancamentoId, funcao) {
-  const { data, error } = await supabase.rpc('escolher_funcao_missao', { ...idArgs(ident), p_lancamento_id: lancamentoId, p_funcao: funcao || '' })
-  if (error) throw error
-  if (!data?.ok) throw new Error(data?.erro || 'Não consegui gravar a função.')
-  return data
-}
-
-export const missaoVista =id => (ler(K_VISTAS, []) || []).includes(id)
+export const missaoVista = id => (ler(K_VISTAS, []) || []).includes(id)
 export const marcarVista = id => { const v = ler(K_VISTAS, []) || []; if (!v.includes(id)) { v.push(id); gravar(K_VISTAS, v.slice(-200)) } }
 
 /* ---------- utilidades de exibição ---------- */
