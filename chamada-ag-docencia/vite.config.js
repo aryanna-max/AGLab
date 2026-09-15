@@ -34,6 +34,8 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,png,svg,woff2}'],
+        // avisos da professora com o app fechado: handlers de push e de toque na notificação
+        importScripts: ['push-sw.js'],
         navigateFallback: 'index.html',
         // Sem isto, o SW novo fica "waiting" e o aparelho continua rodando a
         // versão antiga até todas as abas serem fechadas — foi o que aconteceu

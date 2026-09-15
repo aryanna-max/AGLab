@@ -546,6 +546,33 @@ export async function avaliarEntrega(userId, lancamentoId, alunoId, campos) {
   if (error) throw error; return data
 }
 
+/* ---------- avisos no celular (Web Push) ---------- */
+// alunos com avisos ativos (aluno_id) e aparelhos da própria professora (aluno_id null)
+export async function inscricoesAtivas() {
+  const { data, error } = await supabase.from('push_inscricoes').select('aluno_id,plataforma,atualizado_em').eq('ativo', true)
+  if (error) throw error; return data || []
+}
+export async function avisosDaTurma(turmaId) {
+  const { data, error } = await supabase.from('avisos').select('*').or(`turma_id.eq.${turmaId},turma_id.is.null`)
+    .order('agendado_para', { ascending: false }).limit(30)
+  if (error) throw error; return data || []
+}
+export async function criarAviso(userId, a) {
+  const { data, error } = await supabase.from('avisos').insert({ owner_id: userId, turma_id: a.turma_id || null, titulo: a.titulo.trim(), texto: (a.texto || '').trim(),
+    abrir: a.abrir || 'home', alvo_tipo: a.alvo_tipo || 'turma', alvo_ids: a.alvo_ids || [], rotulo_alvo: a.rotulo_alvo || null,
+    agendado_para: a.agendado_para || new Date().toISOString() }).select('*').single()
+  if (error) throw error; return data
+}
+export async function cancelarAviso(id) {
+  const { error } = await supabase.from('avisos').update({ status: 'cancelado' }).eq('id', id).eq('status', 'agendado')
+  if (error) throw error
+}
+// processa na hora os avisos vencidos (os agendados o servidor manda sozinho, a cada minuto)
+export async function dispararAvisos() {
+  const { data, error } = await supabase.functions.invoke('enviar-avisos', { body: {} })
+  if (error) throw error; return data
+}
+
 /* ---------- resumo ---------- */
 export async function resumoTurma(turmaId) {
   const { data: chs, error } = await supabase

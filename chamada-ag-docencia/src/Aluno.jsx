@@ -10,6 +10,7 @@ import MissoesAluno from './MissoesAluno.jsx'
 import { useHistoricoPresenca, useMissoes, fmtPrazo, missaoVista, resumoFaltas } from './lib/alunoApi'
 import { EH_COMPUTADOR } from './lib/aparelho'
 import { resumirOcupacao } from './lib/topo'
+import { estadoAvisos, ativarAvisosAluno, sincronizarAvisosAluno, TEXTO_ESTADO } from './lib/avisos'
 
 const CHAMADA_S = 20          // a presença é uma ocupação: 20 s parado, média das leituras (decisão dela, 15/09)
 const CHAMADA_MIN = 3
@@ -40,6 +41,7 @@ const AvisoPrecisao = ({ pos }) => pos && pos.acc > ACC_GROSSEIRA ? (
 const K_IDENT = 'agc2_ident'            // {alunoId, matricula, nome, turma}
 const K_PRES = 'agc2_presenca_dia'      // {data, codigo, hora, local, turma, fora}
 const K_FILA = 'agc2_fila_leituras'
+const K_AVISOS_DISP = 'agc2_avisos_dispensado'  // quando o aluno tocou em "agora não" (o cartão volta em 3 dias)
 export const NOME_GPS = 'Campo'         // área de medições (decisão dela, 15/09: cards Presença · Campo · Missões)
 
 const hojeISO = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` }
@@ -197,6 +199,20 @@ export default function Aluno() {
   useEffect(() => { codigoRef.current = codigoAula }, [codigoAula])
   const historico = useHistoricoPresenca(ident, online)
   const missoes = useMissoes(ident, online)
+
+  /* avisos da professora com o app fechado */
+  const [estadoAv, setEstadoAv] = useState(null)
+  const [ativandoAv, setAtivandoAv] = useState(false)
+  const [erroAv, setErroAv] = useState('')
+  const [avDispensado, setAvDispensado] = useState(() => Date.now() - (ler(K_AVISOS_DISP, 0) || 0) < 3 * 86400000)
+  const [abrirMissaoId, setAbrirMissaoId] = useState(null)
+  useEffect(() => { estadoAvisos().then(setEstadoAv); if (ident) sincronizarAvisosAluno(ident) }, [ident?.alunoId, ident?.matricula])
+  async function ativarAvisos() {
+    setAtivandoAv(true); setErroAv('')
+    try { await ativarAvisosAluno(identRef.current); setEstadoAv('ativo'); setAviso('Avisos ativados. A professora consegue falar com você mesmo com o app fechado.'); setTimeout(() => setAviso(''), 5000) }
+    catch (e) { setErroAv(e.message || 'Não consegui ativar.'); estadoAvisos().then(setEstadoAv) }
+    finally { setAtivandoAv(false) }
+  }
 
   /* ---------- fila offline ---------- */
   async function esvaziarFila() {
@@ -370,7 +386,23 @@ export default function Aluno() {
     else if (destino === 'presenca' || destino === 'missoes') setTela(destino)
     else { setModo('livre'); modoRef.current = 'livre'; setTela('medir'); ligarGPS() }
   }
-  function voltarHome() { if (ocupRef.current.ativa) cancelarChamada(); pararGPS(); setPos(null); setPlacar(null); setErro(''); setAviso(''); setMedirNaAula(false); setTela('home') }
+  function voltarHome() { if (ocupRef.current.ativa) cancelarChamada(); pararGPS(); setPos(null); setPlacar(null); setErro(''); setAviso(''); setMedirNaAula(false); setAbrirMissaoId(null); setTela('home') }
+
+  // tocou num aviso da professora: abre na tela que ela escolheu (home | presenca | campo | missoes | missao:<id>)
+  function abrirPorAviso(abrir) {
+    if (!abrir || abrir === 'home') { voltarHome(); return }
+    if (abrir === 'campo') { irMedir(); return }
+    if (abrir.startsWith('missao:')) { setAbrirMissaoId(abrir.slice(7)); irArea('missoes'); return }
+    if (abrir === 'presenca' || abrir === 'missoes') irArea(abrir)
+  }
+  useEffect(() => {
+    const a = params.get('abrir')
+    if (a) { history.replaceState(null, '', location.pathname); abrirPorAviso(a) }
+    if (!('serviceWorker' in navigator)) return
+    const f = e => { if (e.data?.tipo === 'orbe-abrir') { missoes.recarregar(); abrirPorAviso(e.data.abrir) } }
+    navigator.serviceWorker.addEventListener('message', f)
+    return () => navigator.serviceWorker.removeEventListener('message', f)
+  }, [])
 
   // chegou por link ?aula= (QR lido pela câmera nativa): segue direto o fluxo da chamada
   useEffect(() => {
@@ -409,7 +441,7 @@ export default function Aluno() {
 
   if (tela === 'missoes') return (
     <div className="wrap"><Cabecalho titulo="Missões" />
-      <MissoesAluno ident={ident} online={online} missoes={missoes} />
+      <MissoesAluno ident={ident} online={online} missoes={missoes} abrirId={abrirMissaoId} />
     </div>
   )
 
@@ -485,6 +517,16 @@ export default function Aluno() {
       </div>
       {erro && <div className="flash err">{erro}</div>}
       {aviso && <div className="flash dup">{aviso}</div>}
+      {ident && !EH_COMPUTADOR && estadoAv && estadoAv !== 'ativo' && estadoAv !== 'sem-suporte' && !avDispensado && <div className="panel aviso-push">
+        <b>🔔 Ativar avisos da professora</b>
+        <p className="note" style={{ margin: '4px 0 0' }}>Missão nova e recados da aula chegam no celular, mesmo com o app fechado.</p>
+        {estadoAv !== 'inativo' && <p className="note" style={{ margin: '6px 0 0' }}>{TEXTO_ESTADO[estadoAv]}</p>}
+        <div className="btnrow">
+          {estadoAv === 'inativo' && <button className="btn" onClick={ativarAvisos} disabled={ativandoAv || !online}>{ativandoAv ? 'Ativando…' : 'Ativar avisos'}</button>}
+          <button className="btn ghost" onClick={() => { gravar(K_AVISOS_DISP, Date.now()); setAvDispensado(true) }}>Agora não</button>
+        </div>
+        {erroAv && <div className="flash err" style={{ textAlign: 'left' }}>{erroAv}</div>}
+      </div>}
       {ident && <MinhaFoto ident={ident} online={online} pedir={ident.temFoto === false} />}
 
       <p className="note" style={{ textAlign: 'center' }}>

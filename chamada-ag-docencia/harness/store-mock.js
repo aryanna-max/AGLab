@@ -24,6 +24,8 @@ const especificos = {
     { id: 'e2', lancamento_id: 'l2', aluno_id: T2 + '-a0', etapas_feitas: { 0: 1, 1: 1 }, texto: 'Erro de fechamento 4 mm.', status: 'enviada', enviada_em: new Date().toISOString(), enviada_por: T2 + '-a2', fora_do_prazo: false, nivel: null, missao_lancamentos: { mostrar_ranking: true } }],
   equipesDoLancamento: async id => id === 'l2' ? [{ id: 'q1', nome: 'Equipe 1', membros: [{ aluno_id: T2 + '-a0' }, { aluno_id: T2 + '-a1' }, { aluno_id: T2 + '-a2' }] }, { id: 'q2', nome: 'Equipe 2', membros: [{ aluno_id: T2 + '-a3' }, { aluno_id: T2 + '-a4' }] }] : [],
   ultimasEquipesDaTurma: async () => null, presentesDeHoje: async () => [T2 + '-a0', T2 + '-a3', T2 + '-a5', T2 + '-a6'],
+  inscricoesAtivas: async () => [{ aluno_id: T2 + '-a0' }, { aluno_id: T2 + '-a3' }, { aluno_id: null }],
+  avisosDaTurma: async () => [{ id: 'av1', titulo: 'Missão nova: Caderneta', texto: 'Prazo 17:40', rotulo_alvo: 'Saneamento Integrado — F61RC', status: 'enviado', enviado_em: agora, agendado_para: agora, aparelhos: 12, aceitos: 12, sem_aviso: [T2 + '-a1'] }, { id: 'av2', titulo: 'Levem trena', texto: '', rotulo_alvo: 'F61RC', status: 'agendado', agendado_para: agora, sem_aviso: [] }],
   janelaDeHoje: async () => ({ codigo: 'F61GPS', janela_fim: new Date(Date.now()+3600000).toISOString() }),
   listarLeituras: async () => [], salvarLeitura: async () => ({}), listarMarcos: async () => [{ id: 'm1', nome: 'TESTE', utm_n: 9108700, utm_e: 284950, sigma: 0.02, tipo: 'marco', nota: 'mock' }], marcosPublicos: async () => [],
   apiProfessora: () => ({ meusPins: async () => pins.slice(0, 2), salvarPin: async () => ({ ok: true, pin_id: 'x' }), minhasPoligonais: async () => [], salvarPoligonal: async () => ({ ok: true, id: 'y' }) }),
@@ -45,9 +47,13 @@ export const apiProfessora = especificos['apiProfessora'] || (async () => null)
 export const atualizarLancamento = especificos['atualizarLancamento'] || (async () => null)
 export const avaliarEntrega = especificos['avaliarEntrega'] || (async () => null)
 export const avaliarVarios = especificos['avaliarVarios'] || (async () => null)
+export const avisosDaTurma = especificos['avisosDaTurma'] || (async () => null)
+export const cancelarAviso = especificos['cancelarAviso'] || (async () => null)
 export const confirmarChamada = especificos['confirmarChamada'] || (async () => null)
 export const conteudoDaChamada = especificos['conteudoDaChamada'] || (async () => null)
+export const criarAviso = especificos['criarAviso'] || (async () => null)
 export const desmarcarPresente = especificos['desmarcarPresente'] || (async () => null)
+export const dispararAvisos = especificos['dispararAvisos'] || (async () => null)
 export const ensureChamada = especificos['ensureChamada'] || (async () => null)
 export const entregasDaTurma = especificos['entregasDaTurma'] || (async () => null)
 export const equipesDoLancamento = especificos['equipesDoLancamento'] || (async () => null)
@@ -59,6 +65,7 @@ export const getPresentes = especificos['getPresentes'] || (async () => null)
 export const importSeed = especificos['importSeed'] || (async () => null)
 export const importarCardapio = especificos['importarCardapio'] || (async () => null)
 export const importarFaltantes = especificos['importarFaltantes'] || (async () => null)
+export const inscricoesAtivas = especificos['inscricoesAtivas'] || (async () => null)
 export const janelaDeHoje = especificos['janelaDeHoje'] || (async () => null)
 export const lancamentosDaTurma = especificos['lancamentosDaTurma'] || (async () => null)
 export const lancarMissao = especificos['lancarMissao'] || (async () => null)

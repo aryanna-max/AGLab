@@ -8,9 +8,11 @@ const FRENTE = { planimetria: 'Planimetria', altimetria: 'Altimetria', planialti
 const NIVEL = { ouro: '🥇 Ouro', prata: '🥈 Prata', bronze: '🥉 Bronze' }
 const STATUS = { em_andamento: 'em andamento', enviada: 'enviada — aguardando a professora', aceita: 'aceita', refazer: 'refazer' }
 
-export default function MissoesAluno({ ident, online, missoes }) {
+export default function MissoesAluno({ ident, online, missoes, abrirId }) {
   const { dados, carregando, recarregar } = missoes
-  const [abertaId, setAbertaId] = useState(null)
+  const [abertaId, setAbertaId] = useState(abrirId || null)
+  // chegou tocando num aviso de missão: abre direto nela
+  useEffect(() => { if (abrirId) { marcarVista(abrirId); setAbertaId(abrirId) } }, [abrirId])
   const [agora, setAgora] = useState(Date.now())
   useEffect(() => { const it = setInterval(() => setAgora(Date.now()), 30000); return () => clearInterval(it) }, [])
 

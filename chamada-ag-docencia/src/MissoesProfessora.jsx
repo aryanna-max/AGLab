@@ -135,16 +135,29 @@ function Lancar({ userId, missao, turmas, tid, showToast, onFechar }) {
   const [hora, setHora] = useState('23:59')
   const [ranking, setRanking] = useState(true)
   const [emEquipe, setEmEquipe] = useState(!!missao.equipe)
+  const [avisar, setAvisar] = useState(true)
+  const [textoAviso, setTextoAviso] = useState('')
   const [busy, setBusy] = useState(false)
   useEffect(() => { setJanela(undefined); store.janelaDeHoje(turmaId).then(setJanela).catch(() => setJanela(null)) }, [turmaId])
 
   const prazo = tipo === 'aula' ? (janela ? janela.janela_fim : null) : new Date(`${data}T${hora}:00`).toISOString()
+  const textoPadrao = prazo ? `Prazo: ${fmtDH(prazo)}.${emEquipe ? ' Missão em equipe.' : ''} Toque para abrir.` : ''
   async function lancar() {
     if (!prazo) { showToast('Defina o prazo'); return }
     setBusy(true)
     try {
-      await store.lancarMissao(userId, { missao_id: missao.id, turma_id: turmaId, prazo_tipo: tipo, prazo_em: prazo, mostrar_ranking: ranking, em_equipe: emEquipe })
-      showToast(emEquipe ? 'Missão lançada. Agora forme as equipes.' : 'Missão lançada'); onFechar(true)
+      const lanc = await store.lancarMissao(userId, { missao_id: missao.id, turma_id: turmaId, prazo_tipo: tipo, prazo_em: prazo, mostrar_ranking: ranking, em_equipe: emEquipe })
+      let extra = ''
+      if (avisar) {
+        try {
+          await store.criarAviso(userId, { turma_id: turmaId, titulo: ('Missão nova: ' + missao.titulo).slice(0, 60), texto: (textoAviso.trim() || textoPadrao).slice(0, 180),
+            abrir: 'missao:' + lanc.id, alvo_tipo: 'turma', rotulo_alvo: (turmas.find(t => t.id === turmaId)?.nome || 'turma').split(' (')[0] })
+          const r = await store.dispararAvisos()
+          const a = r?.avisos?.[0]
+          if (a) extra = ` · aviso em ${a.aceitos} celular(es)`
+        } catch (e) { extra = ' · o aviso no celular falhou' }
+      }
+      showToast((emEquipe ? 'Missão lançada. Agora forme as equipes.' : 'Missão lançada') + extra); onFechar(true)
     } catch (e) { showToast('Erro: ' + e.message) } finally { setBusy(false) }
   }
   return (
@@ -164,6 +177,11 @@ function Lancar({ userId, missao, turmas, tid, showToast, onFechar }) {
       </div>}
       <label className="chk-inline" style={{ marginTop: 10 }}><input type="checkbox" checked={emEquipe} onChange={e => setEmEquipe(e.target.checked)} /> em equipe (você forma as equipes depois de lançar)</label>
       <label className="chk-inline" style={{ marginTop: 10 }}><input type="checkbox" checked={ranking} onChange={e => setRanking(e.target.checked)} /> mostrar ranking desta missão para a turma</label>
+      <label className="chk-inline" style={{ marginTop: 10 }}><input type="checkbox" checked={avisar} onChange={e => setAvisar(e.target.checked)} /> 🔔 avisar a turma no celular</label>
+      {avisar && <div style={{ marginLeft: 26 }}>
+        <p className="note" style={{ margin: '2px 0' }}><b>{('Missão nova: ' + missao.titulo).slice(0, 60)}</b></p>
+        <input value={textoAviso} maxLength={180} onChange={e => setTextoAviso(e.target.value)} placeholder={textoPadrao || 'Texto do aviso'} />
+      </div>}
       <div className="btnrow">
         <button className="btn" onClick={lancar} disabled={busy || !prazo}>{busy ? 'Lançando…' : 'Lançar para a turma'}</button>
         <button className="btn ghost" onClick={() => onFechar(false)}>Cancelar</button>
