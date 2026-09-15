@@ -24,6 +24,12 @@ const especificos = {
     { id: 'e2', lancamento_id: 'l2', aluno_id: T2 + '-a0', etapas_feitas: { 0: 1, 1: 1 }, texto: 'Erro de fechamento 4 mm.', status: 'enviada', enviada_em: new Date().toISOString(), enviada_por: T2 + '-a2', fora_do_prazo: false, nivel: null, missao_lancamentos: { mostrar_ranking: true } }],
   equipesDoLancamento: async id => id === 'l2' ? [{ id: 'q1', nome: 'Equipe 1', membros: [{ aluno_id: T2 + '-a0' }, { aluno_id: T2 + '-a1' }, { aluno_id: T2 + '-a2' }] }, { id: 'q2', nome: 'Equipe 2', membros: [{ aluno_id: T2 + '-a3' }, { aluno_id: T2 + '-a4' }] }] : [],
   ultimasEquipesDaTurma: async () => null, presentesDeHoje: async () => [T2 + '-a0', T2 + '-a3', T2 + '-a5', T2 + '-a6'],
+  insigniasDaTurma: async () => [
+    { id: 'i1', aluno_id: T2 + '-a0', chave: 'presente', dado: 'Primeira presença pelo app em 11/09', origem: 'automatica', concedida_em: agora },
+    { id: 'i2', aluno_id: T2 + '-a0', chave: 'na_mosca', dado: 'Pin a 2,4 m do M0452', origem: 'automatica', concedida_em: agora },
+    { id: 'i3', aluno_id: T2 + '-a1', chave: 'primeiro_pin', dado: 'Pin "A" em 12/09', origem: 'automatica', concedida_em: agora },
+    { id: 'i4', aluno_id: T2 + '-a2', chave: 'olho', dado: 'Percebeu que o M0451 saiu do lugar', origem: 'professora', concedida_em: agora }],
+  conferirInsignias: async () => 3, concederInsignia: async () => null, removerInsignia: async () => null,
   inscricoesAtivas: async () => [{ aluno_id: T2 + '-a0' }, { aluno_id: T2 + '-a3' }, { aluno_id: null }],
   avisosDaTurma: async () => [{ id: 'av1', titulo: 'Missão nova: Caderneta', texto: 'Prazo 17:40', rotulo_alvo: 'Saneamento Integrado — F61RC', status: 'enviado', enviado_em: agora, agendado_para: agora, aparelhos: 12, aceitos: 12, sem_aviso: [T2 + '-a1'] }, { id: 'av2', titulo: 'Levem trena', texto: '', rotulo_alvo: 'F61RC', status: 'agendado', agendado_para: agora, sem_aviso: [] }],
   janelaDeHoje: async () => ({ codigo: 'F61GPS', janela_fim: new Date(Date.now()+3600000).toISOString() }),
@@ -49,6 +55,8 @@ export const avaliarEntrega = especificos['avaliarEntrega'] || (async () => null
 export const avaliarVarios = especificos['avaliarVarios'] || (async () => null)
 export const avisosDaTurma = especificos['avisosDaTurma'] || (async () => null)
 export const cancelarAviso = especificos['cancelarAviso'] || (async () => null)
+export const concederInsignia = especificos['concederInsignia'] || (async () => null)
+export const conferirInsignias = especificos['conferirInsignias'] || (async () => null)
 export const confirmarChamada = especificos['confirmarChamada'] || (async () => null)
 export const conteudoDaChamada = especificos['conteudoDaChamada'] || (async () => null)
 export const criarAviso = especificos['criarAviso'] || (async () => null)
@@ -66,6 +74,7 @@ export const importSeed = especificos['importSeed'] || (async () => null)
 export const importarCardapio = especificos['importarCardapio'] || (async () => null)
 export const importarFaltantes = especificos['importarFaltantes'] || (async () => null)
 export const inscricoesAtivas = especificos['inscricoesAtivas'] || (async () => null)
+export const insigniasDaTurma = especificos['insigniasDaTurma'] || (async () => null)
 export const janelaDeHoje = especificos['janelaDeHoje'] || (async () => null)
 export const lancamentosDaTurma = especificos['lancamentosDaTurma'] || (async () => null)
 export const lancarMissao = especificos['lancarMissao'] || (async () => null)
@@ -84,6 +93,7 @@ export const poligonaisDaTurma = especificos['poligonaisDaTurma'] || (async () =
 export const presentesDeHoje = especificos['presentesDeHoje'] || (async () => null)
 export const queueOp = especificos['queueOp'] || (async () => null)
 export const removerAluno = especificos['removerAluno'] || (async () => null)
+export const removerInsignia = especificos['removerInsignia'] || (async () => null)
 export const resumoTurma = especificos['resumoTurma'] || (async () => null)
 export const salvarConteudo = especificos['salvarConteudo'] || (async () => null)
 export const salvarEquipes = especificos['salvarEquipes'] || (async () => null)

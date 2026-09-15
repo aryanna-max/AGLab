@@ -16,6 +16,12 @@ const RPC = {
       { lancamento_id: 'l1', titulo: 'Posição do celular', frente: 'geral', descricao: 'Ocupe o M0452 em quatro posições.', etapas: ['Deitado', 'Em pé', 'No peito', 'No bolso'], entrega: 'Qual posição mediu melhor?', niveis: { bronze: 'Quatro ocupações', prata: 'Comparação correta', ouro: 'Explicação física' }, prazo_tipo: 'aula', prazo_em: iso(agora + 40 * 60000), lancada_em: iso(agora - 3600000), mostrar_ranking: true, aberta: true, minha: { status: 'em_andamento', etapas_feitas: { 0: iso(agora) } }, ranking: { ouro: ['Alice'], prata: 2, bronze: 1, enviadas: 5 } },
       { lancamento_id: 'l2', titulo: 'Caça ao azimute', frente: 'planimetria', etapas: ['a', 'b'], prazo_tipo: 'data', prazo_em: iso(agora - 86400000), aberta: false, mostrar_ranking: true, minha: { status: 'aceita', nivel: 'prata', devolutiva: 'Boa orientação.', etapas_feitas: { 0: 1, 1: 1 } }, ranking: { ouro: [], prata: 3, bronze: 2, enviadas: 12 } },
     ] },
+  minhas_insignias: { ok: true, insignias: [
+    { chave: 'presente', dado: 'Primeira presença pelo app em 11/09', origem: 'automatica', em: iso(agora - 4 * 86400000), nova: false },
+    { chave: 'primeiro_pin', dado: 'Pin "M0452" em 12/09', origem: 'automatica', em: iso(agora - 3 * 86400000), nova: false },
+    { chave: 'parado', dado: 'Espalhamento de 0,42 m numa ocupação', origem: 'automatica', em: iso(agora - 3 * 86400000), nova: false },
+    { chave: 'na_mosca', dado: 'Pin a 2,4 m do M0452', origem: 'automatica', em: iso(agora - 60000), nova: true },
+    { chave: 'olho', dado: 'Percebeu que o M0451 saiu do lugar', origem: 'professora', em: iso(agora - 86400000), nova: false }] },
 }
 export const supabase = {
   auth: { signOut: async () => {}, getSession: async () => ({ data: { session: null } }) },

@@ -546,6 +546,30 @@ export async function avaliarEntrega(userId, lancamentoId, alunoId, campos) {
   if (error) throw error; return data
 }
 
+/* ---------- insígnias ---------- */
+export async function insigniasDaTurma(turmaId) {
+  const { data, error } = await supabase.from('insignias')
+    .select('id,aluno_id,chave,dado,origem,concedida_em,alunos!inner(turma_id)')
+    .eq('alunos.turma_id', turmaId).order('concedida_em', { ascending: false })
+  if (error) throw error; return data || []
+}
+// confere as regras automáticas da turma inteira (vale retroativo)
+export async function conferirInsignias(turmaId) {
+  const { data, error } = await supabase.rpc('conferir_insignias_turma', { p_turma: turmaId })
+  if (error) throw error
+  if (!data?.ok) throw new Error(data?.erro || 'Não consegui conferir.')
+  return data.novas
+}
+export async function concederInsignia(userId, alunoId, chave, dado) {
+  const { error } = await supabase.from('insignias')
+    .upsert({ owner_id: userId, aluno_id: alunoId, chave, dado: dado || null, origem: 'professora' }, { onConflict: 'aluno_id,chave' })
+  if (error) throw error
+}
+export async function removerInsignia(id) {
+  const { error } = await supabase.from('insignias').delete().eq('id', id)
+  if (error) throw error
+}
+
 /* ---------- avisos no celular (Web Push) ---------- */
 // alunos com avisos ativos (aluno_id) e aparelhos da própria professora (aluno_id null)
 export async function inscricoesAtivas() {

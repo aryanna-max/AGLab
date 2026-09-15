@@ -51,6 +51,33 @@ export function useMissoes(ident, online) {
   return { dados, carregando, recarregar }
 }
 
+const K_INSIGNIAS = 'agc2_insignias'
+const instalado = () => (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true
+
+export function useInsignias(ident, online) {
+  const chave = ident?.alunoId || ident?.matricula || ''
+  const [dados, setDados] = useState(() => { const c = ler(K_INSIGNIAS, null); return c && c.chave === chave ? c.dados : null })
+  const recarregar = useCallback(async () => {
+    if (!ident || !navigator.onLine) return
+    try {
+      const { data, error } = await supabase.rpc('minhas_insignias', { ...idArgs(ident), p_instalado: instalado() })
+      if (!error && data?.ok) { setDados(data); gravar(K_INSIGNIAS, { chave, dados: data }) }
+    } catch (e) {}
+  }, [chave])
+  useEffect(() => { recarregar() }, [recarregar, online])
+  useEffect(() => {
+    const f = () => { if (!document.hidden) recarregar() }
+    document.addEventListener('visibilitychange', f)
+    return () => document.removeEventListener('visibilitychange', f)
+  }, [recarregar])
+  // some do "nova" depois que o aluno viu o cartão
+  const marcarVistas = useCallback(async () => {
+    setDados(d => d ? { ...d, insignias: (d.insignias || []).map(i => ({ ...i, nova: false })) } : d)
+    try { await supabase.rpc('marcar_insignias_vistas', idArgs(ident)) } catch (e) {}
+  }, [chave])
+  return { dados, recarregar, marcarVistas }
+}
+
 export async function marcarEtapa(ident, lancamentoId, etapa, feita) {
   const { data, error } = await supabase.rpc('marcar_etapa_missao', { ...idArgs(ident), p_lancamento_id: lancamentoId, p_etapa: etapa, p_feita: feita })
   if (error) throw error

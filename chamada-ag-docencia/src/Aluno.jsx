@@ -7,7 +7,8 @@ import Orbe from './Orbe.jsx'
 import MinhaFoto from './MinhaFoto.jsx'
 import PresencaAluno from './PresencaAluno.jsx'
 import MissoesAluno from './MissoesAluno.jsx'
-import { useHistoricoPresenca, useMissoes, fmtPrazo, missaoVista, resumoFaltas } from './lib/alunoApi'
+import { useHistoricoPresenca, useMissoes, useInsignias, fmtPrazo, missaoVista, resumoFaltas } from './lib/alunoApi'
+import InsigniasAluno, { Vitrine, CartaoInsignia } from './InsigniasAluno.jsx'
 import { EH_COMPUTADOR } from './lib/aparelho'
 import { resumirOcupacao } from './lib/topo'
 import { estadoAvisos, ativarAvisosAluno, sincronizarAvisosAluno, TEXTO_ESTADO } from './lib/avisos'
@@ -143,7 +144,7 @@ export default function Aluno() {
   const params = new URLSearchParams(location.search)
   const codigoDaUrl = (params.get('aula') || '').toUpperCase()
 
-  const [tela, setTela] = useState('home')   // home | presenca | missoes | ler-aula | identificar | chamada-ok | medir
+  const [tela, setTela] = useState('home')   // home | presenca | missoes | insignias | ler-aula | identificar | chamada-ok | medir
   const [ident, setIdent] = useState(() => ler(K_IDENT, null))
   const [presenca, setPresenca] = useState(() => { const p = ler(K_PRES, null); return p && p.data === hojeISO() ? p : null })
   const [codigoAula, setCodigoAula] = useState(codigoDaUrl)   // código lido do QR do dia (só na chamada)
@@ -199,6 +200,7 @@ export default function Aluno() {
   useEffect(() => { codigoRef.current = codigoAula }, [codigoAula])
   const historico = useHistoricoPresenca(ident, online)
   const missoes = useMissoes(ident, online)
+  const insignias = useInsignias(ident, online)
 
   /* avisos da professora com o app fechado */
   const [estadoAv, setEstadoAv] = useState(null)
@@ -383,7 +385,7 @@ export default function Aluno() {
     if (!ok) return
     const destino = depoisDeIdent; setDepoisDeIdent(null)
     if (destino === 'chamada') await entrarNaAula(codigoRef.current)
-    else if (destino === 'presenca' || destino === 'missoes') setTela(destino)
+    else if (destino === 'presenca' || destino === 'missoes' || destino === 'insignias') setTela(destino)
     else { setModo('livre'); modoRef.current = 'livre'; setTela('medir'); ligarGPS() }
   }
   function voltarHome() { if (ocupRef.current.ativa) cancelarChamada(); pararGPS(); setPos(null); setPlacar(null); setErro(''); setAviso(''); setMedirNaAula(false); setAbrirMissaoId(null); setTela('home') }
@@ -445,6 +447,12 @@ export default function Aluno() {
     </div>
   )
 
+  if (tela === 'insignias') return (
+    <div className="wrap"><Cabecalho titulo="Insígnias" />
+      <InsigniasAluno insignias={insignias} />
+    </div>
+  )
+
   if (tela === 'ler-aula') return (
     <div className="wrap"><Cabecalho titulo="Presença" />
       <LeitorQR titulo="Aponte para o QR da aula" onLido={qrDaAulaLido} onCancelar={voltarHome} />
@@ -485,6 +493,8 @@ export default function Aluno() {
   // alerta ao abrir o app: missão nova ainda não vista, ou prazo vencendo em breve
   const novaM = abertasM.find(m => !missaoVista(m.lancamento_id))
   const urgM = abertasM.find(m => fmtPrazo(m.prazo_em).urgente && (m.minha?.status !== 'enviada' && m.minha?.status !== 'aceita'))
+  const minhasIns = insignias.dados?.insignias || []
+  const novaIns = minhasIns.find(i => i.nova)
   const alerta = novaM ? { titulo: `Nova missão: ${novaM.titulo}`, sub: fmtPrazo(novaM.prazo_em).texto, urgente: false }
     : urgM ? { titulo: `Prazo acabando: ${urgM.titulo}`, sub: fmtPrazo(urgM.prazo_em).texto, urgente: true } : null
 
@@ -497,6 +507,8 @@ export default function Aluno() {
         Se você é a professora, <span style={{ cursor: 'pointer', textDecoration: 'underline', fontWeight: 700 }} onClick={() => { gravarPerfil('professor'); location.href = '/' }}>entre como professora</span>.
       </div>}
       <CardPresenca />
+      {ident && minhasIns.length > 0 && <Vitrine minhas={minhasIns} onAbrir={() => irArea('insignias')} />}
+      {novaIns && <CartaoInsignia chave={novaIns.chave} dado={novaIns.dado} onFechar={() => { insignias.marcarVistas(); irArea('insignias') }} />}
       {alerta && <button className={'alerta-missao' + (alerta.urgente ? ' urgente' : '')} onClick={() => irArea('missoes')}>
         <span className="am-ico">{alerta.urgente ? '⏱' : '✨'}</span>
         <span className="am-txt"><b>{alerta.titulo}</b><span>{alerta.sub}</span></span>

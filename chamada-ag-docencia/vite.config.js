@@ -34,6 +34,8 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,png,svg,woff2}'],
+        // a arte das insígnias (~950 KB) não entra no pacote offline: carrega sob demanda e fica em cache
+        globIgnores: ['**/insignias/**'],
         // avisos da professora com o app fechado: handlers de push e de toque na notificação
         importScripts: ['push-sw.js'],
         navigateFallback: 'index.html',
@@ -55,6 +57,11 @@ export default defineConfig({
               expiration: { maxEntries: 400, maxAgeSeconds: 60 * 60 * 24 * 30 },
               cacheableResponse: { statuses: [0, 200] }
             }
+          },
+          {
+            urlPattern: ({ url }) => url.pathname.startsWith('/insignias/'),
+            handler: 'CacheFirst',
+            options: { cacheName: 'insignias', expiration: { maxEntries: 120, maxAgeSeconds: 60 * 60 * 24 * 180 }, cacheableResponse: { statuses: [0, 200] } }
           },
           {
             urlPattern: ({ url }) => url.href.includes('supabase.co'),

@@ -8,6 +8,7 @@ import Radar from './Radar.jsx'
 import Analise from './Analise.jsx'
 import MissoesProfessora from './MissoesProfessora.jsx'
 import AvisosProfessora from './AvisosProfessora.jsx'
+import InsigniasProfessora from './InsigniasProfessora.jsx'
 import { EH_COMPUTADOR } from './lib/aparelho'
 import { baixarCartao, compartilharCartao } from './lib/cartao'
 import Orbe from './Orbe.jsx'
@@ -148,7 +149,7 @@ function Main({ session }) {
       </div>}
 
       <nav className="tabs">
-        {[['chamada', 'Chamada'], ['missoes', 'Missões'], ['avisos', 'Avisos'], ['analise', 'Análise'], ['radar', 'Radar'], ['conferir', 'Conferir faltantes'], ['resumo', 'Resumo / Exportar'], ['posicao', 'Minha posição'], ['turmas', 'Turmas & Fotos']].map(([k, l]) =>
+        {[['chamada', 'Chamada'], ['missoes', 'Missões'], ['insignias', 'Insígnias'], ['avisos', 'Avisos'], ['analise', 'Análise'], ['radar', 'Radar'], ['conferir', 'Conferir faltantes'], ['resumo', 'Resumo / Exportar'], ['posicao', 'Minha posição'], ['turmas', 'Turmas & Fotos']].map(([k, l]) =>
           <button key={k} className={tab === k ? 'active' : ''} onClick={() => setTab(k)}>{l}</button>)}
       </nav>
 
@@ -157,6 +158,7 @@ function Main({ session }) {
           !turma ? <div className="spin">Escolhendo a turma…</div> :
           <>
             {tab === 'chamada' && <><ColetaTurma userId={userId} tid={tid} turmas={turmas} online={online} showToast={showToast} /><Chamada userId={userId} tid={tid} turmas={turmas} online={online} setPending={setPending} showToast={showToast} goConferir={() => setTab('conferir')} /></>}
+            {tab === 'insignias' && <InsigniasProfessora userId={userId} tid={tid} turmas={turmas} online={online} showToast={showToast} />}
             {tab === 'avisos' && <AvisosProfessora userId={userId} tid={tid} turmas={turmas} online={online} showToast={showToast} />}
             {tab === 'missoes' && <MissoesProfessora userId={userId} tid={tid} turmas={turmas} online={online} showToast={showToast} />}
             {tab === 'analise' && <Analise tid={tid} turmas={turmas} online={online} showToast={showToast} />}
