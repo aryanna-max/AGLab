@@ -63,6 +63,27 @@ export function resumirOcupacao(leituras) {
 }
 
 // Poligonal fechada por uma lista ordenada de pontos {nome, n, e}
+/* Dois segmentos (a,b) e (c,d) se cruzam? (orientação com produto vetorial) */
+function cruzam(a, b, c, d) {
+  const o = (p, q, r) => Math.sign((q.e - p.e) * (r.n - p.n) - (q.n - p.n) * (r.e - p.e))
+  return o(a, b, c) !== o(a, b, d) && o(c, d, a) !== o(c, d, b) && o(a, b, c) !== 0 && o(c, d, a) !== 0
+}
+/* Poligonal com lados não adjacentes se cruzando ("laço"): a área de Gauss não vale. */
+export function seCruza(pts) {
+  const k = pts.length
+  for (let i = 0; i < k; i++) for (let j = i + 2; j < k; j++) {
+    if (i === 0 && j === k - 1) continue   // último lado é adjacente ao primeiro
+    if (cruzam(pts[i], pts[(i + 1) % k], pts[j], pts[(j + 1) % k])) return true
+  }
+  return false
+}
+/* Reordena os vértices em volta do centro (sentido horário a partir do norte): dá a
+   poligonal simples para figuras convexas — o caso dos marcos do campus. */
+export function ordenarPorAngulo(pts) {
+  const cN = pts.reduce((s, p) => s + p.n, 0) / pts.length, cE = pts.reduce((s, p) => s + p.e, 0) / pts.length
+  return pts.slice().sort((a, b) => Math.atan2(a.e - cE, a.n - cN) - Math.atan2(b.e - cE, b.n - cN))
+}
+
 export function calcularPoligonal(pts) {
   const k = pts.length
   if (k < 3) return null
@@ -88,7 +109,7 @@ export function calcularPoligonal(pts) {
   })
   const somaAngulos = angulos.reduce((s, a) => s + a.interno, 0)
   const somaTeorica = (k - 2) * 180
-  return { vertices: k, lados, perimetro, area, sentido, angulos, somaAngulos, somaTeorica, erroAngular: somaAngulos - somaTeorica }
+  return { vertices: k, lados, perimetro, area, sentido, angulos, somaAngulos, somaTeorica, erroAngular: somaAngulos - somaTeorica, cruzada: seCruza(pts) }
 }
 
 // Compara uma poligonal medida com a verdadeira (mesmos nomes de marcos)

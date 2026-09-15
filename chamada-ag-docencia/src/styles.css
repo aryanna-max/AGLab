@@ -278,3 +278,12 @@ tr.reocup td{opacity:.75;font-style:italic}
 /* ---------- foto do ponto (pin) ---------- */
 .foto-ponto{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px}
 .foto-ponto img{width:64px;height:64px;object-fit:cover;border-radius:8px;border:1px solid var(--line);cursor:pointer}
+
+.ana-histo{width:100%;height:auto;display:block}
+.ana-pt.sel{stroke:#1f4e79;stroke-width:3}
+.chk-inline select{padding:4px 8px}
+
+.orienta{text-align:left;margin:8px auto 4px;padding-left:22px;max-width:520px;font-size:14.5px}
+.orienta li{margin-bottom:6px}
+
+.ana-camadas{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center;margin-top:8px;padding:8px 10px;border:1px solid var(--line);border-radius:10px}

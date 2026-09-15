@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react'
 import { arquivoParaJpeg } from './lib/foto'
 import { supabase } from './supabaseClient'
 import { paraUTM25S, metros } from './lib/geo'
-import { MARCOS, marcoPorNome, azimute, grausDMS, pontoCardeal, resumirOcupacao, calcularPoligonal, compararComMarcos } from './lib/topo'
+import { MARCOS, marcoPorNome, azimute, grausDMS, pontoCardeal, resumirOcupacao, calcularPoligonal, compararComMarcos, ordenarPorAngulo } from './lib/topo'
 
 /* As três operações de campo, no celular:
    🎯 Ir até     — locar: sair da coordenada para o terreno (distância e azimute ao vivo)
@@ -240,7 +240,8 @@ function Poligonal({ ident, codigo, onAviso }) {
 
   // só o PRIMEIRO pin de cada nome entra como vértice possível (reocupação é extra)
   const vistos = new Set(); const candidatos = pins.filter(p => { const k = p.nome.toLowerCase(); if (vistos.has(k)) return false; vistos.add(k); return true })
-  const toggle = id => setSel(s => s.includes(id) ? s.filter(x => x !== id) : [...s, id])
+  // mudar a seleção depois de fechar invalida o resultado: o que se salva é sempre o que foi calculado
+  const toggle = id => { setRes(null); setComp(null); setErro(''); setSel(s => s.includes(id) ? s.filter(x => x !== id) : [...s, id]) }
 
   function fechar() {
     setErro(''); setRes(null); setComp(null)
@@ -248,6 +249,14 @@ function Poligonal({ ident, codigo, onAviso }) {
     if (pts.length < 3) { setErro('Selecione pelo menos 3 pins, na ordem em que a poligonal percorre.'); return }
     const r = calcularPoligonal(pts); setRes(r)
     setComp(compararComMarcos(pts))
+    if (r.cruzada) setErro('Nessa ordem os lados se CRUZAM (a figura vira um laço) e a área não vale. Use "Corrigir ordem" ou toque nos pins na ordem em que se anda pelo contorno.')
+  }
+  function corrigirOrdem() {
+    const pts = sel.map(id => pins.find(p => p.id === id)).filter(Boolean)
+    const ordenados = ordenarPorAngulo(pts.map(p => ({ id: p.id, nome: p.nome, n: p.utm_n, e: p.utm_e })))
+    const novaSel = ordenados.map(p => p.id)
+    setSel(novaSel); setErro(''); setComp(null)
+    const r = calcularPoligonal(ordenados); setRes(r); setComp(compararComMarcos(ordenados))
   }
   async function salvar() {
     if (!res) return
@@ -287,7 +296,8 @@ function Poligonal({ ident, codigo, onAviso }) {
           </button>) })}</div>}
       <div className="btnrow">
         <button className="btn" onClick={fechar} disabled={sel.length < 3}>🔺 Fechar poligonal</button>
-        {res && <button className="btn ghost" onClick={salvar} disabled={salvando}>{salvando ? 'Salvando…' : 'Salvar'}</button>}
+        {res && res.cruzada && <button className="btn" onClick={corrigirOrdem}>↻ Corrigir ordem</button>}
+        {res && <button className="btn ghost" onClick={salvar} disabled={salvando}>{salvando ? 'Salvando…' : res.cruzada ? 'Salvar mesmo assim' : 'Salvar'}</button>}
         {sel.length > 0 && <button className="btn ghost mini" onClick={() => { setSel([]); setRes(null); setComp(null) }}>Limpar</button>}
       </div>
       {erro && <div className="flash err" style={{ textAlign: 'left' }}>{erro}</div>}
@@ -295,7 +305,7 @@ function Poligonal({ ident, codigo, onAviso }) {
       {res && <>
         <div className="count-strip" style={{ marginTop: 12 }}>
           <div className="c"><div className="n">{metros(res.perimetro, 1)}</div><div className="l">perímetro (m)</div></div>
-          <div className="c"><div className="n">{metros(res.area, 0)}</div><div className="l">área (m²)</div></div>
+          <div className={'c' + (res.cruzada ? ' miss' : '')}><div className="n">{res.cruzada ? '✗' : metros(res.area, 0)}</div><div className="l">{res.cruzada ? 'área inválida (laço)' : 'área (m²)'}</div></div>
           <div className="c"><div className="n">{res.vertices}</div><div className="l">vértices</div></div>
         </div>
         {desenho && <svg viewBox={`0 0 ${desenho.S} ${desenho.S}`} className="poli-svg">

@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import * as store from './lib/store'
-import { PERC, paraUTM25S, metros } from './lib/geo'
-import { MARCOS, marcoPorNome } from './lib/topo'
+import { PERC, paraUTM25S, deUTM25S, metros } from './lib/geo'
+import { MARCOS, marcoPorNome, calcularPoligonal, ordenarPorAngulo } from './lib/topo'
 
 /* Análise — a mesa de trabalho da professora, pensada para o computador.
    Tudo o que os alunos da turma mandaram: leituras (chamada e ambientes),
@@ -11,7 +11,21 @@ import { MARCOS, marcoPorNome } from './lib/topo'
 const COR = { sala: '#2E75B6', corredor: '#17A2B8', patio: '#2E8B57', outro: '#8A9099', ocupacao: '#7B4F00' }
 const NOME = { sala: 'Dentro da sala', corredor: 'Corredor', patio: 'Pátio', outro: 'Outro', ocupacao: 'Ocupação (pin)' }
 const PERIODOS = [['hoje', 'Hoje'], ['7', '7 dias'], ['30', '30 dias'], ['tudo', 'Tudo']]
+const ACC_MAX = [[10, '≤ 10 m'], [25, '≤ 25 m'], [50, '≤ 50 m'], [100, '≤ 100 m'], ['', 'todas']]
+const CORES_POR = [['ambiente', 'ambiente'], ['aluno', 'aluno'], ['acuracia', 'acurácia'], ['aula', 'aula']]
+const FAIXAS = [[0, 5, '0–5'], [5, 10, '5–10'], [10, 20, '10–20'], [20, 50, '20–50'], [50, Infinity, '> 50']]
+const hsl = (i, n) => `hsl(${Math.round((i / Math.max(1, n)) * 330)} 65% 45%)`
+const corAcc = a => { if (a == null) return '#8A9099'; const t = Math.max(0, Math.min(1, a / 50)); return `hsl(${Math.round(130 - 130 * t)} 70% 42%)` }
 const W = 760, H = 540, PAD = 44
+/* Fundos de mapa (tiles Web Mercator, sem chave). Cada tile é colocado pelos cantos
+   convertidos para UTM: a rotação da grade (≈0,3° aqui) e a variação de escala
+   dentro de um tile são desprezíveis na escala do campus — é um fundo, não uma base. */
+const FUNDOS = {
+  nenhum: null,
+  osm: { url: (z, x, y) => `https://tile.openstreetmap.org/${z}/${x}/${y}.png`, credito: '© OpenStreetMap', zmax: 19 },
+  sat: { url: (z, x, y) => `https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${z}/${y}/${x}`, credito: 'Esri World Imagery', zmax: 19 },
+}
+const CAMADAS = [['leituras', 'leituras'], ['pins', 'pins'], ['polis', 'poligonais'], ['marcos', 'marcos'], ['grade', 'grade UTM']]
 
 const fmtHora = iso => iso ? new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—'
 const mediana = arr => { const a = arr.filter(v => v != null && isFinite(v)).sort((x, y) => x - y); if (!a.length) return null; const m = a.length >> 1; return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2 }
@@ -36,7 +50,15 @@ export default function Analise({ tid, turmas, online, showToast }) {
   const [alunoId, setAlunoId] = useState('')
   const [rotulos, setRotulos] = useState(() => new Set(Object.keys(COR)))
   const [soChamada, setSoChamada] = useState(false)
-  const [precisas, setPrecisas] = useState(true)
+  const [maxAcc, setMaxAcc] = useState('')           // filtro: leituras piores que isso saem de tudo
+  const [corPor, setCorPor] = useState('ambiente')
+  const [raios, setRaios] = useState(false)          // círculo de acurácia em escala
+  const [trilha, setTrilha] = useState(false)        // liga as leituras de cada aluno na ordem do tempo
+  const [ocultas, setOcultas] = useState(() => new Set())   // leituras tiradas à mão (só nesta tela)
+  const [sel, setSel] = useState(null)               // leitura clicada
+  const [fundo, setFundo] = useState('nenhum')
+  const [camadas, setCamadas] = useState({ leituras: true, pins: true, polis: true, marcos: true, grade: true })
+  const toggleCamada = k => setCamadas(c => ({ ...c, [k]: !c[k] }))
   const [mostrar, setMostrar] = useState(200)
   const [fotoAberta, setFotoAberta] = useState(null)
 
@@ -53,9 +75,30 @@ export default function Analise({ tid, turmas, online, showToast }) {
 
   const leituras = useMemo(() => dados.leituras.filter(l =>
     (!sessaoId || l.sessao_id === sessaoId) && (!alunoId || l.aluno_id === alunoId) &&
-    rotulos.has(l.rotulo || 'outro') && (!soChamada || ehChamada(l))), [dados.leituras, sessaoId, alunoId, rotulos, soChamada])
+    rotulos.has(l.rotulo || 'outro') && (!soChamada || ehChamada(l)) && !ocultas.has(l.id) &&
+    (maxAcc === '' || (l.acuracia_m != null && l.acuracia_m <= maxAcc))), [dados.leituras, sessaoId, alunoId, rotulos, soChamada, ocultas, maxAcc])
+  const alunosIdx = useMemo(() => { const m = {}; let i = 0; (t ? t.alunos : []).forEach(a => { m[a.id] = i++ }); return m }, [t])
+  const sessIdx = useMemo(() => { const m = {}; dados.sessoes.forEach((s, i) => { m[s.id] = i }); return m }, [dados.sessoes])
+  const corDe = l => corPor === 'aluno' ? hsl(alunosIdx[l.aluno_id] ?? 0, (t ? t.alunos.length : 1))
+    : corPor === 'acuracia' ? corAcc(l.acuracia_m)
+    : corPor === 'aula' ? hsl(sessIdx[l.sessao_id] ?? 0, Math.max(2, dados.sessoes.length))
+    : (COR[l.rotulo] || COR.outro)
+  const histo = useMemo(() => Object.keys(COR).map(k => ({ k, faixas: FAIXAS.map(([a, b]) => leituras.filter(l => (l.rotulo || 'outro') === k && l.acuracia_m != null && l.acuracia_m >= a && l.acuracia_m < b).length) })), [leituras])
+  const trilhas = useMemo(() => {
+    if (!trilha) return []
+    const g = {}; leituras.forEach(l => { (g[l.aluno_id] = g[l.aluno_id] || []).push(l) })
+    return Object.entries(g).map(([id, ls]) => ({ id, ls: ls.slice().sort((a, b) => new Date(a.capturado_em || a.criado_em) - new Date(b.capturado_em || b.criado_em)) })).filter(x => x.ls.length > 1)
+  }, [leituras, trilha])
   const pins = useMemo(() => dados.pins.filter(p => (!alunoId || p.aluno_id === alunoId) && (!sessaoId || p.sessao_id === sessaoId)), [dados.pins, alunoId, sessaoId])
   const polis = useMemo(() => dados.polis.filter(q => !alunoId || q.aluno_id === alunoId), [dados.polis, alunoId])
+  // Recalcula cada poligonal pelos pins salvos: mostra se a ordem do aluno cruzou os lados
+  // ("laço", área inválida) e qual seria a área com a ordem corrigida em volta do centro.
+  const poliCalc = useMemo(() => { const m = {}; dados.polis.forEach(q => {
+    const pts = (q.pin_ids || []).map(id => pinPorId[id]).filter(Boolean).map(p => ({ nome: p.nome, n: p.utm_n, e: p.utm_e }))
+    if (pts.length < 3) return
+    const r = calcularPoligonal(pts), rc = r.cruzada ? calcularPoligonal(ordenarPorAngulo(pts)) : null
+    m[q.id] = { r, rc }
+  }); return m }, [dados.polis, pinPorId])
   const pinPorId = useMemo(() => { const m = {}; dados.pins.forEach(p => m[p.id] = p); return m }, [dados.pins])
   const sessPorId = useMemo(() => { const m = {}; dados.sessoes.forEach(s => m[s.id] = s); return m }, [dados.sessoes])
 
@@ -76,7 +119,7 @@ export default function Analise({ tid, turmas, online, showToast }) {
 
   // enquadramento: mediana como centro, percentil 95 das distâncias como meio-lado (um outlier não achata a planta)
   const vista = useMemo(() => {
-    const base = pontos.filter(p => !precisas || (p.l.acuracia_m != null && p.l.acuracia_m <= 50))
+    const base = pontos
     const xs = base.map(p => p.e).concat(pins.map(p => p.utm_e)), ys = base.map(p => p.n).concat(pins.map(p => p.utm_n))
     if (!xs.length) { xs.push(PERC.utmE - 95); ys.push(PERC.utmN) }
     const cE = mediana(xs), cN = mediana(ys)
@@ -85,7 +128,7 @@ export default function Analise({ tid, turmas, online, showToast }) {
     const esc = Math.min(W - 2 * PAD, H - 2 * PAD) / (2 * half)
     const passo = [5, 10, 25, 50, 100, 250, 500, 1000, 2500].find(p => p * esc >= 60) || 5000
     return { cE, cN, half, esc, passo, X: e => PAD + (W - 2 * PAD) / 2 + (e - cE) * esc, Y: n => PAD + (H - 2 * PAD) / 2 - (n - cN) * esc }
-  }, [pontos, pins, precisas])
+  }, [pontos, pins])
 
   const grade = useMemo(() => {
     const { cE, cN, esc, passo } = vista
@@ -95,6 +138,30 @@ export default function Analise({ tid, turmas, online, showToast }) {
     for (let n = Math.ceil((cN - hh) / passo) * passo; n <= cN + hh; n += passo) hs.push(n)
     return { vs, hs }
   }, [vista])
+
+  const tiles = useMemo(() => {
+    const F = FUNDOS[fundo]; if (!F) return []
+    const { cE, cN, esc } = vista
+    const hw = (W - 2 * PAD) / 2 / esc, hh = (H - 2 * PAD) / 2 / esc
+    const sw = deUTM25S(cN - hh, cE - hw), ne = deUTM25S(cN + hh, cE + hw)
+    const larguraM = 2 * hw, phi = ((sw.lat + ne.lat) / 2) * Math.PI / 180
+    // zoom: o tile fica com ~1/3 da largura da vista
+    let z = Math.floor(Math.log2(40075016.686 * Math.cos(phi) / (larguraM / 3)))
+    z = Math.max(14, Math.min(F.zmax, z))
+    const n = 2 ** z
+    const tx = lon => Math.floor((lon + 180) / 360 * n)
+    const ty = lat => { const r = lat * Math.PI / 180; return Math.floor((1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2 * n) }
+    const x0 = tx(sw.lon), x1 = tx(ne.lon), y0 = ty(ne.lat), y1 = ty(sw.lat)
+    if ((x1 - x0 + 1) * (y1 - y0 + 1) > 48) return []
+    const lonDe = x => x / n * 360 - 180
+    const latDe = y => Math.atan(Math.sinh(Math.PI * (1 - 2 * y / n))) * 180 / Math.PI
+    const out = []
+    for (let x = x0; x <= x1; x++) for (let y = y0; y <= y1; y++) {
+      const nw = paraUTM25S(latDe(y), lonDe(x)), se = paraUTM25S(latDe(y + 1), lonDe(x + 1))
+      out.push({ k: `${z}/${x}/${y}`, href: F.url(z, x, y), x: vista.X(nw.e), y: vista.Y(nw.n), w: vista.X(se.e) - vista.X(nw.e), h: vista.Y(se.n) - vista.Y(nw.n) })
+    }
+    return out
+  }, [fundo, vista])
 
   const dentro = (x, y) => x >= PAD - 2 && x <= W - PAD + 2 && y >= PAD - 2 && y <= H - PAD + 2
   const marcosVis = MARCOS.filter(m => dentro(vista.X(m.e), vista.Y(m.n)))
@@ -120,9 +187,10 @@ export default function Analise({ tid, turmas, online, showToast }) {
     baixarTexto(nomeArq('pins', t), [cab.join(';')].concat(linhas).join('\r\n'))
   }
   function exportarPoligonais() {
-    const cab = ['aluno', 'poligonal', 'vertices', 'perimetro_m', 'area_m2', 'erro_medio_vertice_m', 'criado_em', 'ordem', 'pin', 'utm_n', 'utm_e']
+    const cab = ['aluno', 'poligonal', 'vertices', 'perimetro_m', 'area_m2', 'laco', 'area_corrigida_m2', 'erro_medio_vertice_m', 'criado_em', 'ordem', 'pin', 'utm_n', 'utm_e']
     const linhas = []
-    polis.forEach(q => { const r = q.resultado || {}, c = r.comparacao; (q.pin_ids || []).forEach((id, i) => { const p = pinPorId[id]; linhas.push([q.alunos?.nome, q.nome, r.vertices, r.perimetro, r.area, c ? c.erroMedioVertice : null, q.criado_em, i + 1, p?.nome, p?.utm_n, p?.utm_e].map(csvCel).join(';')) }) })
+    polis.forEach(q => { const r0 = q.resultado || {}, c = r0.comparacao, pc = poliCalc[q.id], r = pc ? pc.r : r0
+      ;(q.pin_ids || []).forEach((id, i) => { const p = pinPorId[id]; linhas.push([q.alunos?.nome, q.nome, r.vertices, r.perimetro, r.area, r.cruzada ? 1 : 0, pc && pc.rc ? pc.rc.area : (r.cruzada ? null : r.area), c ? c.erroMedioVertice : null, q.criado_em, i + 1, p?.nome, p?.utm_n, p?.utm_e].map(csvCel).join(';')) }) })
     baixarTexto(nomeArq('poligonais', t), [cab.join(';')].concat(linhas).join('\r\n'))
   }
 
@@ -148,7 +216,17 @@ export default function Analise({ tid, turmas, online, showToast }) {
             {t.alunos.map(a => <option key={a.id} value={a.id}>{a.nome}{alunosCom.includes(a) ? '' : ' · sem dados'}</option>)}
           </select>
           <label className="chk-inline"><input type="checkbox" checked={soChamada} onChange={e => setSoChamada(e.target.checked)} /> só leituras de chamada</label>
-          <label className="chk-inline"><input type="checkbox" checked={precisas} onChange={e => setPrecisas(e.target.checked)} /> enquadrar só ±50 m ou melhor</label>
+          <span className="chk-inline">acurácia até
+            <select value={maxAcc} onChange={e => setMaxAcc(e.target.value === '' ? '' : Number(e.target.value))} style={{ width: 'auto', minWidth: 0, margin: 0 }}>
+              {ACC_MAX.map(([v, l]) => <option key={String(v)} value={v}>{l}</option>)}
+            </select></span>
+          <span className="chk-inline">cor por
+            <select value={corPor} onChange={e => setCorPor(e.target.value)} style={{ width: 'auto', minWidth: 0, margin: 0 }}>
+              {CORES_POR.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+            </select></span>
+          <label className="chk-inline"><input type="checkbox" checked={raios} onChange={e => setRaios(e.target.checked)} /> raio de acurácia</label>
+          <label className="chk-inline"><input type="checkbox" checked={trilha} onChange={e => setTrilha(e.target.checked)} /> trilha por aluno</label>
+          {ocultas.size > 0 && <button className="btn ghost mini" onClick={() => setOcultas(new Set())}>Mostrar {ocultas.size} oculta(s)</button>}
         </div>
         <div className="btnrow">
           <button className="btn" onClick={exportarLeituras} disabled={!leituras.length}>CSV leituras ({leituras.length})</button>
@@ -172,30 +250,43 @@ export default function Analise({ tid, turmas, online, showToast }) {
         <div className="panel ana-map">
           <h2>Planta UTM 25 S</h2>
           <svg viewBox={`0 0 ${W} ${H}`} className="ana-svg">
+            <defs><clipPath id="ana-clip"><rect x={PAD} y={PAD} width={W - 2 * PAD} height={H - 2 * PAD} /></clipPath></defs>
             <rect x={PAD} y={PAD} width={W - 2 * PAD} height={H - 2 * PAD} className="ana-papel" />
-            {grade.vs.map(e => <g key={'v' + e}><line x1={vista.X(e)} y1={PAD} x2={vista.X(e)} y2={H - PAD} className="ana-linha" /><text x={vista.X(e)} y={H - PAD + 14} className="ana-lab" textAnchor="middle">{Math.round(e)}</text></g>)}
-            {grade.hs.map(n => <g key={'h' + n}><line x1={PAD} y1={vista.Y(n)} x2={W - PAD} y2={vista.Y(n)} className="ana-linha" /><text x={PAD - 4} y={vista.Y(n) + 3} className="ana-lab" textAnchor="end">{Math.round(n)}</text></g>)}
+            {tiles.length > 0 && <g clipPath="url(#ana-clip)" opacity={0.85}>{tiles.map(tl => <image key={tl.k} href={tl.href} x={tl.x} y={tl.y} width={tl.w} height={tl.h} preserveAspectRatio="none" />)}</g>}
+            {camadas.grade && grade.vs.map(e => <g key={'v' + e}><line x1={vista.X(e)} y1={PAD} x2={vista.X(e)} y2={H - PAD} className="ana-linha" /><text x={vista.X(e)} y={H - PAD + 14} className="ana-lab" textAnchor="middle">{Math.round(e)}</text></g>)}
+            {camadas.grade && grade.hs.map(n => <g key={'h' + n}><line x1={PAD} y1={vista.Y(n)} x2={W - PAD} y2={vista.Y(n)} className="ana-linha" /><text x={PAD - 4} y={vista.Y(n) + 3} className="ana-lab" textAnchor="end">{Math.round(n)}</text></g>)}
             <text x={W / 2} y={H - 6} className="ana-lab" textAnchor="middle">E (m) · UTM 25 S · SIRGAS2000</text>
             <text transform={`translate(12 ${H / 2}) rotate(-90)`} className="ana-lab" textAnchor="middle">N (m)</text>
 
-            {polis.map(q => { const pts = (q.pin_ids || []).map(id => pinPorId[id]).filter(Boolean); if (pts.length < 2) return null
+            {camadas.polis && polis.map(q => { const pts = (q.pin_ids || []).map(id => pinPorId[id]).filter(Boolean); if (pts.length < 2) return null
               return <polygon key={q.id} points={pts.map(p => `${vista.X(p.utm_e)},${vista.Y(p.utm_n)}`).join(' ')} className="ana-poli"><title>{`${q.alunos?.nome} · ${q.nome}`}</title></polygon> })}
 
-            {pontos.map(({ l, n, e }) => { const x = vista.X(e), y = vista.Y(n); if (!dentro(x, y)) return null
-              return <circle key={l.id} cx={x} cy={y} r={ehChamada(l) ? 4 : 3} fill={COR[l.rotulo] || COR.outro} className={'ana-pt' + (ehChamada(l) ? ' chamada' : '')}>
+            {camadas.leituras && raios && pontos.map(({ l, n, e }) => { const x = vista.X(e), y = vista.Y(n); if (!dentro(x, y) || l.acuracia_m == null) return null
+              return <circle key={'r' + l.id} cx={x} cy={y} r={Math.max(1, l.acuracia_m * vista.esc)} fill={corDe(l)} fillOpacity={0.06} stroke={corDe(l)} strokeOpacity={0.35} /> })}
+            {camadas.leituras && trilhas.map(tr => <polyline key={'t' + tr.id} points={tr.ls.map(l => { const u = (l.utm_n == null || l.utm_e == null) ? paraUTM25S(l.lat, l.lon) : { n: l.utm_n, e: l.utm_e }; return `${vista.X(u.e)},${vista.Y(u.n)}` }).join(' ')} fill="none" stroke={hsl(alunosIdx[tr.id] ?? 0, (t ? t.alunos.length : 1))} strokeWidth={1.2} strokeOpacity={0.6} />)}
+            {camadas.leituras && pontos.map(({ l, n, e }) => { const x = vista.X(e), y = vista.Y(n); if (!dentro(x, y)) return null
+              return <circle key={l.id} cx={x} cy={y} r={sel && sel.id === l.id ? 7 : ehChamada(l) ? 4 : 3} fill={corDe(l)} className={'ana-pt' + (ehChamada(l) ? ' chamada' : '') + (sel && sel.id === l.id ? ' sel' : '')} style={{ cursor: 'pointer' }} onClick={() => setSel(l)}>
                 <title>{`${l.alunos?.nome || ''} · ${NOME[l.rotulo] || l.rotulo}${ehChamada(l) ? ' · CHAMADA' : ''} · ±${metros(l.acuracia_m, 1)} m · ${fmtHora(l.capturado_em || l.criado_em)}`}</title></circle> })}
 
-            {pins.map(p => { const x = vista.X(p.utm_e), y = vista.Y(p.utm_n); if (!dentro(x, y)) return null
+            {camadas.pins && pins.map(p => { const x = vista.X(p.utm_e), y = vista.Y(p.utm_n); if (!dentro(x, y)) return null
               return <g key={p.id} transform={`translate(${x},${y})`} className="ana-pin" onClick={() => p.tem_foto && abrirFoto(p)} style={{ cursor: p.tem_foto ? 'pointer' : 'default' }}>
                 <path d="M0,-7 L7,0 L0,7 L-7,0 Z" /><text y={-10} textAnchor="middle" className="ana-pin-lab">{p.nome}{p.tem_foto ? ' 📷' : ''}</text>
                 <title>{`${p.alunos?.nome} · ${p.nome} · ${p.n_leituras} leituras · espalh. ±${metros(Math.hypot(p.desvio_n_m || 0, p.desvio_e_m || 0), 1)} m`}</title></g> })}
 
-            {marcosVis.map(m => { const x = vista.X(m.e), y = vista.Y(m.n)
+            {camadas.marcos && marcosVis.map(m => { const x = vista.X(m.e), y = vista.Y(m.n)
               return <g key={m.nome} transform={`translate(${x},${y})`} className={'ana-marco ' + m.tipo}><line x1={-8} x2={8} y1={0} y2={0} /><line y1={-8} y2={8} x1={0} x2={0} /><circle r={4} fill="none" /><text x={10} y={-6} className="ana-marco-lab">{m.nome}</text></g> })}
 
             <g transform={`translate(${W - PAD - 10 - vista.passo * vista.esc} ${PAD + 16})`} className="ana-escala"><line x1={0} x2={vista.passo * vista.esc} y1={0} y2={0} /><text x={vista.passo * vista.esc / 2} y={-4} textAnchor="middle">{vista.passo} m</text></g>
             <text x={PAD + 6} y={PAD + 16} className="ana-lab">N ↑</text>
+            {FUNDOS[fundo] && <text x={W - PAD - 4} y={H - PAD - 6} className="ana-lab" textAnchor="end" style={{ fontWeight: 600 }}>{FUNDOS[fundo].credito} · fundo aproximado</text>}
           </svg>
+          <div className="ana-camadas">
+            <span className="chk-inline">fundo
+              <select value={fundo} onChange={e => setFundo(e.target.value)} style={{ width: 'auto', minWidth: 0, margin: 0 }}>
+                <option value="nenhum">nenhum</option><option value="osm">OpenStreetMap</option><option value="sat">satélite (Esri)</option>
+              </select></span>
+            {CAMADAS.map(([k, l]) => <label key={k} className="chk-inline"><input type="checkbox" checked={!!camadas[k]} onChange={() => toggleCamada(k)} /> {l}</label>)}
+          </div>
           <div className="ana-legenda">
             {Object.keys(COR).map(k => <button key={k} className={'chip' + (rotulos.has(k) ? ' on' : '')} onClick={() => toggleRot(k)} style={{ '--c': COR[k] }}><i />{NOME[k]} <b>{kpi.porRot[k]?.n || 0}</b>{kpi.porRot[k]?.med != null ? <span> ±{metros(kpi.porRot[k].med, 1)} m</span> : null}</button>)}
             <span className="chip fixo"><i style={{ background: '#fff', border: '2px solid #b8860b' }} />anel dourado = leitura de chamada</span>
@@ -206,6 +297,35 @@ export default function Analise({ tid, turmas, online, showToast }) {
         </div>
 
         <div className="ana-lado">
+          {sel && <div className="panel" style={{ borderColor: 'var(--brand)' }}>
+            <h2 style={{ marginTop: 0 }}>Leitura selecionada</h2>
+            <p className="hint" style={{ marginBottom: 6 }}><b>{sel.alunos?.nome}</b> · {NOME[sel.rotulo] || sel.rotulo}{sel.extra?.local_descricao ? ' · ' + sel.extra.local_descricao : ''}{ehChamada(sel) ? ' · CHAMADA' : ''}</p>
+            <ul className="lista-simples">
+              <li>capturada {fmtHora(sel.capturado_em || sel.criado_em)}{sel.criado_em && sel.capturado_em && (new Date(sel.criado_em) - new Date(sel.capturado_em) > 120000) ? ' · subiu da fila ' + fmtHora(sel.criado_em) : ''}</li>
+              <li>N {sel.utm_n != null ? metros(sel.utm_n, 1) : '—'} · E {sel.utm_e != null ? metros(sel.utm_e, 1) : '—'}</li>
+              <li>acurácia ± {metros(sel.acuracia_m, 1)} m · vertical {sel.alt_acuracia_m != null ? '± ' + metros(sel.alt_acuracia_m, 1) + ' m' : '—'} · alt. {sel.altitude_m != null ? metros(sel.altitude_m, 1) + ' m' : '—'}</li>
+              <li>até a PERC {sel.dist_perc_m != null ? metros(sel.dist_perc_m, 0) + ' m' : '—'} · TTFF {sel.ttff_ms != null ? (sel.ttff_ms / 1000).toFixed(1).replace('.', ',') + ' s' : '—'}</li>
+              <li>{sel.extra?.plataforma || 'aparelho ?'} · rede na captura: {sel.online_na_captura == null ? '?' : sel.online_na_captura ? 'sim' : 'não'} · aula {sessPorId[sel.sessao_id]?.codigo || '—'}</li>
+            </ul>
+            <div className="btnrow">
+              <button className="btn ghost mini" onClick={() => { setOcultas(o => { const n = new Set(o); n.add(sel.id); return n }); setSel(null) }}>Ocultar esta leitura</button>
+              <button className="btn ghost mini" onClick={() => setAlunoId(sel.aluno_id)}>Só este aluno</button>
+              <button className="btn ghost mini" onClick={() => setSel(null)}>Fechar</button>
+            </div>
+            <p className="note">Ocultar vale só nesta tela — nada é apagado do banco. Para um aparelho ruim recorrente, use "acurácia até".</p>
+          </div>}
+          <div className="panel">
+            <h2>Acurácia por faixa</h2>
+            <svg viewBox="0 0 320 130" className="ana-histo">
+              {(() => { const maxN = Math.max(1, ...FAIXAS.map((_, j) => histo.reduce((sm, h) => sm + h.faixas[j], 0))); return FAIXAS.map(([a, b, lab], j) => {
+                const x = 30 + j * 56, tot = histo.reduce((sm, h) => sm + h.faixas[j], 0); let y = 100
+                return <g key={lab}>{histo.map(h => { const hgt = (h.faixas[j] / maxN) * 80; y -= hgt; return h.faixas[j] ? <rect key={h.k} x={x} y={y} width={40} height={hgt} fill={COR[h.k]}><title>{`${NOME[h.k]} · ${lab} m: ${h.faixas[j]}`}</title></rect> : null })}
+                  <text x={x + 20} y={114} textAnchor="middle" className="ana-lab">{lab} m</text>
+                  <text x={x + 20} y={Math.min(96, y - 3)} textAnchor="middle" className="ana-lab" style={{ fontWeight: 700 }}>{tot || ''}</text></g> }) })()}
+              <line x1={26} x2={314} y1={100} y2={100} className="ana-linha" />
+            </svg>
+            <p className="note">Quantas leituras caem em cada faixa de acurácia, empilhadas por ambiente. A cauda à direita é o que atrapalha a planta: filtre em "acurácia até" ou clique na leitura e oculte.</p>
+          </div>
           <div className="panel">
             <h2>Por ambiente</h2>
             <div className="scrollx"><table className="matrix"><thead><tr><th className="nm">Ambiente</th><th>leituras</th><th>acurácia mediana</th></tr></thead>
@@ -236,10 +356,13 @@ export default function Analise({ tid, turmas, online, showToast }) {
 
       <div className="panel">
         <h2>Poligonais ({polis.length})</h2>
-        {polis.length ? <div className="scrollx tbl-wrap"><table className="matrix"><thead><tr><th className="nm">Aluno</th><th>poligonal</th><th>vért.</th><th>perímetro</th><th>área</th><th>erro médio/vért.</th><th>vértices (pins)</th><th>quando</th></tr></thead>
-          <tbody>{polis.map(q => { const r = q.resultado || {}, c = r.comparacao
-            return <tr key={q.id}><td className="nm">{q.alunos?.nome}</td><td>{q.nome}</td><td>{r.vertices}</td>
-              <td>{r.perimetro != null ? metros(r.perimetro, 1) + ' m' : '—'}</td><td>{r.area != null ? metros(r.area, 0) + ' m²' : '—'}</td>
+        <p className="hint">Área e perímetro <b>recalculados pelos pins salvos</b>. <b>Laço</b> = o aluno tocou os pins fora da ordem do contorno e os lados se cruzam: a área que ele viu não vale. "Corrigida" reordena os vértices em volta do centro.</p>
+        {polis.length ? <div className="scrollx tbl-wrap"><table className="matrix"><thead><tr><th className="nm">Aluno</th><th>poligonal</th><th>vért.</th><th>perímetro</th><th>área</th><th>área corrigida</th><th>erro médio/vért.</th><th>vértices (pins)</th><th>quando</th></tr></thead>
+          <tbody>{polis.map(q => { const r0 = q.resultado || {}, c = r0.comparacao, pc = poliCalc[q.id], r = pc ? pc.r : r0
+            return <tr key={q.id} className={r.cruzada ? 'reocup' : ''}><td className="nm">{q.alunos?.nome}</td><td>{q.nome}{r.cruzada ? <span className="badge" style={{ marginLeft: 6, background: 'var(--miss)', color: '#fff' }}>laço</span> : null}</td><td>{r.vertices}</td>
+              <td>{r.perimetro != null ? metros(r.perimetro, 1) + ' m' : '—'}</td>
+              <td className={r.cruzada ? 'F' : ''}>{r.area != null ? metros(r.area, 0) + ' m²' : '—'}</td>
+              <td>{pc && pc.rc ? metros(pc.rc.area, 0) + ' m²' : r.cruzada ? '—' : '='}</td>
               <td className={c ? (c.erroMedioVertice < 10 ? 'P' : 'F') : ''}>{c ? metros(c.erroMedioVertice, 1) + ' m' : '—'}</td>
               <td style={{ whiteSpace: 'normal', textAlign: 'left', maxWidth: 260 }}>{(q.pin_ids || []).map(id => pinPorId[id]?.nome || '?').join(' → ')}</td>
               <td>{fmtHora(q.criado_em)}</td></tr> })}</tbody></table></div> : <p className="empty">Nenhuma poligonal no filtro.</p>}
