@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import * as store from './lib/store'
 import { PERC, paraUTM25S, deUTM25S, metros } from './lib/geo'
 import { MARCOS, marcoPorNome, calcularPoligonal, ordenarPorAngulo, grausDMS, rumo } from './lib/topo'
@@ -60,6 +60,10 @@ export default function Analise({ tid, turmas, online, showToast }) {
   const [ocultas, setOcultas] = useState(() => new Set())   // leituras tiradas à mão (só nesta tela)
   const [sel, setSel] = useState(null)               // leitura clicada
   const [fundo, setFundo] = useState('nenhum')
+  const [zoomK, setZoomK] = useState(1)                 // 1 = enquadramento automático
+  const [pan, setPan] = useState({ dN: 0, dE: 0 })      // deslocamento do centro, em metros
+  const arrasto = useRef(null)
+  const svgRef = useRef(null)
   const [semCruzadas, setSemCruzadas] = useState(true)   // poligonais em laço fora da planta e das tabelas (regra dela, 15/09)
   const [camadas, setCamadas] = useState({ leituras: true, pins: true, polis: true, marcos: true, grade: true })
   const toggleCamada = k => setCamadas(c => ({ ...c, [k]: !c[k] }))
@@ -75,7 +79,7 @@ export default function Analise({ tid, turmas, online, showToast }) {
       .finally(() => vivo && setLoading(false))
     return () => { vivo = false }
   }, [tid, periodo, online])
-  useEffect(() => { setSessaoId(''); setAlunosSel([]); setSelPoli(null); setMostrar(200) }, [tid])
+  useEffect(() => { setSessaoId(''); setAlunosSel([]); setSelPoli(null); setMostrar(200); setZoomK(1); setPan({ dN: 0, dE: 0 }) }, [tid])
 
   const leituras = useMemo(() => dados.leituras.filter(l =>
     (!sessaoId || l.sessao_id === sessaoId) && temAluno(l.aluno_id) &&
@@ -130,11 +134,36 @@ export default function Analise({ tid, turmas, online, showToast }) {
     if (!xs.length) { xs.push(PERC.utmE - 95); ys.push(PERC.utmN) }
     const cE = mediana(xs), cN = mediana(ys)
     const ds = xs.map((x, i) => Math.hypot(x - cE, ys[i] - cN))
-    const half = Math.max(30, (percentil(ds, 0.95) || 30) * 1.15)
+    const half0 = Math.max(30, (percentil(ds, 0.95) || 30) * 1.15)
+    const half = half0 / zoomK, cEz = cE + pan.dE, cNz = cN + pan.dN
     const esc = Math.min(W - 2 * PAD, H - 2 * PAD) / (2 * half)
-    const passo = [5, 10, 25, 50, 100, 250, 500, 1000, 2500].find(p => p * esc >= 60) || 5000
-    return { cE, cN, half, esc, passo, X: e => PAD + (W - 2 * PAD) / 2 + (e - cE) * esc, Y: n => PAD + (H - 2 * PAD) / 2 - (n - cN) * esc }
-  }, [pontos, pins])
+    const passo = [1, 2, 5, 10, 25, 50, 100, 250, 500, 1000, 2500].find(p => p * esc >= 60) || 5000
+    return { cE: cEz, cN: cNz, half, esc, passo, X: e => PAD + (W - 2 * PAD) / 2 + (e - cEz) * esc, Y: n => PAD + (H - 2 * PAD) / 2 - (n - cNz) * esc,
+      deXY: (x, y) => ({ e: cEz + (x - PAD - (W - 2 * PAD) / 2) / esc, n: cNz - (y - PAD - (H - 2 * PAD) / 2) / esc }) }
+  }, [pontos, pins, zoomK, pan])
+
+  // zoom com a roda (em volta do cursor), arraste com o mouse ou o dedo, botões + − ⟲
+  const pontoSvg = ev => { const r = svgRef.current.getBoundingClientRect(); const t = ev.touches ? ev.touches[0] : ev; return { x: (t.clientX - r.left) * W / r.width, y: (t.clientY - r.top) * H / r.height } }
+  const aplicarZoom = (fator, xy) => {
+    const kNovo = Math.max(0.25, Math.min(64, zoomK * fator))
+    if (xy) { // mantém o ponto sob o cursor no lugar
+      const antes = vista.deXY(xy.x, xy.y)
+      const escNovo = vista.esc * (kNovo / zoomK)
+      const cE = antes.e - (xy.x - PAD - (W - 2 * PAD) / 2) / escNovo, cN = antes.n + (xy.y - PAD - (H - 2 * PAD) / 2) / escNovo
+      setPan({ dE: pan.dE + (cE - vista.cE), dN: pan.dN + (cN - vista.cN) })
+    }
+    setZoomK(kNovo)
+  }
+  const onWheel = ev => { ev.preventDefault(); aplicarZoom(ev.deltaY < 0 ? 1.25 : 1 / 1.25, pontoSvg(ev)) }
+  const onDown = ev => { if (ev.button != null && ev.button !== 0) return; arrasto.current = { ...pontoSvg(ev), pan0: pan, moveu: false } }
+  const onMove = ev => {
+    const a = arrasto.current; if (!a) return
+    const p = pontoSvg(ev); const dx = p.x - a.x, dy = p.y - a.y
+    if (Math.abs(dx) + Math.abs(dy) > 3) a.moveu = true
+    if (a.moveu) setPan({ dE: a.pan0.dE - dx / vista.esc, dN: a.pan0.dN + dy / vista.esc })
+  }
+  const onUp = () => { arrasto.current = null }
+  useEffect(() => { const el = svgRef.current; if (!el) return; el.addEventListener('wheel', onWheel, { passive: false }); return () => el.removeEventListener('wheel', onWheel) })
 
   const grade = useMemo(() => {
     const { cE, cN, esc, passo } = vista
@@ -277,7 +306,16 @@ export default function Analise({ tid, turmas, online, showToast }) {
       <div className="ana-grid">
         <div className="panel ana-map">
           <h2>Planta UTM 25 S</h2>
-          <svg viewBox={`0 0 ${W} ${H}`} className="ana-svg">
+          <div className="ana-map-wrap">
+          <div className="ana-zoom">
+            <button className="btn ghost mini" onClick={() => aplicarZoom(1.5)} title="aproximar">+</button>
+            <button className="btn ghost mini" onClick={() => aplicarZoom(1 / 1.5)} title="afastar">−</button>
+            <button className="btn ghost mini" onClick={() => { setZoomK(1); setPan({ dN: 0, dE: 0 }) }} title="reenquadrar">⟲</button>
+            <span className="ana-zoom-k">{zoomK === 1 ? 'auto' : (zoomK >= 1 ? zoomK.toFixed(1) : zoomK.toFixed(2)) + '×'}</span>
+          </div>
+          <svg ref={svgRef} viewBox={`0 0 ${W} ${H}`} className={'ana-svg' + (arrasto.current ? ' arrastando' : '')}
+            onMouseDown={onDown} onMouseMove={onMove} onMouseUp={onUp} onMouseLeave={onUp}
+            onTouchStart={onDown} onTouchMove={onMove} onTouchEnd={onUp}>
             <defs><clipPath id="ana-clip"><rect x={PAD} y={PAD} width={W - 2 * PAD} height={H - 2 * PAD} /></clipPath></defs>
             <rect x={PAD} y={PAD} width={W - 2 * PAD} height={H - 2 * PAD} className="ana-papel" />
             {tiles.length > 0 && <g clipPath="url(#ana-clip)" opacity={0.85}>{tiles.map(tl => <image key={tl.k} href={tl.href} x={tl.x} y={tl.y} width={tl.w} height={tl.h} preserveAspectRatio="none" />)}</g>}
@@ -287,15 +325,15 @@ export default function Analise({ tid, turmas, online, showToast }) {
             <text transform={`translate(12 ${H / 2}) rotate(-90)`} className="ana-lab" textAnchor="middle">N (m)</text>
 
             {camadas.polis && polis.map(q => { const pts = (q.pin_ids || []).map(id => pinPorId[id]).filter(Boolean); if (pts.length < 2) return null
-              return <polygon key={q.id} points={pts.map(p => `${vista.X(p.utm_e)},${vista.Y(p.utm_n)}`).join(' ')} className={'ana-poli' + (selPoli && selPoli.id === q.id ? ' sel' : '')} style={{ cursor: 'pointer' }} onClick={() => setSelPoli(q)}><title>{`${q.alunos?.nome} · ${q.nome} — clique para detalhes`}</title></polygon> })}
+              return <polygon key={q.id} clipPath="url(#ana-clip)" points={pts.map(p => `${vista.X(p.utm_e)},${vista.Y(p.utm_n)}`).join(' ')} className={'ana-poli' + (selPoli && selPoli.id === q.id ? ' sel' : '')} style={{ cursor: 'pointer' }} onClick={() => setSelPoli(q)}><title>{`${q.alunos?.nome} · ${q.nome} — clique para detalhes`}</title></polygon> })}
             {selPoli && camadas.polis && (selPoli.pin_ids || []).map((id, i) => { const p = pinPorId[id]; if (!p) return null; const x = vista.X(p.utm_e), y = vista.Y(p.utm_n); if (!dentro(x, y)) return null
               return <g key={'sv' + id} transform={`translate(${x},${y})`}><circle r={9} className="ana-poli-v" /><text y={4} textAnchor="middle" className="ana-poli-vn">{i + 1}</text></g> })}
 
             {camadas.leituras && raios && pontos.map(({ l, n, e }) => { const x = vista.X(e), y = vista.Y(n); if (!dentro(x, y) || l.acuracia_m == null) return null
-              return <circle key={'r' + l.id} cx={x} cy={y} r={Math.max(1, l.acuracia_m * vista.esc)} fill={corDe(l)} fillOpacity={0.06} stroke={corDe(l)} strokeOpacity={0.35} /> })}
-            {camadas.leituras && trilhas.map(tr => <polyline key={'t' + tr.id} points={tr.ls.map(l => { const u = (l.utm_n == null || l.utm_e == null) ? paraUTM25S(l.lat, l.lon) : { n: l.utm_n, e: l.utm_e }; return `${vista.X(u.e)},${vista.Y(u.n)}` }).join(' ')} fill="none" stroke={hsl(alunosIdx[tr.id] ?? 0, (t ? t.alunos.length : 1))} strokeWidth={1.2} strokeOpacity={0.6} />)}
+              return <circle key={'r' + l.id} clipPath="url(#ana-clip)" cx={x} cy={y} r={Math.max(1, l.acuracia_m * vista.esc)} fill={corDe(l)} fillOpacity={0.06} stroke={corDe(l)} strokeOpacity={0.35} /> })}
+            {camadas.leituras && trilhas.map(tr => <polyline key={'t' + tr.id} clipPath="url(#ana-clip)" points={tr.ls.map(l => { const u = (l.utm_n == null || l.utm_e == null) ? paraUTM25S(l.lat, l.lon) : { n: l.utm_n, e: l.utm_e }; return `${vista.X(u.e)},${vista.Y(u.n)}` }).join(' ')} fill="none" stroke={hsl(alunosIdx[tr.id] ?? 0, (t ? t.alunos.length : 1))} strokeWidth={1.2} strokeOpacity={0.6} />)}
             {camadas.leituras && pontos.map(({ l, n, e }) => { const x = vista.X(e), y = vista.Y(n); if (!dentro(x, y)) return null
-              return <circle key={l.id} cx={x} cy={y} r={sel && sel.id === l.id ? 7 : ehChamada(l) ? 4 : 3} fill={corDe(l)} className={'ana-pt' + (ehChamada(l) ? ' chamada' : '') + (sel && sel.id === l.id ? ' sel' : '')} style={{ cursor: 'pointer' }} onClick={() => setSel(l)}>
+              return <circle key={l.id} cx={x} cy={y} r={sel && sel.id === l.id ? 7 : ehChamada(l) ? 4 : 3} fill={corDe(l)} className={'ana-pt' + (ehChamada(l) ? ' chamada' : '') + (sel && sel.id === l.id ? ' sel' : '')} style={{ cursor: 'pointer' }} onClick={() => { if (!(arrasto.current && arrasto.current.moveu)) setSel(l) }}>
                 <title>{`${l.alunos?.nome || ''} · ${NOME[l.rotulo] || l.rotulo}${ehChamada(l) ? ' · CHAMADA' : ''} · ±${metros(l.acuracia_m, 1)} m · ${fmtHora(l.capturado_em || l.criado_em)}`}</title></circle> })}
 
             {camadas.pins && pins.map(p => { const x = vista.X(p.utm_e), y = vista.Y(p.utm_n); if (!dentro(x, y)) return null
@@ -311,6 +349,8 @@ export default function Analise({ tid, turmas, online, showToast }) {
             <text x={PAD + 6} y={PAD + 16} className="ana-lab">N ↑</text>
             {FUNDOS[fundo] && <text x={W - PAD - 4} y={H - PAD - 6} className="ana-lab" textAnchor="end" style={{ fontWeight: 600 }}>{FUNDOS[fundo].credito} · fundo aproximado</text>}
           </svg>
+          </div>
+          <p className="note" style={{ marginTop: 6 }}>Roda do mouse aproxima em volta do cursor · arraste para mover · ⟲ volta ao enquadramento automático. Grade e escala se ajustam ao zoom.</p>
           <div className="ana-camadas">
             <span className="chk-inline">fundo
               <select value={fundo} onChange={e => setFundo(e.target.value)} style={{ width: 'auto', minWidth: 0, margin: 0 }}>

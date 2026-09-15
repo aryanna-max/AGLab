@@ -301,3 +301,9 @@ tr.reocup td{opacity:.75;font-style:italic}
 table.matrix tr.sel-row td{background:rgba(123,79,0,.10)}
 
 .ana-marco.provisorio line,.ana-marco.provisorio circle{stroke:#d35400}.ana-marco.provisorio .ana-marco-lab{fill:#d35400}
+
+.ana-map-wrap{position:relative}
+.ana-zoom{position:absolute;top:10px;right:10px;display:flex;gap:4px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:3px 6px;z-index:2}
+.ana-zoom .btn{min-width:30px;padding:4px 8px;font-weight:800}
+.ana-zoom-k{font-size:11px;opacity:.7;padding:0 6px;font-variant-numeric:tabular-nums}
+.ana-svg{cursor:grab;touch-action:none;user-select:none}.ana-svg.arrastando{cursor:grabbing}
