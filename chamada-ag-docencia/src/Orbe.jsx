@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react'
 import { arquivoParaJpeg } from './lib/foto'
 import { supabase } from './supabaseClient'
 import { paraUTM25S, metros } from './lib/geo'
-import { MARCOS, marcoPorNome, azimute, grausDMS, pontoCardeal, resumirOcupacao, calcularPoligonal, compararComMarcos, ordenarPorAngulo } from './lib/topo'
+import { MARCOS, marcoPorNome, azimute, grausDMS, pontoCardeal, resumirOcupacao, calcularPoligonal, compararComMarcos, ordenarPorAngulo, rumo } from './lib/topo'
 
 /* As três operações de campo, no celular:
    🎯 Ir até     — locar: sair da coordenada para o terreno (distância e azimute ao vivo)
@@ -106,7 +106,8 @@ function IrAte({ pos }) {
           <div className="ir-sub">{chegou ? '✓ Você chegou — dentro da precisão do celular'
             : rumoAparelho != null ? (() => { const d = ((az - rumoAparelho + 540) % 360) - 180; return Math.abs(d) < 8 ? '⬆ Siga em frente' : `${d > 0 ? '↻ vire à direita' : '↺ vire à esquerda'} ${Math.round(Math.abs(d))}°` })()
             : `azimute ${grausDMS(az)} · ${pontoCardeal(az)}`}</div>
-          {rumoAparelho != null && !chegou && <div className="ir-sub">azimute {grausDMS(az)} · {pontoCardeal(az)}</div>}
+          {rumoAparelho != null && !chegou && <div className="ir-sub">azimute {grausDMS(az)} · rumo {rumo(az)}</div>}
+          {rumoAparelho == null && !chegou && <div className="ir-sub">rumo {rumo(az)}</div>}
           <div className="ir-sub">ΔN {dN >= 0 ? '+' : ''}{metros(dN, 1)} m · ΔE {dE >= 0 ? '+' : ''}{metros(dE, 1)} m</div>
         </div>
         <p className="note">
@@ -253,16 +254,32 @@ function Poligonal({ ident, codigo, onAviso }) {
   const [comp, setComp] = useState(null)
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState('')
+  const [salvas, setSalvas] = useState([])          // poligonais já salvas pelo aluno
+  const [salvaAtual, setSalvaAtual] = useState(null)
 
+  async function carregarSalvas() {
+    if (!ident) return
+    try { const { data } = await supabase.rpc('minhas_poligonais', { p_matricula: ident.matricula || '', p_aluno_id: ident.alunoId || null }); if (data?.ok) setSalvas(data.poligonais || []) } catch (e) {}
+  }
   useEffect(() => { (async () => {
     if (!ident) return
     try { const { data } = await supabase.rpc('meus_pins', { p_matricula: ident.matricula || '', p_aluno_id: ident.alunoId || null }); if (data?.ok) setPins(data.pins || []) } catch (e) {}
+    carregarSalvas()
   })() }, [ident?.alunoId, ident?.matricula])
+
+  // abrir uma poligonal salva: recompõe a seleção e recalcula pelos pins (o desenho volta)
+  function abrirSalva(q) {
+    const ids = (q.pin_ids || []).filter(id => pins.some(p => p.id === id))
+    if (ids.length < 3) { setErro('Os pins dessa poligonal não estão mais disponíveis.'); return }
+    setSel(ids); setErro(''); setSalvaAtual(q.id)
+    const pts = ids.map(id => pins.find(p => p.id === id)).map(p => ({ nome: p.nome, n: p.utm_n, e: p.utm_e }))
+    setRes(calcularPoligonal(pts)); setComp(compararComMarcos(pts))
+  }
 
   // só o PRIMEIRO pin de cada nome entra como vértice possível (reocupação é extra)
   const vistos = new Set(); const candidatos = pins.filter(p => { const k = p.nome.toLowerCase(); if (vistos.has(k)) return false; vistos.add(k); return true })
   // mudar a seleção depois de fechar invalida o resultado: o que se salva é sempre o que foi calculado
-  const toggle = id => { setRes(null); setComp(null); setErro(''); setSel(s => s.includes(id) ? s.filter(x => x !== id) : [...s, id]) }
+  const toggle = id => { setRes(null); setComp(null); setErro(''); setSalvaAtual(null); setSel(s => s.includes(id) ? s.filter(x => x !== id) : [...s, id]) }
 
   function fechar() {
     setErro(''); setRes(null); setComp(null)
@@ -270,7 +287,7 @@ function Poligonal({ ident, codigo, onAviso }) {
     if (pts.length < 3) { setErro('Selecione pelo menos 3 pins, na ordem em que a poligonal percorre.'); return }
     const r = calcularPoligonal(pts); setRes(r)
     setComp(compararComMarcos(pts))
-    if (r.cruzada) setErro('Nessa ordem os lados se CRUZAM (a figura vira um laço) e a área não vale. Use "Corrigir ordem" ou toque nos pins na ordem em que se anda pelo contorno.')
+    if (r.cruzada) setErro('Nessa ordem os lados se CRUZAM (a figura vira um laço): a área não vale e a poligonal não pode ser salva. Use "Corrigir ordem" ou refaça a seleção na ordem em que se anda pelo contorno.')
   }
   function corrigirOrdem() {
     const pts = sel.map(id => pins.find(p => p.id === id)).filter(Boolean)
@@ -290,7 +307,7 @@ function Poligonal({ ident, codigo, onAviso }) {
       })
       if (error) throw error
       if (!data?.ok) { setErro(data?.erro || 'Não consegui salvar.'); return }
-      onAviso && onAviso('Poligonal salva')
+      onAviso && onAviso('Poligonal salva'); setSalvaAtual(data.id || null); carregarSalvas()
     } catch (e) { setErro(ehErroDeRede(e) ? 'Sem rede — tente salvar quando tiver sinal.' : 'Falhou: ' + (e.message || 'erro')) }
     finally { setSalvando(false) }
   }
@@ -309,7 +326,13 @@ function Poligonal({ ident, codigo, onAviso }) {
 
   return (
     <div>
-      <p className="hint">Escolha os pins <b>na ordem</b> em que a poligonal percorre. O app fecha e calcula: lados, azimutes, ângulos, perímetro e área (fórmula de Gauss).</p>
+      <p className="hint">Escolha os pins <b>na ordem</b> em que a poligonal percorre. O app fecha e calcula: lados, azimutes, rumos, ângulos, perímetro e área (fórmula de Gauss).</p>
+      {salvas.length > 0 && <>
+        <label className="fld">Minhas poligonais salvas — toque para rever</label>
+        <div className="pin-sel">{salvas.map(q => <button key={q.id} className={'amb' + (salvaAtual === q.id ? ' on' : '')} onClick={() => abrirSalva(q)}>
+          <span className="amb-emoji">🔺</span><span className="amb-txt">{q.nome.replace(/^Poligonal /, '')}<br /><small>{q.resultado?.area != null ? metros(q.resultado.area, 0) + ' m² · ' : ''}{new Date(q.criado_em).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</small></span>
+        </button>)}</div>
+      </>}
       {candidatos.length < 3 ? <p className="empty">Você precisa de pelo menos 3 pins com nomes diferentes. Marque na aba 📍 Pins.</p> :
         <div className="pin-sel">{candidatos.map(p => { const i = sel.indexOf(p.id); return (
           <button key={p.id} className={'amb' + (i >= 0 ? ' on' : '')} onClick={() => toggle(p.id)}>
@@ -319,7 +342,7 @@ function Poligonal({ ident, codigo, onAviso }) {
         <button className="btn" onClick={fechar} disabled={sel.length < 3}>🔺 Fechar poligonal</button>
         {res && res.cruzada && <button className="btn" onClick={corrigirOrdem}>↻ Corrigir ordem</button>}
         {res && sel.length >= 3 && <button className="btn ghost mini" onClick={() => { const inv = [sel[0], ...sel.slice(1).reverse()]; setSel(inv); const pts = inv.map(id => pins.find(p => p.id === id)).filter(Boolean).map(p => ({ nome: p.nome, n: p.utm_n, e: p.utm_e })); const r = calcularPoligonal(pts); setRes(r); setComp(compararComMarcos(pts)) }} title="Mesmos vértices, percurso ao contrário: horário vira anti-horário. Os ângulos internos não mudam; o sentido da poligonal sim.">↔ Inverter sentido</button>}
-        {res && <button className="btn ghost" onClick={salvar} disabled={salvando}>{salvando ? 'Salvando…' : res.cruzada ? 'Salvar mesmo assim' : 'Salvar'}</button>}
+        {res && !res.cruzada && <button className="btn ghost" onClick={salvar} disabled={salvando}>{salvando ? 'Salvando…' : 'Salvar'}</button>}
         {sel.length > 0 && <button className="btn ghost mini" onClick={() => { setSel([]); setRes(null); setComp(null) }}>Limpar</button>}
       </div>
       {erro && <div className="flash err" style={{ textAlign: 'left' }}>{erro}</div>}
@@ -337,8 +360,9 @@ function Poligonal({ ident, codigo, onAviso }) {
           {desenho.reais.map(m => <circle key={m.nome} cx={desenho.X(m.e)} cy={desenho.Y(m.n)} r="4" className="poli-marco" />)}
           <text x="8" y="14" className="radar-lab">N ↑</text>
         </svg>}
-        <div className="scrollx"><table className="matrix"><thead><tr><th className="nm">Lado</th><th>distância</th><th>azimute</th></tr></thead>
-          <tbody>{res.lados.map((l, i) => <tr key={i}><td className="nm">{l.de} → {l.para}</td><td>{metros(l.dist, 1)} m</td><td>{grausDMS(l.azimute)}</td></tr>)}</tbody></table></div>
+        <div className="scrollx"><table className="matrix"><thead><tr><th className="nm">Lado</th><th>distância</th><th>azimute</th><th>rumo</th></tr></thead>
+          <tbody>{res.lados.map((l, i) => <tr key={i}><td className="nm">{l.de} → {l.para}</td><td>{metros(l.dist, 1)} m</td><td>{grausDMS(l.azimute)}</td><td>{rumo(l.azimute)}</td></tr>)}</tbody></table></div>
+        <p className="note"><b>Azimute</b>: ângulo a partir do norte, no sentido horário, de 0° a 360°. <b>Rumo</b>: o mesmo ângulo contado a partir do N ou do S para o E ou O, de 0° a 90° — a forma da caderneta antiga.</p>
         <div className="scrollx" style={{ marginTop: 8 }}><table className="matrix"><thead><tr><th className="nm">Vértice</th><th>ângulo interno</th></tr></thead>
           <tbody>{res.angulos.map((a, i) => <tr key={i}><td className="nm">{a.vertice}</td><td>{grausDMS(a.interno)}</td></tr>)}
             <tr><td className="nm"><b>Soma</b></td><td><b>{grausDMS(res.somaAngulos)}</b> (teórica {res.somaTeorica}°)</td></tr></tbody></table></div>

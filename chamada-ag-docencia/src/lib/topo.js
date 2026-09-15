@@ -39,6 +39,14 @@ export function grausDMS(a) {
   const g = Math.floor(a), m = Math.floor((a - g) * 60), s = Math.round(((a - g) * 60 - m) * 60)
   return `${g}° ${String(m).padStart(2, '0')}' ${String(s).padStart(2, '0')}"`
 }
+/* Rumo em quadrante: N 45° 30' E, S 20° 00' O… — a forma tradicional da caderneta. */
+export function rumo(az) {
+  const a = ((az % 360) + 360) % 360
+  if (a <= 90) return `N ${grausDMS(a)} E`
+  if (a <= 180) return `S ${grausDMS(180 - a)} E`
+  if (a <= 270) return `S ${grausDMS(a - 180)} O`
+  return `N ${grausDMS(360 - a)} O`
+}
 export function pontoCardeal(a) {
   const r = ['N', 'NE', 'L', 'SE', 'S', 'SO', 'O', 'NO']
   return r[Math.round(a / 45) % 8]
