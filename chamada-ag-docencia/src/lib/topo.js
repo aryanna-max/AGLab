@@ -10,9 +10,9 @@ export const MARCOS = [
   { nome: 'PERC (IBGE, Bloco A)', n: PERC.utmN, e: PERC.utmE, sigma: 0.001, tipo: 'rbmc' },
   /* M0451 foi removido numa obra e reimplantado em outro lugar (informação da professora, 15/09/2026).
      A coordenada oficial de 2023 (N 9108752,854 · E 284999,577) NÃO vale mais. Esta é PROVISÓRIA:
-     mediana de 21 ocupações de 19 alunos em 12/09/2026, deslocada 10,7 m a 195° da antiga; o mesmo
+     mediana de 16 ocupações válidas e não suspeitas (15 alunos) em 12/09/2026, deslocada 10,9 m a 197° da antiga; o mesmo
      método errou 1,9 m no M0452 (controle). Substituir pela medição RTK quando ela fizer. */
-  { nome: 'M0451', n: 9108742.55, e: 284996.85, sigma: 2.5, tipo: 'provisorio', antigo: { n: 9108752.854, e: 284999.577 }, nota: 'reimplantado em obra — coordenada provisória (celulares, 12/09/2026); aguarda RTK' },
+  { nome: 'M0451', n: 9108742.43, e: 284996.47, sigma: 2.5, tipo: 'provisorio', antigo: { n: 9108752.854, e: 284999.577 }, nota: 'reimplantado em obra — coordenada provisória: mediana de 16 ocupações válidas e não suspeitas (12/09/2026); aguarda RTK' },
   { nome: 'M0452', n: 9108720.996, e: 284958.028, sigma: 0.02, tipo: 'marco' },
   { nome: 'M0453', n: 9108603.791, e: 284922.902, sigma: 0.03, tipo: 'marco' },
   { nome: 'M0454', n: 9108580.430, e: 284976.942, sigma: 0.02, tipo: 'marco' },
