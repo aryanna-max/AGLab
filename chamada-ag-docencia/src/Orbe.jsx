@@ -318,6 +318,7 @@ function Poligonal({ ident, codigo, onAviso }) {
       <div className="btnrow">
         <button className="btn" onClick={fechar} disabled={sel.length < 3}>🔺 Fechar poligonal</button>
         {res && res.cruzada && <button className="btn" onClick={corrigirOrdem}>↻ Corrigir ordem</button>}
+        {res && sel.length >= 3 && <button className="btn ghost mini" onClick={() => { const inv = [sel[0], ...sel.slice(1).reverse()]; setSel(inv); const pts = inv.map(id => pins.find(p => p.id === id)).filter(Boolean).map(p => ({ nome: p.nome, n: p.utm_n, e: p.utm_e })); const r = calcularPoligonal(pts); setRes(r); setComp(compararComMarcos(pts)) }} title="Mesmos vértices, percurso ao contrário: horário vira anti-horário. Os ângulos internos não mudam; o sentido da poligonal sim.">↔ Inverter sentido</button>}
         {res && <button className="btn ghost" onClick={salvar} disabled={salvando}>{salvando ? 'Salvando…' : res.cruzada ? 'Salvar mesmo assim' : 'Salvar'}</button>}
         {sel.length > 0 && <button className="btn ghost mini" onClick={() => { setSel([]); setRes(null); setComp(null) }}>Limpar</button>}
       </div>
@@ -327,7 +328,7 @@ function Poligonal({ ident, codigo, onAviso }) {
         <div className="count-strip" style={{ marginTop: 12 }}>
           <div className="c"><div className="n">{metros(res.perimetro, 1)}</div><div className="l">perímetro (m)</div></div>
           <div className={'c' + (res.cruzada ? ' miss' : '')}><div className="n">{res.cruzada ? '✗' : metros(res.area, 0)}</div><div className="l">{res.cruzada ? 'área inválida (laço)' : 'área (m²)'}</div></div>
-          <div className="c"><div className="n">{res.vertices}</div><div className="l">vértices</div></div>
+          <div className="c"><div className="n">{res.sentido === 'horário' ? '↻' : '↺'}</div><div className="l">{res.sentido}</div></div>
         </div>
         {desenho && <svg viewBox={`0 0 ${desenho.S} ${desenho.S}`} className="poli-svg">
           {desenho.reais.length === desenho.pts.length && <polygon className="poli-real" points={desenho.reais.map(m => `${desenho.X(m.e)},${desenho.Y(m.n)}`).join(' ')} />}
