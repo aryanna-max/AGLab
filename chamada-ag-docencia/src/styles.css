@@ -287,3 +287,11 @@ tr.reocup td{opacity:.75;font-style:italic}
 .orienta li{margin-bottom:6px}
 
 .ana-camadas{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center;margin-top:8px;padding:8px 10px;border:1px solid var(--line);border-radius:10px}
+
+/* mostrador do Ir até */
+.ir-mostrador{width:180px;height:180px;display:block;margin:0 auto}
+.ir-anel{fill:var(--panel);stroke:var(--line);stroke-width:2}
+.ir-tick{stroke:var(--muted);stroke-width:1.2}.ir-tick.forte{stroke:var(--ink,#1a1c1f);stroke-width:2}
+.ir-n{font-size:18px;font-weight:800;fill:#c0392b}.ir-card{font-size:11px;font-weight:600;fill:var(--muted)}
+.ir-ponta{fill:var(--brand2)}.ir-haste{fill:var(--brand2)}.ir-box.chegou .ir-ponta,.ir-box.chegou .ir-haste{fill:var(--ok)}
+.ir-centro{fill:var(--panel);stroke:var(--brand2);stroke-width:2}

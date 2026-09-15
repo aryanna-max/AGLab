@@ -10,6 +10,16 @@ import { resumirOcupacao } from './lib/topo'
 
 const CHAMADA_S = 20          // a presença é uma ocupação: 20 s parado, média das leituras (decisão dela, 15/09)
 const CHAMADA_MIN = 3
+const ACC_GROSSEIRA = 150   // acima disso o celular está em localização aproximada, não em GNSS
+const ehIOS = /iPhone|iPad|iPod/.test(navigator.userAgent)
+const AvisoPrecisao = ({ pos }) => pos && pos.acc > ACC_GROSSEIRA ? (
+  <div className="flash err" style={{ textAlign: 'left' }}>
+    <b>± {Math.round(pos.acc)} m não é GPS — é localização aproximada.</b> O celular está sem a localização precisa.
+    {ehIOS
+      ? <> Ajustes → Privacidade e Segurança → Serviços de Localização → <b>Safari</b> (ou Orbe, se instalado) → ligue <b>Localização Precisa</b>. Depois volte aqui.</>
+      : <> Configurações → Localização → permissões do <b>navegador</b> → ligue <b>Usar localização precisa</b>. Depois volte aqui.</>}
+    {' '}Ao ar livre, com o céu visível, a leitura fica em ± 5 a 15 m.
+  </div>) : null
 
 /* App do aluno. Sem conta, sem senha, sem campo de código.
 
@@ -471,6 +481,7 @@ export default function Aluno() {
                 <li>Espere a posição aparecer{pos ? <> — apareceu: <b>± {metros(pos.acc, 0)} m</b></> : <> — <i>procurando satélites…</i></>}.</li>
                 <li>Toque em registrar e <b>não ande</b> durante os {CHAMADA_S} s.</li>
               </ol>
+              <AvisoPrecisao pos={pos} />
               {erro && <div className="flash err" style={{ textAlign: 'left' }}>{erro}</div>}
               <div className="btnrow" style={{ justifyContent: 'center' }}>
                 <button className="btn" onClick={comecarChamada} disabled={!pos || enviando}>{enviando ? 'Registrando…' : `📍 Registrar presença · ${CHAMADA_S} s`}</button>
@@ -486,6 +497,7 @@ export default function Aluno() {
         {!pos && !erro && <div className="spin">Procurando satélites…</div>}
         {erro && <div className="flash err" style={{ textAlign: 'left' }}>{erro}</div>}
         {pos && <>
+          <AvisoPrecisao pos={pos} />
           <div className="acc-big">
             <div className="ab-num">± {metros(pos.acc, 0)} m</div>
             <div className="ab-lab">é o raio dentro do qual o seu celular acha que você está</div>

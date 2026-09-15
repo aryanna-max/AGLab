@@ -50,6 +50,12 @@ function IrAte({ pos }) {
     } catch (er) { setBussola('negada') }
   }
 
+  useEffect(() => {
+    if (typeof DeviceOrientationEvent === 'undefined') return
+    if (typeof DeviceOrientationEvent.requestPermission === 'function') return   // iOS: só depois de um toque
+    ligarBussola()
+  }, [])
+
   let alvo = null
   if (modoDig === 'lista') { const m = MARCOS.find(x => x.nome === alvoNome); if (m) alvo = { nome: m.nome, n: m.n, e: m.e, sigma: m.sigma } }
   else if (modoDig === 'utm') { const N = parseFloat(String(n).replace(/\./g, '').replace(',', '.')), E = parseFloat(String(e).replace(/\./g, '').replace(',', '.')); if (isFinite(N) && isFinite(E)) alvo = { nome: 'coordenada digitada', n: N, e: E } }
@@ -83,14 +89,29 @@ function IrAte({ pos }) {
       {!pos && <div className="spin">Esperando a sua posição…</div>}
       {alvo && pos && <>
         <div className={'ir-box' + (chegou ? ' chegou' : '')}>
-          <div className="ir-seta" style={{ transform: `rotate(${setaRot}deg)` }}>➤</div>
+          <svg viewBox="0 0 160 160" className="ir-mostrador" aria-label="direção até o alvo">
+            <circle cx="80" cy="80" r="74" className="ir-anel" />
+            <g style={{ transform: `rotate(${rumoAparelho != null ? -rumoAparelho : 0}deg)`, transformOrigin: '80px 80px', transition: 'transform .25s ease-out' }}>
+              {Array.from({ length: 36 }, (_, i) => <line key={i} x1="80" y1="8" x2="80" y2={i % 9 === 0 ? 20 : 13} transform={`rotate(${i * 10} 80 80)`} className={'ir-tick' + (i % 9 === 0 ? ' forte' : '')} />)}
+              <text x="80" y="34" textAnchor="middle" className="ir-n">N</text>
+              <text x="132" y="84" textAnchor="middle" className="ir-card">E</text><text x="80" y="140" textAnchor="middle" className="ir-card">S</text><text x="28" y="84" textAnchor="middle" className="ir-card">O</text>
+            </g>
+            <g style={{ transform: `rotate(${setaRot}deg)`, transformOrigin: '80px 80px', transition: 'transform .25s ease-out' }}>
+              <polygon points="80,26 96,74 80,64 64,74" className="ir-ponta" />
+              <rect x="76" y="64" width="8" height="46" rx="3" className="ir-haste" />
+            </g>
+            <circle cx="80" cy="80" r="5" className="ir-centro" />
+          </svg>
           <div className="ir-dist">{dist > 2000 ? metros(dist / 1000, 2) + ' km' : metros(dist, 0) + ' m'}</div>
-          <div className="ir-sub">{chegou ? '✓ Você chegou — dentro da precisão do celular' : `azimute ${grausDMS(az)} · ${pontoCardeal(az)}`}</div>
+          <div className="ir-sub">{chegou ? '✓ Você chegou — dentro da precisão do celular'
+            : rumoAparelho != null ? (() => { const d = ((az - rumoAparelho + 540) % 360) - 180; return Math.abs(d) < 8 ? '⬆ Siga em frente' : `${d > 0 ? '↻ vire à direita' : '↺ vire à esquerda'} ${Math.round(Math.abs(d))}°` })()
+            : `azimute ${grausDMS(az)} · ${pontoCardeal(az)}`}</div>
+          {rumoAparelho != null && !chegou && <div className="ir-sub">azimute {grausDMS(az)} · {pontoCardeal(az)}</div>}
           <div className="ir-sub">ΔN {dN >= 0 ? '+' : ''}{metros(dN, 1)} m · ΔE {dE >= 0 ? '+' : ''}{metros(dE, 1)} m</div>
         </div>
         <p className="note">
-          {bussola === 'on' ? 'A seta gira com a bússola do aparelho.' : bussola === 'negada' ? 'Sem bússola: a seta aponta o azimute com o norte para cima.' :
-            <>A seta usa o norte para cima. <span style={{ textDecoration: 'underline', cursor: 'pointer' }} onClick={ligarBussola}>Ligar bússola</span> para ela girar com o aparelho.</>}
+          {bussola === 'on' ? 'Com a bússola ligada, o mostrador gira: segure o celular na horizontal e siga a seta.' : bussola === 'negada' ? 'Sem bússola: o N fica para cima e a seta mostra o azimute — oriente-se pelo sol ou pela sombra.' :
+            <>Sem bússola o N fica para cima e a seta mostra o azimute. <span style={{ textDecoration: 'underline', cursor: 'pointer', fontWeight: 700 }} onClick={ligarBussola}>Ligar bússola</span> para o mostrador girar com o aparelho.</>}
           {alvo.sigma != null && <> Alvo conhecido a ±{alvo.sigma < 1 ? metros(alvo.sigma * 100, 0) + ' cm' : metros(alvo.sigma, 0) + ' m'}.</>}
         </p>
       </>}
