@@ -511,7 +511,8 @@ export default function Aluno() {
         <span style={{ cursor: 'pointer', textDecoration: 'underline', fontWeight: 700 }} onClick={irParaProfessora}>Voltar para a professora</span>
       </div>}
       <CardPresenca />
-      {ident && minhasIns.length > 0 && <Vitrine minhas={minhasIns} onAbrir={() => irArea('insignias')} />}
+      {/* sempre à vista, mesmo com zero: as bloqueadas mostram o caminho (princípio do guia) */}
+      <Vitrine minhas={minhasIns} onAbrir={() => irArea('insignias')} />
       {novaIns && <CartaoInsignia chave={novaIns.chave} dado={novaIns.dado} onFechar={() => { insignias.marcarVistas(); irArea('insignias') }} />}
       {alerta && <button className={'alerta-missao' + (alerta.urgente ? ' urgente' : '')} onClick={() => irArea('missoes')}>
         <span className="am-ico">{alerta.urgente ? '⏱' : '✨'}</span>

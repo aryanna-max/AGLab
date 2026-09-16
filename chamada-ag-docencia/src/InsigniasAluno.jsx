@@ -14,7 +14,7 @@ export function Vitrine({ minhas, onAbrir }) {
       <span className="vt-top"><b>Minhas insígnias</b><span className="vt-n">{minhas.length} de {TOTAL} ›</span></span>
       <span className="vt-fila">
         {ultimas.map(i => <img key={i.chave} src={arte(i.chave)} alt={POR_CHAVE[i.chave]?.nome || ''} />)}
-        {ultimas.length === 0 && <span className="note">Comece medindo: a primeira chega rápido.</span>}
+        {ultimas.length === 0 && <span className="note" style={{ margin: 0 }}>Nenhuma ainda. Toque para ver as {TOTAL} e o que falta para cada uma.</span>}
       </span>
     </button>
   )
