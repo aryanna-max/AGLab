@@ -1,4 +1,5 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
+import { tocarConquista, somEscolhido, definirSom, SONS } from './lib/som'
 import { INSIGNIAS, CATEGORIAS, TOTAL, POR_CHAVE, arte } from './lib/insignias'
 
 /* Coleção do aluno: o que ele já sabe fazer.
@@ -22,6 +23,7 @@ export function Vitrine({ minhas, onAbrir }) {
 
 export function CartaoInsignia({ chave, dado, onFechar }) {
   const ins = POR_CHAVE[chave]
+  useEffect(() => { if (ins) tocarConquista() }, [chave])
   if (!ins) return null
   return (
     <div className="velado" onClick={onFechar}>
@@ -40,12 +42,18 @@ export default function InsigniasAluno({ insignias }) {
   const lista = insignias.dados?.insignias || []
   const porChave = Object.fromEntries(lista.map(i => [i.chave, i]))
   const [aberta, setAberta] = useState(null)
+  const [som, setSom] = useState(somEscolhido)
 
   return (
     <>
       <div className="panel">
         <h2 style={{ marginTop: 0 }}>{lista.length} de {TOTAL}</h2>
         <p className="hint">Insígnia é reconhecimento do que você já sabe fazer. Não vale ponto no ranking das missões.</p>
+        <label className="fld">🔔 Som ao ganhar uma insígnia</label>
+        <div className="btnrow" style={{ marginTop: 0 }}>
+          {SONS.map(([k, n]) => <button key={k} className={'btn ghost mini' + (som === k ? ' on' : '')} onClick={() => { definirSom(k); setSom(k); tocarConquista(k) }}>{n}</button>)}
+          <button className={'btn ghost mini' + (som === '0' ? ' on' : '')} onClick={() => { definirSom('0'); setSom('0') }}>Sem som</button>
+        </div>
       </div>
       {CATEGORIAS.map(([cat, nome, cor]) => {
         const doGrupo = INSIGNIAS.filter(i => i.cat === cat)

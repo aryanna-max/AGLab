@@ -9,6 +9,7 @@ import PresencaAluno from './PresencaAluno.jsx'
 import MissoesAluno from './MissoesAluno.jsx'
 import { useHistoricoPresenca, useMissoes, useInsignias, fmtPrazo, missaoVista, resumoFaltas } from './lib/alunoApi'
 import InsigniasAluno, { Vitrine, CartaoInsignia } from './InsigniasAluno.jsx'
+import { prepararSom } from './lib/som'
 import { EH_COMPUTADOR } from './lib/aparelho'
 import { resumirOcupacao } from './lib/topo'
 import { estadoAvisos, ativarAvisosAluno, sincronizarAvisosAluno, TEXTO_ESTADO } from './lib/avisos'
@@ -202,6 +203,7 @@ export default function Aluno() {
   const missoes = useMissoes(ident, online)
   const insignias = useInsignias(ident, online)
   useEffect(() => { if (tela === 'home') insignias.recarregar() }, [tela])
+  useEffect(() => { prepararSom() }, [])   // destrava o som da conquista no primeiro toque
 
   /* avisos da professora com o app fechado */
   const [estadoAv, setEstadoAv] = useState(null)
