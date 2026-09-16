@@ -184,6 +184,12 @@ export async function removerAluno(alunoId) {
 }
 
 /* ---------- foto ---------- */
+// libera o aluno para mandar uma nova selfie (a que ele enviou some da lista)
+export async function liberarSelfie(alunoId) {
+  const { error } = await supabase.from('alunos').update({ foto_data: null, foto_em: null }).eq('id', alunoId)
+  if (error) throw error
+}
+
 export async function saveFoto(alunoId, dataUrl) {
   const uid = await currentUserId()
   if (!uid) throw new Error('Sessão expirada. Entre novamente para salvar a foto.')

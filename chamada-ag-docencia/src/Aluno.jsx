@@ -210,8 +210,8 @@ export default function Aluno() {
     if (!id || !navigator.onLine) return
     supabase.rpc('validar_sessao', { p_codigo: '', p_matricula: id.matricula || '', p_aluno_id: id.alunoId || null }).then(({ data }) => {
       if (!data?.ok) return
-      if (data.tem_foto !== id.temFoto || data.nome !== id.nome || !!data.teste !== !!id.teste) {
-        const i = { ...id, nome: data.nome, turma: data.turma, turmaId: data.turma_id, temFoto: data.tem_foto, teste: !!data.teste }
+      if (data.tem_foto !== id.temFoto || data.tem_selfie !== id.temSelfie || data.nome !== id.nome || !!data.teste !== !!id.teste) {
+        const i = { ...id, nome: data.nome, turma: data.turma, turmaId: data.turma_id, temFoto: data.tem_foto, temSelfie: data.tem_selfie, teste: !!data.teste }
         gravar(K_IDENT, i); setIdent(i); identRef.current = i
       }
     }).catch(() => {})
@@ -284,7 +284,7 @@ export default function Aluno() {
       if (!data?.ok) { setErro(data?.erro || 'Não encontrei você.'); return false }
       // no computador, só o login de teste (regra dela, 16/09): aluno real usa o celular
       if (EH_COMPUTADOR && !data.teste) { setErro('No computador a tela do aluno é só para teste: entre com uma matrícula da TURMA TESTE (TESTE1 a TESTE4). Alunos usam o celular.'); return false }
-      const i = { alunoId: data.aluno_id, matricula: data.matricula, nome: data.nome, turma: data.turma, turmaId: data.turma_id, temFoto: data.tem_foto, teste: !!data.teste }
+      const i = { alunoId: data.aluno_id, matricula: data.matricula, nome: data.nome, turma: data.turma, turmaId: data.turma_id, temFoto: data.tem_foto, temSelfie: data.tem_selfie, teste: !!data.teste }
       gravar(K_IDENT, i); setIdent(i); identRef.current = i; setMatInput(i.matricula || '')
       return true
     } catch (e) {
@@ -456,7 +456,7 @@ export default function Aluno() {
   if (tela === 'presenca') return (
     <div className="wrap"><Cabecalho titulo="Presença" />
       <PresencaAluno historico={historico} presencaHoje={presenca} online={online} onMarcar={irChamada}
-        foto={ident && <MinhaFoto ident={ident} online={online} pedir={ident.temFoto === false} onEnviada={() => { insignias.recarregar(); const i = { ...ident, temFoto: true }; gravar(K_IDENT, i); setIdent(i) }} />} />
+        foto={ident && <MinhaFoto ident={ident} online={online} pedir={ident.temFoto === false} jaEnviada={ident.temSelfie} onEnviada={() => { insignias.recarregar(); const i = { ...ident, temFoto: true, temSelfie: true }; gravar(K_IDENT, i); setIdent(i) }} />} />
     </div>
   )
 
