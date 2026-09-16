@@ -52,7 +52,7 @@ export default function MinhaFoto({ ident, online, pedir, onEnviada }) {
         <div className="selfie-prev">{minha ? <img src={minha.src} alt="" /> : <span>{(ident.nome || '?')[0]}</span>}</div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <h2 style={{ marginTop: 0 }}>Minha foto</h2>
-          <p className="hint">É como a professora vê você na lista e no radar. Só o rosto, bem pequena.</p>
+          <p className="hint">É como a professora vê você na lista e no radar.</p>
           <div className="btnrow" style={{ alignItems: 'center' }}>
             <button className="btn" onClick={() => fileRef.current && fileRef.current.click()} disabled={busy}>
               {busy ? 'Processando…' : minha ? '📷 Trocar foto' : '📷 Tirar selfie'}
