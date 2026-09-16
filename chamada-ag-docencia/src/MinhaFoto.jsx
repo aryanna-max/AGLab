@@ -10,7 +10,7 @@ const K = 'agc2_selfie'   // {alunoId, src, enviada, em}
 const ler = () => { try { return JSON.parse(localStorage.getItem(K) || 'null') } catch (e) { return null } }
 const gravar = v => { try { v ? localStorage.setItem(K, JSON.stringify(v)) : localStorage.removeItem(K) } catch (e) {} }
 
-export default function MinhaFoto({ ident, online, pedir }) {
+export default function MinhaFoto({ ident, online, pedir, onEnviada }) {
   const [sel, setSel] = useState(ler)
   const [busy, setBusy] = useState(false)
   const [erro, setErro] = useState('')
@@ -21,6 +21,7 @@ export default function MinhaFoto({ ident, online, pedir }) {
     const { data, error } = await supabase.rpc('salvar_selfie', { p_matricula: ident.matricula || '', p_aluno_id: ident.alunoId || null, p_foto: src })
     if (error) throw error
     if (!data?.ok) throw new Error(data?.erro || 'não aceitou a foto')
+    if (onEnviada) onEnviada()   // a selfie vale insígnia: confere na hora
   }
 
   // ficou pendente sem rede → tenta quando a rede volta

@@ -201,6 +201,7 @@ export default function Aluno() {
   const historico = useHistoricoPresenca(ident, online)
   const missoes = useMissoes(ident, online)
   const insignias = useInsignias(ident, online)
+  useEffect(() => { if (tela === 'home') insignias.recarregar() }, [tela])
 
   /* avisos da professora com o app fechado */
   const [estadoAv, setEstadoAv] = useState(null)
@@ -544,7 +545,7 @@ export default function Aluno() {
         </div>
         {erroAv && <div className="flash err" style={{ textAlign: 'left' }}>{erroAv}</div>}
       </div>}
-      {ident && <MinhaFoto ident={ident} online={online} pedir={ident.temFoto === false} />}
+      {ident && <MinhaFoto ident={ident} online={online} pedir={ident.temFoto === false} onEnviada={insignias.recarregar} />}
 
       <p className="note" style={{ textAlign: 'center' }}>
         {ident ? <>Você: <b>{ident.nome || ident.matricula}</b> · <span style={{ cursor: 'pointer', textDecoration: 'underline' }} onClick={trocarIdent}>trocar</span></>
