@@ -443,7 +443,8 @@ export default function Aluno() {
 
   if (tela === 'presenca') return (
     <div className="wrap"><Cabecalho titulo="Presença" />
-      <PresencaAluno historico={historico} presencaHoje={presenca} online={online} onMarcar={irChamada} />
+      <PresencaAluno historico={historico} presencaHoje={presenca} online={online} onMarcar={irChamada}
+        foto={ident && <MinhaFoto ident={ident} online={online} pedir={ident.temFoto === false} onEnviada={() => { insignias.recarregar(); const i = { ...ident, temFoto: true }; gravar(K_IDENT, i); setIdent(i) }} />} />
     </div>
   )
 
@@ -491,6 +492,7 @@ export default function Aluno() {
   const subPresenca = presenca && !presenca.fora ? `Registrada hoje às ${presenca.hora}.`
     : hojeJan ? (hojeJan.aberta_agora ? `Aula aberta até ${hojeJan.fim}. Marque agora.` : `Janela de hoje: ${hojeJan.inicio}–${hojeJan.fim}.`)
     : rf ? `${rf.presencas} presença(s) · ${rf.faltasHa} h-a de falta.` : 'Marcar presença e acompanhar faltas.'
+  const faltaFoto = ident && ident.temFoto === false
   const listaM = missoes.dados?.missoes || []
   const abertasM = listaM.filter(m => m.aberta)
   const nAbertas = abertasM.length
@@ -524,7 +526,7 @@ export default function Aluno() {
       <div className="escolha tres">
         <button className="card-perfil" onClick={() => irArea('presenca')}>
           <span className="cp-emoji">📍</span><span className="cp-tit">Presença</span>
-          <span className="cp-sub">{subPresenca}</span>
+          <span className="cp-sub">{subPresenca}{faltaFoto && <><br />📷 Falta a sua foto.</>}</span>
         </button>
         <button className="card-perfil" onClick={irMedir}>
           <span className="cp-emoji">🛰️</span><span className="cp-tit">{NOME_GPS}</span>
@@ -547,7 +549,6 @@ export default function Aluno() {
         </div>
         {erroAv && <div className="flash err" style={{ textAlign: 'left' }}>{erroAv}</div>}
       </div>}
-      {ident && <MinhaFoto ident={ident} online={online} pedir={ident.temFoto === false} onEnviada={insignias.recarregar} />}
 
       <p className="note" style={{ textAlign: 'center' }}>
         {ident ? <>Você: <b>{ident.nome || ident.matricula}</b> · <span style={{ cursor: 'pointer', textDecoration: 'underline' }} onClick={trocarIdent}>trocar</span></>
