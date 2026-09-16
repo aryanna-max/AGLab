@@ -2,11 +2,13 @@
    A regra automática é conferida no servidor (_avaliar_insignias); aqui ficam só nome,
    categoria, texto da regra e a arte. Duas são dadas pela professora. */
 
+/* Cores tiradas da própria arte (paleta de 15/09/2026, depois da inversão dela:
+   Primeiros passos virou esmeralda e Altimetria virou rubi). */
 export const CATEGORIAS = [
-  ['passos', 'Primeiros passos', '#5B9BDA'],
-  ['metodo', 'Método de coleta', '#17A2B8'],
-  ['plani', 'Planimetria', '#2E75B6'],
-  ['alti', 'Altimetria', '#1E6B36'],
+  ['passos', 'Primeiros passos', '#12804A'],
+  ['metodo', 'Método de coleta', '#0E8C9E'],
+  ['plani', 'Planimetria', '#2749B0'],
+  ['alti', 'Altimetria', '#B01B1B'],
   ['missoes', 'Missões', '#B8860B'],
   ['especiais', 'Especiais', '#6B4FA0'],
 ]
