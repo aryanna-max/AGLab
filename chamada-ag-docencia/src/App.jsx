@@ -3,7 +3,7 @@ import { supabase } from './supabaseClient'
 import * as store from './lib/store'
 import { qrDataUrl, QR_PREFIX } from './lib/qr'
 import { PERC, M0452, paraUTM25S, distanciaUTM, grausMinSeg, metros, vezesPiorQuePerc } from './lib/geo'
-import { gravarPerfil } from './Escolha.jsx'
+import { irParaAluno } from './Escolha.jsx'
 import Radar from './Radar.jsx'
 import Analise from './Analise.jsx'
 import MissoesProfessora from './MissoesProfessora.jsx'
@@ -65,7 +65,7 @@ function Login() {
         </p>
       </div>
       <p className="note" style={{ textAlign: 'center', cursor: 'pointer' }}
-        onClick={() => { gravarPerfil('aluno'); location.href = '/' }}>Sou aluno</p>
+        onClick={() => irParaAluno(EH_COMPUTADOR)}>Sou aluno</p>
     </div>
   )
 }
@@ -135,6 +135,7 @@ function Main({ session }) {
         <span className="spacer" />
         <span className={'badge ' + (online ? 'on' : 'off')}>{online ? 'Online' : 'Offline'}</span>
         {pending > 0 && <span className="badge off">{pending} p/ sincronizar</span>}
+        <button className="btn ghost mini" onClick={() => irParaAluno(EH_COMPUTADOR)} title="Abre o app do aluno para testar (no computador, só nesta aba)">Ver como aluno</button>
         <button className="btn ghost mini" onClick={() => supabase.auth.signOut()}>Sair</button>
       </header>
 

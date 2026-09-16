@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react'
 import { supabase } from './supabaseClient'
 import { PERC, paraUTM25S, distanciaUTM, metros, vezesPiorQuePerc } from './lib/geo'
 import { decodeFromVideo, parsePayload } from './lib/qr'
-import { gravarPerfil } from './Escolha.jsx'
+import { gravarPerfil, irParaProfessora } from './Escolha.jsx'
 import Orbe from './Orbe.jsx'
 import MinhaFoto from './MinhaFoto.jsx'
 import PresencaAluno from './PresencaAluno.jsx'
@@ -284,6 +284,7 @@ export default function Aluno() {
 
   /* ---------- GPS ---------- */
   function ligarGPS() {
+    if (EH_COMPUTADOR) { setErro('No computador a localização vem do Wi-Fi e não vale como medição. Presença e Campo só pelo celular.'); return }
     if (!navigator.geolocation) { setErro('Este navegador não tem geolocalização.'); return }
     if (watchRef.current != null) return
     t0.current = performance.now(); ttff.current = null; nFixRef.current = 0; melhorRef.current = null
@@ -503,8 +504,9 @@ export default function Aluno() {
       <header className="app"><img className="orbe-mini" src="/orbe-mascote.png" alt="" /><h1>Orbe</h1><span className="sub">Topografia · IFPE · aluno</span><span className="spacer" />
         {naFila > 0 && <span className="badge off">{naFila} na fila</span>}{!online && <span className="badge off">sem rede</span>}</header>
       {EH_COMPUTADOR && <div className="flash dup" style={{ textAlign: 'left' }}>
-        <b>Esta é a tela do aluno, feita para o celular.</b> Aqui no computador o GPS não funciona.
-        Se você é a professora, <span style={{ cursor: 'pointer', textDecoration: 'underline', fontWeight: 700 }} onClick={() => { gravarPerfil('professor'); location.href = '/' }}>entre como professora</span>.
+        <b>Modo de teste: tela do aluno no computador.</b> Missões, presença, insígnias e avisos funcionam para conferir.
+        Medir posição não: no computador a localização vem do Wi-Fi e não vale como dado — use o celular para Presença e Campo.{' '}
+        <span style={{ cursor: 'pointer', textDecoration: 'underline', fontWeight: 700 }} onClick={irParaProfessora}>Voltar para a professora</span>
       </div>}
       <CardPresenca />
       {ident && minhasIns.length > 0 && <Vitrine minhas={minhasIns} onAbrir={() => irArea('insignias')} />}
@@ -549,7 +551,7 @@ export default function Aluno() {
         <h2>Vira app no seu celular</h2>
         <p className="note" style={{ marginTop: 4 }}><b>iPhone:</b> Compartilhar → <b>Adicionar à Tela de Início</b>. <b>Android:</b> menu ⋮ → <b>Instalar app</b>.</p>
       </div>
-      <p className="note" style={{ textAlign: 'center', cursor: 'pointer' }} onClick={() => { gravarPerfil('professor'); location.href = '/' }}>Sou professor(a)</p>
+      <p className="note" style={{ textAlign: 'center', cursor: 'pointer' }} onClick={irParaProfessora}>Sou professor(a)</p>
     </div>
   )
 

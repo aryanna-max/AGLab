@@ -8,6 +8,21 @@ export const PERFIL_KEY = 'agc2_perfil'
 export function lerPerfil() { try { return localStorage.getItem(PERFIL_KEY) || '' } catch (e) { return '' } }
 export function gravarPerfil(p) { try { if (p) localStorage.setItem(PERFIL_KEY, p); else localStorage.removeItem(PERFIL_KEY) } catch (e) {} }
 
+/* No computador o app abre sempre na professora (regra dela: ninguém cai na tela do aluno por engano).
+   Para testar a tela do aluno ali, "Sou aluno" liga um modo de teste que vale só para esta aba. */
+const K_ALUNO_NO_PC = 'agc2_aluno_no_pc'
+export const alunoNoComputador = () => { try { return sessionStorage.getItem(K_ALUNO_NO_PC) === '1' } catch (e) { return false } }
+export function irParaAluno(ehComputador) {
+  if (ehComputador) { try { sessionStorage.setItem(K_ALUNO_NO_PC, '1') } catch (e) {} }
+  else gravarPerfil('aluno')
+  location.href = '/'
+}
+export function irParaProfessora() {
+  try { sessionStorage.removeItem(K_ALUNO_NO_PC) } catch (e) {}
+  gravarPerfil('professor')
+  location.href = '/'
+}
+
 export default function Escolha({ onEscolher }) {
   return (
     <div className="wrap">

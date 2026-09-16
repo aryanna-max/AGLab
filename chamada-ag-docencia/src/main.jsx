@@ -2,7 +2,7 @@ import React from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App.jsx'
 import Aluno from './Aluno.jsx'
-import Escolha, { lerPerfil, gravarPerfil } from './Escolha.jsx'
+import Escolha, { lerPerfil, gravarPerfil, alunoNoComputador, irParaAluno } from './Escolha.jsx'
 import './styles.css'
 import { EH_COMPUTADOR } from './lib/aparelho'
 import { mesclarMarcos } from './lib/topo'
@@ -21,12 +21,12 @@ const porLink = location.pathname.replace(/\/+$/, '').endsWith('/aluno') ||
 const temAula = new URLSearchParams(location.search).has('aula')
 function Raiz() {
   const [perfil, setPerfil] = React.useState(() => {
-    if (EH_COMPUTADOR && !temAula) return 'professor'
+    if (EH_COMPUTADOR && !temAula) return alunoNoComputador() ? 'aluno' : 'professor'
     return porLink ? 'aluno' : lerPerfil()
   })
   if (perfil === 'aluno') return <Aluno />
   if (perfil === 'professor') return <App />
-  return <Escolha onEscolher={p => { gravarPerfil(p); setPerfil(p) }} />
+  return <Escolha onEscolher={p => { if (p === 'aluno' && EH_COMPUTADOR) { irParaAluno(true); return } gravarPerfil(p); setPerfil(p) }} />
 }
 
 /* Marcos cadastrados pela professora entram na lista antes da primeira tela (2,5 s no máximo; offline segue sem eles). */
