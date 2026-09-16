@@ -22,7 +22,7 @@
     return new Blob([out.buffer.slice(0, 44 + (fim + 2205) * 2)], { type: 'audio/wav' })
   }
 
-  const numero = { sino: 'A', brilho: 'B', missao: 'C', sinal: 'D', orbita: 'E', radar: 'F', carga: 'G' }
+  const numero = { radar: '1', sino: '2', missao: '3', orbita: '4' }
   const feitos = []
   for (const [k, nome] of SONS) {
     const c = new OfflineAudioContext(1, Math.ceil(SR * DURA), SR)

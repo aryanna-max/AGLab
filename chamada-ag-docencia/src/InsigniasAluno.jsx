@@ -51,8 +51,8 @@ export default function InsigniasAluno({ insignias }) {
         <p className="hint">Insígnia é reconhecimento do que você já sabe fazer. Não vale ponto no ranking das missões.</p>
         <label className="fld">🔔 Som ao ganhar uma insígnia</label>
         <div className="btnrow" style={{ marginTop: 0 }}>
-          {SONS.map(([k, n]) => <button key={k} className={'btn ghost mini' + (som === k ? ' on' : '')} onClick={() => { definirSom(k); setSom(k); tocarConquista(k) }}>{n}</button>)}
-          <button className={'btn ghost mini' + (som === '0' ? ' on' : '')} onClick={() => { definirSom('0'); setSom('0') }}>Sem som</button>
+          {SONS.map(([k, n]) => <button key={k} className={'btn ghost mini' + (som === k ? ' on' : '')} onClick={() => { definirSom(k); setSom(k); tocarConquista(k) }}>{n}{k === 'radar' ? ' · oficial' : ''}</button>)}
+          <button className={'btn ghost mini' + (som === '0' ? ' on' : '')} onClick={() => { definirSom('0'); setSom('0') }} title="Sem som" aria-label="Sem som">🔇</button>
         </div>
       </div>
       {CATEGORIAS.map(([cat, nome, cor]) => {
