@@ -145,7 +145,7 @@ export default function Aluno() {
   const codigoDaUrl = (params.get('aula') || '').toUpperCase()
 
   const [tela, setTela] = useState('home')   // home | presenca | missoes | insignias | ler-aula | identificar | chamada-ok | medir
-  const [ident, setIdent] = useState(() => ler(K_IDENT, null))
+  const [ident, setIdent] = useState(() => { const i = ler(K_IDENT, null); return EH_COMPUTADOR && i && !i.teste ? null : i })
   const [presenca, setPresenca] = useState(() => { const p = ler(K_PRES, null); return p && p.data === hojeISO() ? p : null })
   const [codigoAula, setCodigoAula] = useState(codigoDaUrl)   // código lido do QR do dia (só na chamada)
   const [aula, setAula] = useState(null)                       // {turma, local, janela_aberta}
@@ -267,11 +267,13 @@ export default function Aluno() {
       const { data, error } = await supabase.rpc('validar_sessao', { p_codigo: '', p_matricula: matricula || '', p_aluno_id: alunoId || null })
       if (error) throw error
       if (!data?.ok) { setErro(data?.erro || 'Não encontrei você.'); return false }
-      const i = { alunoId: data.aluno_id, matricula: data.matricula, nome: data.nome, turma: data.turma, turmaId: data.turma_id, temFoto: data.tem_foto }
+      // no computador, só o login de teste (regra dela, 16/09): aluno real usa o celular
+      if (EH_COMPUTADOR && !data.teste) { setErro('No computador a tela do aluno é só para teste: entre com uma matrícula da TURMA TESTE (TESTE1 a TESTE4). Alunos usam o celular.'); return false }
+      const i = { alunoId: data.aluno_id, matricula: data.matricula, nome: data.nome, turma: data.turma, turmaId: data.turma_id, temFoto: data.tem_foto, teste: !!data.teste }
       gravar(K_IDENT, i); setIdent(i); identRef.current = i; setMatInput(i.matricula || '')
       return true
     } catch (e) {
-      if (ehErroDeRede(e) && (matricula || alunoId)) {
+      if (ehErroDeRede(e) && (matricula || alunoId) && !EH_COMPUTADOR) {
         const i = { alunoId: alunoId || null, matricula: matricula || '', nome: '', turma: '' }
         gravar(K_IDENT, i); setIdent(i); identRef.current = i
         setAviso('Sem rede — vou confirmar quem você é quando a conexão voltar.'); setTimeout(() => setAviso(''), 4000)
@@ -467,7 +469,7 @@ export default function Aluno() {
             onLido={t => { const p = parsePayload(t); setLendoCartao(false); if (p) identificarEContinuar({ alunoId: p.alunoId }); else setErro('Esse QR não é de um cartão de aluno.') }} />
         : <form className="panel" onSubmit={e => { e.preventDefault(); identificarEContinuar({ matricula: matInput.trim() }) }}>
             <h2>Identifique-se uma vez</h2>
-            <p className="hint">Fica guardado neste celular. Sem senha.</p>
+            <p className="hint">{EH_COMPUTADOR ? 'Modo de teste no computador: use TESTE1, TESTE2, TESTE3 ou TESTE4.' : 'Fica guardado neste celular. Sem senha.'}</p>
             <label className="fld">Sua matrícula</label>
             <input value={matInput} onChange={e => setMatInput(e.target.value)} placeholder="20262F61RC0000" autoCorrect="off" />
             {erro && <div className="flash err" style={{ textAlign: 'left' }}>{erro}</div>}
