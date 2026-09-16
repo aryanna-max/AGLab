@@ -204,6 +204,18 @@ export default function Aluno() {
   const insignias = useInsignias(ident, online)
   useEffect(() => { if (tela === 'home') insignias.recarregar() }, [tela])
   useEffect(() => { prepararSom() }, [])   // destrava o som da conquista no primeiro toque
+  // ao abrir: confirma no servidor nome, foto e turma de teste (a selfie pode ter sido enviada em outra versão ou aparelho)
+  useEffect(() => {
+    const id = identRef.current
+    if (!id || !navigator.onLine) return
+    supabase.rpc('validar_sessao', { p_codigo: '', p_matricula: id.matricula || '', p_aluno_id: id.alunoId || null }).then(({ data }) => {
+      if (!data?.ok) return
+      if (data.tem_foto !== id.temFoto || data.nome !== id.nome || !!data.teste !== !!id.teste) {
+        const i = { ...id, nome: data.nome, turma: data.turma, turmaId: data.turma_id, temFoto: data.tem_foto, teste: !!data.teste }
+        gravar(K_IDENT, i); setIdent(i); identRef.current = i
+      }
+    }).catch(() => {})
+  }, [ident?.alunoId])
 
   /* avisos da professora com o app fechado */
   const [estadoAv, setEstadoAv] = useState(null)
