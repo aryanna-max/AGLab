@@ -15,7 +15,19 @@ const polis = [
   { id: 'q1', nome: 'Poligonal M0451-M0452-A-B', pin_ids: ['p1', 'p3', 'p2', 'p4'], resultado: { vertices: 4, perimetro: 130.1, area: 58 }, criado_em: agora, aluno_id: T2 + '-a1', alunos: { nome: 'Aluno 2' } },
   { id: 'q2', nome: 'Poligonal M0451-B-M0452', pin_ids: ['p5', 'p7', 'p6'], resultado: { vertices: 3, perimetro: 91, area: 300 }, criado_em: agora, aluno_id: T2 + '-a2', alunos: { nome: 'Aluno 3' } },
 ]
+// auxiliar do dia: guarda o acesso em memória para dar para brincar com liberar/encerrar
+let acessoAux = null
+const hojeMock = () => new Date().toISOString().slice(0, 10)
+
 const especificos = {
+  acessoAuxiliarHoje: async tid => (acessoAux && acessoAux.turma_id === tid) ? acessoAux : null,
+  liberarAuxiliar: async (tid, alunoId) => {
+    const t = turmas.find(x => x.id === tid), a = (t?.alunos || []).find(x => x.id === alunoId)
+    acessoAux = { id: 'ax1', turma_id: tid, aluno_id: alunoId, data: hojeMock(), pin: '135790',
+                  expira_em: new Date(Date.now() + 8 * 3600000).toISOString(), revogado: false, usado_em: null, tentativas: 0 }
+    return { ok: true, pin: '135790', nome: a?.nome || '(mock)', data: acessoAux.data, expira_em: acessoAux.expira_em }
+  },
+  revogarAuxiliar: async () => { acessoAux = null },
   listarMissoes: async () => [{ id: 'm1', titulo: 'Caça ao azimute', frente: 'planimetria', etapas: ['a','b','c'], entrega: 'Distância ao ponto certo', niveis: {}, arquivada: false }],
   lancamentosDaTurma: async () => [{ id: 'l1', missao_id: 'm1', turma_id: T2, prazo_tipo: 'aula', prazo_em: new Date(Date.now()+3600000).toISOString(), mostrar_ranking: true, encerrado: false, missoes: { titulo: 'Caça ao azimute', etapas: ['a','b','c'] } },
     { id: 'l2', missao_id: 'm2', turma_id: T2, prazo_tipo: 'aula', prazo_em: new Date(Date.now()+3600000).toISOString(), mostrar_ranking: true, encerrado: false, em_equipe: true, missoes: { titulo: 'Caderneta de nivelamento', etapas: ['a','b','c','d'], funcoes: ['Operador do nível', 'Porta-mira', 'Anotador', 'Calculista'] } },
@@ -86,6 +98,9 @@ export const listarMissoes = especificos['listarMissoes'] || (async () => null)
 export const loadTurmas = especificos['loadTurmas'] || (async () => null)
 export const marcarPresente = especificos['marcarPresente'] || (async () => null)
 export const marcosPublicos = especificos['marcosPublicos'] || (async () => null)
+export const acessoAuxiliarHoje = especificos['acessoAuxiliarHoje'] || (async () => null)
+export const liberarAuxiliar = especificos['liberarAuxiliar'] || (async () => null)
+export const revogarAuxiliar = especificos['revogarAuxiliar'] || (async () => null)
 export const minhaUltimaLeitura = especificos['minhaUltimaLeitura'] || (async () => null)
 export const outboxCount = especificos['outboxCount'] || (async () => null)
 export const pinsDaTurma = especificos['pinsDaTurma'] || (async () => null)

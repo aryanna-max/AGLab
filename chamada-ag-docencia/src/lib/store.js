@@ -617,3 +617,31 @@ export async function resumoTurma(turmaId) {
   }
   return { chamadas: chs, presencas: pres }
 }
+
+/* ---------- professor(a) auxiliar do dia ----------
+   A professora empresta a caderneta de hoje para alguém que já está no cadastro
+   da turma: um PIN de 6 dígitos que o banco gera e que morre à meia-noite de
+   Recife. Quem recebe entra em /auxiliar com a própria matrícula e esse PIN. */
+export async function acessoAuxiliarHoje(turmaId) {
+  // sem join: o nome e a matrícula saem da turma que a tela já tem em mãos
+  const { data, error } = await supabase.from('auxiliar_acessos')
+    .select('id,aluno_id,data,pin,expira_em,revogado,usado_em,tentativas')
+    .eq('turma_id', turmaId).order('data', { ascending: false }).limit(1)
+  if (error) throw error
+  const a = data && data[0]
+  // vale só enquanto não foi revogado e não virou o dia
+  if (!a || a.revogado || new Date(a.expira_em) <= new Date()) return null
+  return a
+}
+
+export async function liberarAuxiliar(turmaId, alunoId) {
+  const { data, error } = await supabase.rpc('liberar_auxiliar', { p_turma_id: turmaId, p_aluno_id: alunoId })
+  if (error) throw error
+  if (!data?.ok) throw new Error(data?.erro || 'Não consegui liberar.')
+  return data
+}
+
+export async function revogarAuxiliar(turmaId) {
+  const { error } = await supabase.rpc('revogar_auxiliar', { p_turma_id: turmaId })
+  if (error) throw error
+}
