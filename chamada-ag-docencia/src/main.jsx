@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import App from './App.jsx'
 import Aluno from './Aluno.jsx'
 import Escolha, { lerPerfil, gravarPerfil, alunoNoComputador, irParaAluno } from './Escolha.jsx'
+import Auxiliar from './Auxiliar.jsx'
 import './styles.css'
 import { EH_COMPUTADOR } from './lib/aparelho'
 import { mesclarMarcos } from './lib/topo'
@@ -14,6 +15,11 @@ import { supabase } from './supabaseClient'
    aluno ou da professora, conforme o aparelho. */
 const porLink = location.pathname.replace(/\/+$/, '').endsWith('/aluno') ||
   new URLSearchParams(location.search).has('aula')
+
+/* /auxiliar é a caderneta do dia de quem está substituindo a professora. Entra
+   por matrícula + PIN do dia, não por conta, e por isso fica fora de toda a
+   regra de perfil abaixo — inclusive no computador, onde ela pode projetar o QR. */
+const ehAuxiliar = location.pathname.replace(/\/+$/, '').endsWith('/auxiliar')
 
 /* No computador não existe "aluno": a tela dele é para o celular (regra dela). Um perfil
    'aluno' guardado por engano, ou o link /aluno aberto no PC, cai na professora. O link
@@ -36,7 +42,7 @@ const carregarMarcos = Promise.race([
   supabase.rpc('marcos_publicos').then(({ data }) => { if (Array.isArray(data)) { mesclarMarcos(data); try { localStorage.setItem(K_MARCOS, JSON.stringify(data)) } catch (e) {} } }).catch(() => {}),
   new Promise(r => setTimeout(r, 2500))
 ])
-carregarMarcos.finally(() => createRoot(document.getElementById('root')).render(<Raiz />))
+carregarMarcos.finally(() => createRoot(document.getElementById('root')).render(ehAuxiliar ? <Auxiliar /> : <Raiz />))
 
 /* Atualização do app.
 

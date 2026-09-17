@@ -158,7 +158,7 @@ function Main({ session }) {
         turmas.length === 0 ? <SeedPanel userId={userId} onDone={refresh} showToast={showToast} /> :
           !turma ? <div className="spin">Escolhendo a turma…</div> :
           <>
-            {tab === 'chamada' && <><ColetaTurma userId={userId} tid={tid} turmas={turmas} online={online} showToast={showToast} /><Chamada userId={userId} tid={tid} turmas={turmas} online={online} setPending={setPending} showToast={showToast} goConferir={() => setTab('conferir')} /></>}
+            {tab === 'chamada' && <><ColetaTurma userId={userId} tid={tid} turmas={turmas} online={online} showToast={showToast} /><AuxiliarDoDia tid={tid} turmas={turmas} online={online} showToast={showToast} /><Chamada userId={userId} tid={tid} turmas={turmas} online={online} setPending={setPending} showToast={showToast} goConferir={() => setTab('conferir')} /></>}
             {tab === 'insignias' && <InsigniasProfessora userId={userId} tid={tid} turmas={turmas} online={online} showToast={showToast} />}
             {tab === 'avisos' && <AvisosProfessora userId={userId} tid={tid} turmas={turmas} online={online} showToast={showToast} />}
             {tab === 'missoes' && <MissoesProfessora userId={userId} tid={tid} turmas={turmas} online={online} showToast={showToast} />}
@@ -791,6 +791,99 @@ function ColetaTurma({ userId, tid, turmas, online, showToast }) {
           </tr>)}
         </tbody></table>
       </div>}
+    </div>
+  )
+}
+
+/* ---------- professor(a) auxiliar do dia ----------
+   Para o dia em que a titular não está. Ela escolhe alguém do cadastro da turma,
+   o banco devolve um PIN de 6 dígitos, e a pessoa abre /auxiliar com a própria
+   matrícula + esse PIN: vê o QR e a caderneta de hoje, marca quem está sem
+   celular, e nada mais. À meia-noite o PIN morre sozinho. */
+function AuxiliarDoDia({ tid, turmas, online, showToast }) {
+  const turma = turmas.find(x => x.id === tid)
+  const [acesso, setAcesso] = useState(null)
+  const [quem, setQuem] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [aberto, setAberto] = useState(false)
+
+  const carregar = useCallback(() => {
+    if (!tid || !online) return
+    store.acessoAuxiliarHoje(tid).then(setAcesso).catch(() => setAcesso(null))
+  }, [tid, online])
+  useEffect(() => { carregar() }, [carregar])
+  useEffect(() => { setQuem(''); setAberto(false) }, [tid])
+
+  const linkAux = `${location.origin}/auxiliar`
+  const pessoa = acesso ? (turma?.alunos || []).find(x => x.id === acesso.aluno_id) : null
+  const recado = acesso ? [
+    `Oi, ${pessoa?.nome || ''}! Você está com a caderneta de hoje da turma ${turma?.nome || ''}.`,
+    ``,
+    `1) Abra: ${linkAux}`,
+    `2) Matrícula: ${pessoa?.matricula || '(a sua do cadastro)'}`,
+    `3) PIN de hoje: ${acesso.pin}`,
+    ``,
+    `Lá você vê o QR para projetar e a lista de presença. O acesso se encerra à meia-noite.`
+  ].join('\n') : ''
+
+  async function liberar() {
+    if (!quem) { showToast('Escolha quem vai substituir'); return }
+    setBusy(true)
+    try { const r = await store.liberarAuxiliar(tid, quem); showToast(`PIN ${r.pin} liberado para ${r.nome}`); setAberto(false); carregar() }
+    catch (e) { showToast('Erro: ' + e.message) }
+    finally { setBusy(false) }
+  }
+  async function revogar() {
+    setBusy(true)
+    try { await store.revogarAuxiliar(tid); showToast('Acesso encerrado'); setAcesso(null); setAberto(false); setQuem(''); carregar() }
+    catch (e) { showToast('Erro ao encerrar') }
+    finally { setBusy(false) }
+  }
+  async function copiar() {
+    try { await navigator.clipboard.writeText(recado); showToast('Recado copiado — é só colar no WhatsApp') }
+    catch (e) { showToast('Não consegui copiar; selecione o texto na tela') }
+  }
+
+  if (!turma) return null
+
+  return (
+    <div className="panel">
+      <h2>Professor(a) auxiliar de hoje</h2>
+      {!acesso && !aberto && <>
+        <p className="hint">Se hoje quem dá a aula é outra pessoa, libere para ela a caderneta <b>deste dia</b>: o QR da aula e a lista de presença, e nada além disso.</p>
+        <div className="btnrow"><button className="btn ghost" onClick={() => setAberto(true)} disabled={!online}>Liberar a caderneta de hoje</button></div>
+      </>}
+
+      {!acesso && aberto && <>
+        <label className="fld">Quem vai substituir (precisa estar no cadastro desta turma)</label>
+        <select value={quem} onChange={e => setQuem(e.target.value)}>
+          <option value="">— escolha —</option>
+          {(turma.alunos || []).map(a => <option key={a.id} value={a.id}>{a.nome}{a.matricula ? ` · ${a.matricula}` : ' · sem matrícula'}</option>)}
+        </select>
+        <p className="note">Sem matrícula no cadastro ela não consegue entrar — inclua a matrícula em <b>Turmas &amp; Fotos</b> antes.</p>
+        <div className="btnrow">
+          <button className="btn" onClick={liberar} disabled={busy || !online || !quem}>{busy ? 'Liberando…' : 'Gerar o PIN de hoje'}</button>
+          <button className="btn ghost" onClick={() => setAberto(false)} disabled={busy}>Cancelar</button>
+        </div>
+      </>}
+
+      {acesso && <>
+        <p className="hint"><b>{pessoa?.nome || 'Alguém da turma'}</b> está com a caderneta de hoje.
+          {acesso.usado_em ? ' Já abriu o painel.' : ' Ainda não abriu o painel.'}
+          {acesso.tentativas > 0 && ` ${acesso.tentativas} tentativa(s) de PIN erradas.`}</p>
+        <div className="codigo-box">
+          <div className="cb-lab">PIN de hoje — vale até a meia-noite</div>
+          <div className="cb-cod">{acesso.pin}</div>
+          <div className="cb-link">{linkAux} · matrícula {pessoa?.matricula || '—'}</div>
+        </div>
+        <div className="btnrow">
+          <button className="btn" onClick={copiar}>Copiar o recado pronto</button>
+          <button className="btn ghost" onClick={revogar} disabled={busy || !online}>Encerrar agora</button>
+        </div>
+        <p className="note">Ela vê só esta turma e só hoje: sem fotos, sem missões, sem as outras turmas. Só desfaz as marcações que ela mesma fez.</p>
+      </>}
+
+      {!online && <p className="note" style={{ color: 'var(--miss)' }}>Offline — liberar ou encerrar precisa de conexão.</p>}
     </div>
   )
 }

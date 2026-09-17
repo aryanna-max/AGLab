@@ -5,6 +5,10 @@
     {
       "source": "/aluno",
       "destination": "/index.html"
+    },
+    {
+      "source": "/auxiliar",
+      "destination": "/index.html"
     }
   ]
 }
