@@ -227,6 +227,9 @@ tr.reocup td{opacity:.75;font-style:italic}
 /* mascote Orbe */
 .marca{text-align:center;margin:5vh auto 20px;max-width:460px}
 .marca-img{width:min(190px,52vw);height:auto;display:block;margin:0 auto 4px}
+.marca.turma{max-width:620px;margin-top:3.5vh}
+/* a turma na entrada: panorâmica, precisa de mais largura que a mascote sozinha */
+.marca-turma{width:min(560px,94vw);height:auto;display:block;margin:0 auto 2px}
 .marca-nome{font-size:34px;font-weight:800;letter-spacing:-.02em;margin:0}
 .marca-sub{font-size:13.5px;color:var(--muted);margin:2px 0 0}
 .orbe-mini{width:34px;height:34px;object-fit:contain;flex:0 0 auto;margin-right:-2px}

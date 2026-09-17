@@ -13,7 +13,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['icon-192.png', 'icon-512.png', 'icon-192-maskable.png', 'icon-512-maskable.png', 'apple-touch-icon.png', 'orbe-mascote.png', 'orbe-icone-sem-fundo.png'],
+      includeAssets: ['icon-192.png', 'icon-512.png', 'icon-192-maskable.png', 'icon-512-maskable.png', 'apple-touch-icon.png', 'orbe-mascote.png', 'orbe-turma.png', 'orbe-icone-sem-fundo.png'],
       manifest: {
         name: 'Orbe',
         short_name: 'Orbe',
