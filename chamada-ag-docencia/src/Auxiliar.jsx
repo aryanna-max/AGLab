@@ -25,6 +25,10 @@ export default function Auxiliar() {
   const [online, setOnline] = useState(navigator.onLine)
   const [salvando, setSalvando] = useState(null)   // aluno_id em gravação
   const [toast, setToast] = useState('')
+  const [pos, setPos] = useState(null)             // a posição dela, referência do dia
+  const [gps, setGps] = useState('off')            // off | on | negada | indisponivel
+  const watchRef = useRef(null)
+  const posRef = useRef(null); useEffect(() => { posRef.current = pos }, [pos])
   const credRef = useRef(cred); useEffect(() => { credRef.current = cred }, [cred])
 
   const aviso = t => { setToast(t); setTimeout(() => setToast(''), 3000) }
@@ -56,6 +60,32 @@ export default function Auxiliar() {
     const it = setInterval(() => carregar(true), 5000)
     return () => clearInterval(it)
   }, [cred, carregar])
+
+  /* A professora está longe: quem está em campo é que vira o centro do radar dela.
+     Mesmo batimento que o aluno manda, com modo 'referencia' para o radar saber
+     que esta é a posição de apoio do dia. */
+  useEffect(() => {
+    if (!cred) return
+    if (!navigator.geolocation) { setGps('indisponivel'); return }
+    watchRef.current = navigator.geolocation.watchPosition(
+      p => { setPos({ lat: p.coords.latitude, lon: p.coords.longitude, acc: p.coords.accuracy }); setGps('on') },
+      () => setGps('negada'),
+      { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 })
+    return () => { if (watchRef.current != null) { navigator.geolocation.clearWatch(watchRef.current); watchRef.current = null } }
+  }, [cred])
+
+  useEffect(() => {
+    if (!cred) return
+    const bate = () => {
+      const pp = posRef.current, c = credRef.current
+      if (!pp || !c || !navigator.onLine) return
+      supabase.rpc('ping_posicao', { p_matricula: c.matricula, p_aluno_id: null,
+        p_lat: pp.lat, p_lon: pp.lon, p_acuracia: pp.acc, p_modo: 'referencia' }).catch(() => {})
+    }
+    const primeiro = setTimeout(bate, 2000)
+    const it = setInterval(bate, 20000)
+    return () => { clearTimeout(primeiro); clearInterval(it) }
+  }, [cred])
 
   async function entrar(e) {
     e.preventDefault()
@@ -154,6 +184,20 @@ export default function Auxiliar() {
         </> : <p className="note" style={{ color: 'var(--miss)' }}>
           A professora ainda não abriu a aula de hoje — sem isso não há QR nem presença automática. Avise que falta abrir a sessão.
         </p>}
+      </div>}
+
+      {painel && <div className="panel">
+        <h2>Sua posição é a referência de hoje</h2>
+        <p className="hint">A professora está longe, então o radar dela gira em torno de <b>onde você está</b>. Deixe esta tela aberta durante a aula.</p>
+        {gps === 'on' && pos && <p className="note">
+          Transmitindo · precisão de <b>{pos.acc != null ? Math.round(pos.acc) + ' m' : '—'}</b>.
+          {pos.acc != null && pos.acc > 30 ? ' Sinal fraco: se puder, saia de baixo da laje.' : ''}
+        </p>}
+        {gps === 'off' && <p className="note">Ligando o GPS…</p>}
+        {gps === 'negada' && <p className="note" style={{ color: 'var(--miss)' }}>
+          A localização está bloqueada neste aparelho. Libere para o navegador e recarregue — sem isso o radar da professora fica sem centro.
+        </p>}
+        {gps === 'indisponivel' && <p className="note" style={{ color: 'var(--miss)' }}>Este aparelho não tem localização. O radar da professora vai cair para o Bloco F.</p>}
       </div>}
 
       {painel && <div className="panel">

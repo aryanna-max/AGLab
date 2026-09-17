@@ -49,7 +49,15 @@ const especificos = {
   apiProfessora: () => ({ meusPins: async () => pins.slice(0, 2), salvarPin: async () => ({ ok: true, pin_id: 'x' }), minhasPoligonais: async () => [], salvarPoligonal: async () => ({ ok: true, id: 'y' }) }),
   getCachedTurmas: () => turmas, loadTurmas: async () => turmas, outboxCount: () => 0, flushOutbox: async () => 0,
   ensureChamada: async () => ({ id: 'c1' }), getPresentes: async () => [T2 + '-a0', T2 + '-a3'],
-  sessoesAbertas: async tid => tid === T2 ? [sess] : [], leiturasDaSessao: async () => leit, vivos: async () => [],
+  sessoesAbertas: async tid => tid === T2 ? [sess] : [], leiturasDaSessao: async () => leit, vivos: async tid => {
+    // seis transmitindo em volta do Bloco F, para o radar ter o que desenhar
+    const t = turmas.find(x => x.id === tid); if (!t) return []
+    const BF = { lat: -8.0587608, lon: -34.9512426 }
+    return t.alunos.slice(0, 6).map((a, i) => ({
+      aluno_id: a.id, lat: BF.lat + (i - 2.5) * 0.00018, lon: BF.lon + (i % 3 - 1) * 0.00022,
+      acuracia_m: 5 + i, modo: i === 3 ? 'referencia' : 'gps', visto_em: new Date().toISOString(),
+    }))
+  },
   minhaUltimaLeitura: async () => ({ lat: -8.0587, lon: -34.9512, acuracia_m: 8, rotulo: 'sala', criado_em: agora, capturado_em: agora }),
   leiturasDaTurma: async () => leit, pinsDaTurma: async () => pins, poligonaisDaTurma: async () => polis, sessoesDaTurma: async () => [sess],
   resumoTurma: async () => ({ chamadas: [{ id: 'c1', data: '2026-09-11' }], presencas: [] }), turmasDoSeedFaltando: async () => [],
