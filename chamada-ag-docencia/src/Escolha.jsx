@@ -26,8 +26,9 @@ export function irParaProfessora() {
 export default function Escolha({ onEscolher }) {
   return (
     <div className="wrap">
-      <div className="marca">
-        <img className="marca-img" src="/orbe-mascote.png" alt="" width="360" height="290" />
+      <div className="marca turma">
+        <img className="marca-turma" src="/orbe-turma.png" width="1120" height="606"
+             alt="A turma do Orbe: Orbe, Vértice, Navi, Lumi e Téo" />
         <h1 className="marca-nome">Orbe</h1>
         <p className="marca-sub">Topografia · IFPE</p>
       </div>
