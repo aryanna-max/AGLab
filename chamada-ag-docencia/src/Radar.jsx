@@ -7,6 +7,9 @@ import { paraUTM25S } from './lib/geo'
    - apagado (anel cinza): marcou presença hoje, mas não está transmitindo agora
    - quem não fez nenhum dos dois não aparece
    Centro: a posição do celular da professora; se negada, o Bloco F. Norte para cima.
+   Quando há auxiliar com a caderneta do dia e ela está transmitindo, o centro passa
+   a ser ELA: com a professora longe, um radar centrado na casa dela não diz nada —
+   o que importa é como a turma se distribui em volta de quem está em campo.
    Raio: barra de 10 a 250 m, ou "auto" (enquadra quem está transmitindo). Bolinhas
    sobrepostas são afastadas um pouco para nenhuma cobrir a outra. */
 
@@ -25,8 +28,14 @@ export default function Radar({ userId, tid, turmas, online, showToast, ehComput
   const [centro, setCentro] = useState(null)
   const [agora, setAgora] = useState(Date.now())
   const [raioManual, setRaioManual] = useState(null)   // null = auto
+  const [auxAcesso, setAuxAcesso] = useState(null)    // quem está com a caderneta hoje
   const watchRef = useRef(null)
   const t = turmas.find(x => x.id === tid)
+
+  useEffect(() => {
+    if (!tid || !online) { setAuxAcesso(null); return }
+    store.acessoAuxiliarHoje(tid).then(setAuxAcesso).catch(() => setAuxAcesso(null))
+  }, [tid, online])
 
   useEffect(() => {
     if (ehComputador) {
@@ -64,10 +73,26 @@ export default function Radar({ userId, tid, turmas, online, showToast, ehComput
     return () => { vivo = false; clearInterval(it) }
   }, [tid, online, userId])
 
-  const c0 = centro ? paraUTM25S(centro.lat, centro.lon) : null
   const vivoMap = {}; vivos.forEach(v => vivoMap[v.aluno_id] = v)
 
-  const bolinhas = (t ? t.alunos : []).map(a => {
+  /* Referência do dia: a auxiliar, enquanto o batimento dela estiver fresco.
+     Parou de transmitir (fechou a tela, negou o GPS) — volta ao centro de sempre. */
+  const auxId = auxAcesso?.aluno_id || null
+  const auxNome = auxId ? (t?.alunos || []).find(a => a.id === auxId)?.nome : null
+  const refAux = (() => {
+    if (!auxId) return null
+    const v = vivoMap[auxId]
+    if (!v || v.lat == null) return null
+    if ((agora - new Date(v.visto_em).getTime()) / 1000 >= VIVO_S) return null
+    // no centro cabe pouco: nome completo encosta no rótulo da bolinha vizinha
+    return { lat: v.lat, lon: v.lon, acc: v.acuracia_m, origem: 'referencia',
+             nome: auxNome || 'auxiliar', curto: String(auxNome || 'auxiliar').trim().split(/\s+/)[0] }
+  })()
+
+  const centroUsado = refAux || centro
+  const c0 = centroUsado ? paraUTM25S(centroUsado.lat, centroUsado.lon) : null
+
+  const bolinhas = (t ? t.alunos : []).filter(a => a.id !== (refAux ? auxId : null)).map(a => {
     const v = vivoMap[a.id]
     const aceso = v && (agora - new Date(v.visto_em).getTime()) / 1000 < VIVO_S
     const presente = !!presentes[a.id]
@@ -163,10 +188,17 @@ export default function Radar({ userId, tid, turmas, online, showToast, ehComput
 
           {/* centro por cima de tudo: a professora */}
           <circle cx={cx} cy={cy} r={7} className="radar-eu" />
-          <text x={cx + 11} y={cy + 4} className="radar-lab">{centro?.origem || '…'}</text>
+          <text x={cx + 11} y={cy + 4} className="radar-lab">{refAux ? refAux.curto : (centro?.origem || '…')}</text>
         </svg>
       </div>
-      <p className="note">Centro: {centro?.origem === 'você' ? `o seu celular (±${Math.round(centro.acc || 0)} m)` : centro?.origem?.startsWith('seu celular') ? `a última medição do seu celular (${centro.origem.slice(14)}) — no computador a localização local não vale` : 'o Bloco F (localização negada ou indisponível)'}. Norte para cima. Quem estiver além do raio fica na borda. Bolinhas muito próximas são afastadas um pouco para não se cobrirem — a distância escrita é a real.</p>
+      {refAux && <p className="note" style={{ color: 'var(--brand2)' }}>
+        Centro: <b>{refAux.nome}</b>, que está com a caderneta de hoje (±{Math.round(refAux.acc || 0)} m).
+        Enquanto ela transmitir, o radar mostra a turma em volta de quem está em campo — não em volta de você.
+      </p>}
+      {!refAux && auxAcesso && <p className="note" style={{ color: 'var(--miss)' }}>
+        {auxNome || 'A auxiliar'} está com a caderneta de hoje, mas não está transmitindo posição — o centro voltou para o de sempre.
+      </p>}
+      {!refAux && <p className="note">Centro: {centro?.origem === 'você' ? `o seu celular (±${Math.round(centro.acc || 0)} m)` : centro?.origem?.startsWith('seu celular') ? `a última medição do seu celular (${centro.origem.slice(14)}) — no computador a localização local não vale` : 'o Bloco F (localização negada ou indisponível)'}. Norte para cima. Quem estiver além do raio fica na borda. Bolinhas muito próximas são afastadas um pouco para não se cobrirem — a distância escrita é a real.</p>}
       {!online && <p className="note" style={{ color: 'var(--miss)' }}>Offline — o radar precisa de internet.</p>}
     </div>
   )
