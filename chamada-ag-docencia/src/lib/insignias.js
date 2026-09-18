@@ -54,5 +54,7 @@ export const NOME_CAT = Object.fromEntries(CATEGORIAS.map(([k, n]) => [k, n]))
 export const COR_CAT = Object.fromEntries(CATEGORIAS.map(([k, , c]) => [k, c]))
 export const TOTAL = INSIGNIAS.length
 // arte: joias hexagonais (15/09/2026). Equipe em campo e Envio oficial ainda usam o rascunho.
+// ARTE_V muda a cada arte nova publicada: o celular guarda a arte por 180 dias (CacheFirst) pelo endereço
+const ARTE_V = '2026-09-18'
 export const arte = (k, { tam = 128, bloqueada = false } = {}) =>
-  `/insignias/${k}${bloqueada && !ehPioneira(k) ? '-bloqueada-128' : '-' + (tam > 128 ? 256 : 128)}.png`
+  `/insignias/${k}${bloqueada && !ehPioneira(k) ? '-bloqueada-128' : '-' + (tam > 128 ? 256 : 128)}.png?v=${ARTE_V}`
