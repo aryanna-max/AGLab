@@ -168,10 +168,10 @@ function MedalhaAuto({ m }) {
   return (
     <div className="panel">
       <h2 style={{ marginTop: 0 }}>Medalha automática</h2>
-      <p className="hint">Faça o pin com o nome <b>{md.marco}</b> em cima do marco. O app mede a distância do pin até o marco e dá a medalha na hora. Pode tentar de novo: vale o seu <b>melhor pin</b> até o prazo.</p>
+      <p className="hint">Faça o pin com o nome <b>{md.marco}</b> em cima do marco. O app mede a distância do pin até o marco e dá a medalha na hora. {md.vale === 'melhor' ? <>Pode tentar de novo: vale o seu <b>melhor pin</b> até o prazo.</> : <>Só vale o <b>primeiro pin</b> {md.marco}: capriche antes de marcar.</>}</p>
       <p className="note">🥇 até {fmt(lim.ouro)} m · 🥈 até {fmt(lim.prata)} m · 🥉 até {fmt(lim.bronze)} m</p>
-      {a ? <div className="devolutiva"><b>Seu melhor pin ficou a {fmt(a.erro)} m do marco</b>
-          <p>{(m.minha?.nivel || a.nivel) ? NIVEL[m.minha?.nivel || a.nivel] : `Ainda sem medalha: precisa ficar a até ${fmt(lim.bronze)} m.`}{a.n_pins > 1 ? ` · ${a.n_pins} tentativas` : ''}</p></div>
+      {a ? <div className="devolutiva"><b>Seu {a.vale === 'melhor' ? 'melhor' : 'primeiro'} pin ficou a {fmt(a.erro)} m do marco</b>
+          <p>{(m.minha?.nivel || a.nivel) ? NIVEL[m.minha?.nivel || a.nivel] : `Ainda sem medalha: precisa ficar a até ${fmt(lim.bronze)} m.`}{a.n_pins > 1 && a.vale === 'melhor' ? ` · ${a.n_pins} tentativas` : ''}</p></div>
         : <p className="note">Nenhum pin {md.marco} ainda.</p>}
     </div>
   )

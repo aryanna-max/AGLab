@@ -269,7 +269,7 @@ function Entregas({ userId, lanc, turma, entregas, showToast, onVoltar, recarreg
           return <li key={a.id} className="entrega-li">
             <div className="ent-cab">
               <span className="who"><span>{a.nome}</span>
-                <span className="m">{e?.enviada_em ? `enviada ${fmtDH(e.enviada_em)}` : e ? 'em andamento' : 'não abriu'}{etapas.length ? ` · ${nFeitas}/${etapas.length} etapas` : ''}{e?.medalha_auto ? ` · melhor pin a ${Number(e.medalha_auto.erro).toLocaleString('pt-BR')} m do marco (${e.medalha_auto.n_pins} tentativa${e.medalha_auto.n_pins > 1 ? 's' : ''})` : ''}{e?.fora_do_prazo ? ' · ' : ''}{e?.fora_do_prazo && <b style={{ color: 'var(--miss)' }}>fora do prazo</b>}</span></span>
+                <span className="m">{e?.enviada_em ? `enviada ${fmtDH(e.enviada_em)}` : e ? 'em andamento' : 'não abriu'}{etapas.length ? ` · ${nFeitas}/${etapas.length} etapas` : ''}{e?.medalha_auto ? ` · ${e.medalha_auto.vale === 'melhor' ? 'melhor' : '1º'} pin a ${Number(e.medalha_auto.erro).toLocaleString('pt-BR')} m do marco (${e.medalha_auto.n_pins} pin${e.medalha_auto.n_pins > 1 ? 's' : ''})` : ''}{e?.fora_do_prazo ? ' · ' : ''}{e?.fora_do_prazo && <b style={{ color: 'var(--miss)' }}>fora do prazo</b>}</span></span>
               <span className={'tag ' + (e?.status === 'aceita' ? 'P' : e?.status === 'refazer' ? 'F' : '')}>{e?.status || '—'}</span>
             </div>
             {e?.texto && <p className="ent-texto">{e.texto}</p>}

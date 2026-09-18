@@ -211,7 +211,8 @@ function Pins({ pos, ident, codigo, onAviso, api }) {
       if (!data?.ok) { setErro(data?.erro || 'Não consegui salvar o pin.'); return }
       const med = data.medalha
       const NV = { ouro: '🥇 Ouro', prata: '🥈 Prata', bronze: '🥉 Bronze' }
-      onAviso && onAviso(med ? `Pin ${nm}: ${metros(med.erro, 1)} m do marco · ${med.nivel ? NV[med.nivel] : 'ainda sem medalha'} (missão ${med.missao})`
+      onAviso && onAviso(med ? (med.vale !== 'melhor' && med.n_pins > 1 ? `Pin ${nm} salvo. Na missão vale só o primeiro: ${metros(med.erro, 1)} m · ${med.nivel ? NV[med.nivel] : 'sem medalha'}`
+          : `Pin ${nm}: ${metros(med.erro, 1)} m do marco · ${med.nivel ? NV[med.nivel] : 'sem medalha'} (missão ${med.missao})`)
         : `Pin ${nm} salvo: média de ${r.n} leituras, espalhamento ±${metros(r.desvioHz, 1)} m`)
       setNome(''); setFoto(null); await carregar()
     } catch (e) { setErro(ehErroDeRede(e) ? 'Sem rede — o pin precisa de conexão para ser salvo. Tente de novo com sinal.' : 'Falhou: ' + (e.message || 'erro')) }
