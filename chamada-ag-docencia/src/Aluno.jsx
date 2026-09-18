@@ -46,6 +46,8 @@ const AvisoPrecisao = ({ pos }) => pos && pos.acc > ACC_GROSSEIRA ? (
 const K_IDENT = 'agc2_ident'            // {alunoId, matricula, nome, turma}
 const K_PRES = 'agc2_presenca_dia'      // {data, codigo, hora, local, turma, fora}
 const K_FILA = 'agc2_fila_leituras'
+const K_AV_ABERTO = 'agc2_avisos_aberto'   // quadro de avisos aberto ou recolhido
+const K_AV_VISTO = 'agc2_avisos_visto_em'   // última vez que abriu o quadro (para contar os novos)
 const K_AVISOS_DISP = 'agc2_avisos_dispensado'  // quando o aluno tocou em "agora não" (o cartão volta em 3 dias)
 export const NOME_GPS = 'Campo'         // área de medições (decisão dela, 15/09: cards Presença · Campo · Missões)
 
@@ -206,6 +208,8 @@ export default function Aluno() {
   const historico = useHistoricoPresenca(ident, online)
   const missoes = useMissoes(ident, online)
   const avisosProf = useAvisosAluno(ident, online)
+  const [avAberto, setAvAberto] = useState(() => ler(K_AV_ABERTO, false))
+  const [avVistoEm, setAvVistoEm] = useState(() => ler(K_AV_VISTO, 0))
   const insignias = useInsignias(ident, online)
   useEffect(() => { if (tela === 'home') insignias.recarregar() }, [tela])
   useEffect(() => { prepararSom() }, [])   // destrava o som da conquista no primeiro toque
@@ -606,13 +610,21 @@ export default function Aluno() {
         <span style={{ cursor: 'pointer', textDecoration: 'underline', fontWeight: 700 }} onClick={irParaProfessora}>Voltar para a professora</span>
       </div>}
       <CardPresenca />
-      {listaAv.length > 0 && <div className="panel avisos-home">
-        <h2>🔔 Avisos</h2>
-        {listaAv.map(v => <button key={v.id} className={'av-item' + (v.abrir && v.abrir !== 'home' ? ' clica' : '')} onClick={() => abrirPorAviso(v.abrir)}>
-          <span className="av-tit"><b>{v.auto ? '⚙️ ' : ''}{v.titulo}</b><span className="av-em">{fmtQuando(v.em)}</span></span>
-          {v.texto && <span className="av-txt">{v.texto}</span>}
-        </button>)}
-      </div>}
+      {listaAv.length > 0 && (() => {
+        // recolhível (pedido dela, 18/09/2026): fechado mostra o mais recente e quantos são novos
+        const novos = listaAv.filter(v => new Date(v.em).getTime() > avVistoEm).length
+        return <div className={'panel avisos-home' + (avAberto ? ' aberto' : '')}>
+          <button className="av-cab" onClick={() => { const a = !avAberto; setAvAberto(a); gravar(K_AV_ABERTO, a); if (a) { setAvVistoEm(Date.now()); gravar(K_AV_VISTO, Date.now()) } }}>
+            <span>🔔 Avisos{novos > 0 && <span className="cp-badge">{novos}</span>}</span>
+            {!avAberto && <span className="av-ult">{listaAv[0].titulo}</span>}
+            <span className="av-seta">{avAberto ? '▴' : '▾'}</span>
+          </button>
+          {avAberto && listaAv.map(v => <button key={v.id} className={'av-item' + (v.abrir && v.abrir !== 'home' ? ' clica' : '')} onClick={() => abrirPorAviso(v.abrir)}>
+            <span className="av-tit"><b>{v.auto ? '⚙️ ' : ''}{v.titulo}</b><span className="av-em">{fmtQuando(v.em)}</span></span>
+            {v.texto && <span className="av-txt">{v.texto}</span>}
+          </button>)}
+        </div>
+      })()}
       {/* sempre à vista, mesmo com zero: as bloqueadas mostram o caminho (princípio do guia) */}
       <Vitrine minhas={minhasIns} onAbrir={() => irArea('insignias')} />
       {novaIns && <CartaoInsignia chave={novaIns.chave} dado={novaIns.dado} onFechar={() => { insignias.marcarVistas(); irArea('insignias') }} />}

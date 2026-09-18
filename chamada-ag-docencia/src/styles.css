@@ -471,3 +471,9 @@ table.matrix tr.sel-row td{background:rgba(123,79,0,.10)}
 .ph-txt{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
 .ph-txt span{font-size:13px;opacity:.75}
 .ph-it.ok .ph-txt b{color:var(--muted)}
+
+.av-cab{display:flex;align-items:center;gap:10px;width:100%;background:none;border:0;padding:0;color:inherit;font:inherit;cursor:pointer;text-align:left}
+.av-cab>span:first-child{font-weight:800;font-size:16px;display:flex;align-items:center;gap:6px;white-space:nowrap}
+.av-ult{flex:1;min-width:0;font-size:13px;opacity:.7;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.av-seta{margin-left:auto;opacity:.6}
+.avisos-home.aberto .av-cab{margin-bottom:4px}
