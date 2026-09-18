@@ -706,14 +706,10 @@ function ColetaTurma({ userId, tid, turmas, online, showToast }) {
       if (l.extra?.no_limite) p.limite = true
     })
     const lista = Object.values(pend)
-    if (lista.length && !confirm(`Antes de encerrar: ${lista.length} aluno(s) a conferir, sem presença marcada:
-
-`
-      + lista.map(p => '• ' + p.nome + (p.limite ? ' — no limite do GPS, provável presente' : '')).join('
-')
-      + '
-
-Marque na aba Chamada quem estava na aula. Encerrar mesmo assim?')) return
+    const NL = String.fromCharCode(10)
+    if (lista.length && !confirm(`Antes de encerrar: ${lista.length} aluno(s) a conferir, sem presença marcada:` + NL + NL
+      + lista.map(p => '• ' + p.nome + (p.limite ? ' — no limite do GPS, provável presente' : '')).join(NL)
+      + NL + NL + 'Marque na aba Chamada quem estava na aula. Encerrar mesmo assim?')) return
     try { await store.fecharSessao(sessao.id); setSessao({ ...sessao, aberta: false }); showToast('Sessão encerrada') }
     catch (e) { showToast('Erro ao encerrar') }
   }
