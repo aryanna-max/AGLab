@@ -353,7 +353,7 @@ export async function fecharSessao(id) {
 // desde: a sessão reaberta numa semana nova carrega as leituras da anterior — a tela do dia pede só as de hoje
 export async function leiturasDaSessao(sessaoId, desde) {
   let q = supabase.from('leituras_gps')
-    .select('id,rotulo,acuracia_m,alt_acuracia_m,altitude_m,dist_perc_m,criado_em,capturado_em,presenca_marcada,extra,aluno_id,alunos(nome,matricula)')
+    .select('id,rotulo,lat,lon,acuracia_m,alt_acuracia_m,altitude_m,dist_perc_m,criado_em,capturado_em,presenca_marcada,extra,aluno_id,alunos(nome,matricula)')
     .eq('sessao_id', sessaoId)
   if (desde) q = q.gte('criado_em', desde)
   const { data, error } = await q.order('criado_em', { ascending: false })

@@ -9,7 +9,7 @@ import { makeQRCanvas } from './lib/qr'
    - iPhone → Safari, Compartilhar, Adicionar à Tela de Início (em outro navegador, pede o Safari);
    - navegador de dentro do WhatsApp/Instagram → abrir no navegador de verdade;
    - computador → QR para ler com o celular.
-   Não marca presença nem pede matrícula: isso é na aula, pelo QR projetado. */
+   Não marca presença nem pede matrícula: isso é na sala, durante a aula. */
 
 const ua = navigator.userAgent || ''
 const IOS = /iPhone|iPad|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
@@ -111,7 +111,7 @@ export default function Instalar() {
         <p className="marca-sub">Topografia · IFPE</p>
       </div>
       <div className="panel">{corpo}</div>
-      <p className="note" style={{ textAlign: 'center' }}>A presença é só na aula, lendo o QR que a professora projeta.</p>
+      <p className="note" style={{ textAlign: 'center' }}>A presença é marcada na sala, durante a aula.</p>
     </div>
   )
 }
