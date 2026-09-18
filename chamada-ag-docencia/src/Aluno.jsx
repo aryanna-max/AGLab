@@ -46,6 +46,7 @@ const AvisoPrecisao = ({ pos }) => pos && pos.acc > ACC_GROSSEIRA ? (
 const K_IDENT = 'agc2_ident'            // {alunoId, matricula, nome, turma}
 const K_PRES = 'agc2_presenca_dia'      // {data, codigo, hora, local, turma, fora}
 const K_FILA = 'agc2_fila_leituras'
+const K_CARTAS_VISTAS = 'agc2_cartas_vistas'   // cartas especiais que o aluno já abriu
 const K_AV_ABERTO = 'agc2_avisos_aberto'   // quadro de avisos aberto ou recolhido
 const K_AV_VISTO = 'agc2_avisos_visto_em'   // última vez que abriu o quadro (para contar os novos)
 const K_AVISOS_DISP = 'agc2_avisos_dispensado'  // quando o aluno tocou em "agora não" (o cartão volta em 3 dias)
@@ -209,6 +210,14 @@ export default function Aluno() {
   const missoes = useMissoes(ident, online)
   const avisosProf = useAvisosAluno(ident, online)
   const [avAberto, setAvAberto] = useState(() => ler(K_AV_ABERTO, false))
+  // carta especial (aviso com imagem): abre em tela cheia; a que ele ainda não viu abre sozinha uma vez
+  const [cartaId, setCartaId] = useState(null)
+  useEffect(() => {
+    const vistas = ler(K_CARTAS_VISTAS, [])
+    const nova = (avisosProf.dados?.avisos || []).find(v => v.imagem && !vistas.includes(v.id))
+    if (nova && !cartaId) setCartaId(nova.id)
+  }, [avisosProf.dados])
+  function fecharCarta() { if (cartaId) gravar(K_CARTAS_VISTAS, [...new Set([...ler(K_CARTAS_VISTAS, []), cartaId])]); setCartaId(null) }
   const [avVistoEm, setAvVistoEm] = useState(() => ler(K_AV_VISTO, 0))
   const insignias = useInsignias(ident, online)
   useEffect(() => { if (tela === 'home') insignias.recarregar() }, [tela])
@@ -439,6 +448,7 @@ export default function Aluno() {
   function abrirPorAviso(abrir) {
     if (!abrir || abrir === 'home') { voltarHome(); return }
     if (abrir === 'campo') { irMedir(); return }
+    if (abrir.startsWith('carta:')) { voltarHome(); setCartaId(abrir.slice(6)); avisosProf.recarregar(); return }
     if (abrir.startsWith('missao:')) { setAbrirMissaoId(abrir.slice(7)); irArea('missoes'); return }
     if (abrir === 'presenca' || abrir === 'missoes') irArea(abrir)
   }
@@ -626,6 +636,17 @@ export default function Aluno() {
         <span style={{ cursor: 'pointer', textDecoration: 'underline', fontWeight: 700 }} onClick={irParaProfessora}>Voltar para a professora</span>
       </div>}
       <CardPresenca />
+      {(() => { const c = cartaId && listaAv.find(v => v.id === cartaId); if (!c) return null
+        return <div className="velado" onClick={fecharCarta}>
+          <div className="carta-especial" onClick={e => e.stopPropagation()}>
+            {c.imagem && <img src={c.imagem} alt="" />}
+            <div className="ce-txt"><b>{c.titulo}</b>{c.texto && <p>{c.texto}</p>}</div>
+            <div className="ce-btns">
+              {c.destino && <button className="btn" onClick={() => { const d = c.destino; fecharCarta(); abrirPorAviso(d) }}>Ver a missão</button>}
+              <button className="btn ghost" onClick={fecharCarta}>Fechar</button>
+            </div>
+          </div>
+        </div> })()}
       <DestaqueMissao />
       {listaAv.length > 0 && (() => {
         // recolhível (pedido dela, 18/09/2026): fechado mostra o mais recente e quantos são novos

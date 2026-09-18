@@ -491,3 +491,13 @@ table.matrix tr.sel-row td{background:rgba(123,79,0,.10)}
 .destaque-missao.urgente .dm-tit{color:#501313}
 .destaque-missao.urgente .dm-prog{background:#F7C1C1}.destaque-missao.urgente .dm-prog i{background:#A32D2D}
 .destaque-missao.urgente .dm-btn{background:#A32D2D}
+
+/* carta especial (aviso com imagem feita no GPT) */
+.carta-especial{background:#0E1633;color:#F4F1E8;border-radius:20px;width:92%;max-width:380px;max-height:92vh;overflow:auto;box-shadow:0 12px 48px rgba(0,0,0,.45);border:2px solid #C9A227}
+.carta-especial img{width:100%;display:block;border-radius:18px 18px 0 0}
+.carta-especial .ce-txt{padding:14px 18px 4px}
+.carta-especial .ce-txt b{font-size:19px;color:#F2CE63;display:block}
+.carta-especial .ce-txt p{font-size:15px;line-height:1.45;margin:8px 0 0}
+.carta-especial .ce-btns{display:flex;gap:8px;padding:12px 18px 18px;flex-wrap:wrap}
+.carta-especial .btn{background:#C9A227;color:#1B1405;border:0}
+.carta-especial .btn.ghost{background:transparent;color:#F4F1E8;border:1px solid rgba(244,241,232,.4)}
