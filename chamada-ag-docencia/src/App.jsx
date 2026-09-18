@@ -157,7 +157,7 @@ function Main({ session }) {
           !turma ? <div className="spin">Escolhendo a turma…</div> :
           <>
             {tab === 'chamada' && <><ColetaTurma userId={userId} tid={tid} turmas={turmas} online={online} showToast={showToast} /><AuxiliarDoDia tid={tid} turmas={turmas} online={online} showToast={showToast} /><Chamada key={dataChamada || 'hoje'} dataInicial={dataChamada} userId={userId} tid={tid} turmas={turmas} online={online} setPending={setPending} showToast={showToast} goConferir={() => setTab('conferir')} goAulas={() => setTab('aulas')} /></>}
-            {tab === 'aulas' && <Aulas userId={userId} tid={tid} turmas={turmas} online={online} showToast={showToast} refresh={refresh} abrirChamada={d => { setDataChamada(d); setTab('chamada') }} />}
+            {tab === 'aulas' && <Aulas userId={userId} tid={tid} setTid={setTid} turmas={turmas} online={online} showToast={showToast} refresh={refresh} abrirChamada={d => { setDataChamada(d); setTab('chamada') }} />}
             {tab === 'insignias' && <InsigniasProfessora userId={userId} tid={tid} turmas={turmas} online={online} showToast={showToast} />}
             {tab === 'avisos' && <AvisosProfessora userId={userId} tid={tid} turmas={turmas} online={online} showToast={showToast} />}
             {tab === 'missoes' && <MissoesProfessora userId={userId} tid={tid} turmas={turmas} online={online} showToast={showToast} />}

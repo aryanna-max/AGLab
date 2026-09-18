@@ -86,7 +86,7 @@ async function resolverFotos(alunos) {
 /* ---------- carregar turmas + alunos ---------- */
 export async function loadTurmas() {
   const { data: turmas, error } = await supabase
-    .from('turmas').select('id,nome,codigo,dia_semana,tempos_por_aula,ch_ha').order('nome')
+    .from('turmas').select('id,nome,codigo,dia_semana,tempos_por_aula,ch_ha,horario,teste').order('nome')
   if (error) throw error
   const { data: alunos, error: e2 } = await supabase
     .from('alunos').select('id,turma_id,matricula,nome,foto,foto_path,foto_data,papel').order('nome')

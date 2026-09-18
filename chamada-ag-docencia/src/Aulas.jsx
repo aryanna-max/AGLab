@@ -13,8 +13,17 @@ export const hojeISO = () => iso(new Date())
 const fmtLongo = s => { const d = deISO(s); return `${DIAS[d.getDay()]}, ${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}` }
 const MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro']
 
-export default function Aulas({ userId, tid, turmas, online, showToast, refresh, abrirChamada }) {
+const sigla = t => (t?.nome || '').split(' (')[0].split(' — ').pop()
+const CORES = ['#2749B0', '#B01B1B', '#12804A', '#B8860B', '#6B4FA0']
+
+export default function Aulas({ userId, tid, setTid, turmas, online, showToast, refresh, abrirChamada }) {
   const t = turmas.find(x => x.id === tid)
+  // calendário geral (todas as turmas: sábado tem manhã e tarde) ou só a turma escolhida
+  const [geral, setGeralRaw] = useState(() => { try { return localStorage.getItem('orbe_cal_geral') !== '0' } catch (e) { return true } })
+  const setGeral = v => { setGeralRaw(v); try { localStorage.setItem('orbe_cal_geral', v ? '1' : '0') } catch (e) {} }
+  const reais = useMemo(() => turmas.filter(x => !x.teste && !/TESTE/i.test(x.nome)).sort((a, b) => (a.dia_semana ?? 9) - (b.dia_semana ?? 9) || (a.horario || '').localeCompare(b.horario || '')), [turmas])
+  const cor = id => CORES[Math.max(0, reais.findIndex(x => x.id === id)) % CORES.length]
+  const [todas, setTodas] = useState({})   // turma_id → aulas
   const [aulas, setAulas] = useState([])
   const [mes, setMes] = useState(() => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1) })
   const [sel, setSel] = useState(hojeISO())
@@ -25,7 +34,8 @@ export default function Aulas({ userId, tid, turmas, online, showToast, refresh,
   const carregar = useCallback(() => {
     if (!online || !tid) return
     store.aulasDaTurma(tid).then(setAulas).catch(e => showToast('Erro: ' + e.message))
-  }, [tid, online, showToast])
+    Promise.all(reais.map(x => store.aulasDaTurma(x.id).then(a => [x.id, a]))).then(ps => setTodas(Object.fromEntries(ps))).catch(() => {})
+  }, [tid, online, showToast, reais])
   useEffect(() => { carregar() }, [carregar])
 
   const porData = useMemo(() => Object.fromEntries(aulas.map(a => [a.data, a])), [aulas])
@@ -81,7 +91,7 @@ export default function Aulas({ userId, tid, turmas, online, showToast, refresh,
 
   return (
     <>
-      <div className="panel">
+      {!geral && <div className="panel">
         <h2 style={{ marginTop: 0 }}>Aulas · {t.nome.split(' (')[0]}</h2>
         <div className="row">
           <div><label className="fld">Dia da aula</label>
@@ -98,26 +108,53 @@ export default function Aulas({ userId, tid, turmas, online, showToast, refresh,
             if (!confirm(`Apagar as ${estranhas.length} aula(s) sem presença fora do dia da turma?`)) return
             try { for (const a of estranhas) await store.apagarAula(a.id); showToast(estranhas.length + ' aula(s) apagada(s)'); carregar() } catch (e) { showToast('Erro: ' + e.message) }
           }}>Apagar essas {estranhas.length}</button></div></div>}
-      </div>
+      </div>}
 
       <div className="panel">
+        <div className="btnrow" style={{ marginTop: 0 }}>
+          <button className={'btn mini' + (geral ? '' : ' ghost')} onClick={() => setGeral(true)}>Todas as turmas</button>
+          <button className={'btn mini' + (geral ? ' ghost' : '')} onClick={() => setGeral(false)}>Só {sigla(t)}</button>
+        </div>
         <div className="cal-cab">
           <button className="btn ghost mini" onClick={() => setMes(new Date(mes.getFullYear(), mes.getMonth() - 1, 1))}>‹</button>
           <b>{MESES[mes.getMonth()]} {mes.getFullYear()}</b>
           <button className="btn ghost mini" onClick={() => setMes(new Date(mes.getFullYear(), mes.getMonth() + 1, 1))}>›</button>
         </div>
         <div className="cal">
-          {['D', 'S', 'T', 'Q', 'Q', 'S', 'S'].map((d, i) => <div key={i} className={'cal-dow' + (i === dia ? ' dia-turma' : '')}>{d}</div>)}
+          {['D', 'S', 'T', 'Q', 'Q', 'S', 'S'].map((d, i) => <div key={i} className={'cal-dow' + ((geral ? reais.some(x => x.dia_semana === i) : i === dia) ? ' dia-turma' : '')}>{d}</div>)}
           {celulas.map((d, i) => { if (!d) return <div key={i} />
-            const k = iso(d), a = porData[k]
+            const k = iso(d)
+            if (geral) {
+              const doDia = reais.filter(x => x.dia_semana === d.getDay() || (todas[x.id] || []).some(a => a.data === k))
+              return <button key={i} onClick={() => setSel(k)} className={'cal-d geral' + (doDia.length ? ' dia-turma' : '') + (k === sel ? ' sel' : '') + (k === hoje ? ' hoje' : '')}>
+                <span>{d.getDate()}</span>
+                {doDia.map(x => { const a = (todas[x.id] || []).find(y => y.data === k)
+                  return <i key={x.id} className={'cal-chip' + (a ? (k > hoje ? ' plan' : ' dada') : ' vazia')} style={{ '--c': cor(x.id) }}>{sigla(x).slice(0, 3)}</i> })}
+              </button>
+            }
+            const a = porData[k]
             return <button key={i} onClick={() => setSel(k)}
               className={'cal-d' + (d.getDay() === dia ? ' dia-turma' : '') + (a ? (k > hoje ? ' planejada' : ' tem-aula') : '') + (k === sel ? ' sel' : '') + (k === hoje ? ' hoje' : '')}>
               <span>{d.getDate()}</span>{a && <small>{k > hoje ? '◦' : a.presentes}</small>}</button> })}
         </div>
-        <p className="note">Dia da turma em destaque. Verde = aula dada (número = presentes). Contorno = aula planejada.</p>
+        <p className="note">{geral ? <>Cada etiqueta é uma turma no dia dela: <b>cheia</b> = aula dada · <b>contorno</b> = planejada · <b>apagada</b> = sem aula registrada. {reais.map(x => <span key={x.id} style={{ color: cor(x.id), fontWeight: 700, marginRight: 8 }}>{sigla(x)} {x.dia_semana != null ? DIAS[x.dia_semana].slice(0, 3) : ''} {x.horario || ''}</span>)}</>
+          : 'Dia da turma em destaque. Verde = aula dada (número = presentes). Contorno = aula planejada.'}</p>
       </div>
 
-      <div className="panel">
+      {geral && <div className="panel">
+        <h2 style={{ marginTop: 0 }}>{fmtLongo(sel)}{sel === hoje ? ' · hoje' : ''}</h2>
+        <ul className="people">{reais.filter(x => x.dia_semana === deISO(sel).getDay() || (todas[x.id] || []).some(a => a.data === sel)).map(x => {
+          const a = (todas[x.id] || []).find(y => y.data === sel)
+          return <li key={x.id} style={{ cursor: 'pointer' }} onClick={() => { setTid(x.id); setGeral(false) }}>
+            <span className="who"><span><b style={{ color: cor(x.id) }}>{sigla(x)}</b> · {x.horario || ''}</span>
+              <span className="m">{a ? (sel > hoje ? 'planejada' : `${a.presentes} de ${x.alunos.length} presentes`) + (a.conteudo ? ' · ' + a.conteudo.slice(0, 80) : ' · sem conteúdo') : 'sem aula registrada'}</span></span>
+            <span className="tag">abrir ›</span></li> })}
+          {reais.every(x => x.dia_semana !== deISO(sel).getDay() && !(todas[x.id] || []).some(a => a.data === sel)) && <li className="empty">Nenhuma turma neste dia.</li>}
+        </ul>
+        <p className="note">Toque numa turma para registrar, escrever o conteúdo, mudar de dia ou apagar.</p>
+      </div>}
+
+      {!geral && <div className="panel">
         <h2 style={{ marginTop: 0 }}>{fmtLongo(sel)}{sel === hoje ? ' · hoje' : ''}</h2>
         {!aula ? <>
           <p className="hint">Não há aula registrada neste dia{dia != null && deISO(sel).getDay() !== dia ? ` (não é ${DIAS[dia]})` : ''}.</p>
@@ -137,17 +174,17 @@ export default function Aulas({ userId, tid, turmas, online, showToast, refresh,
             <div style={{ flex: 0 }}><button className="btn ghost" onClick={mudarData} disabled={!novaData}>Mudar</button></div>
           </div>
         </>}
-      </div>
+      </div>}
 
-      <div className="panel">
-        <h2 style={{ marginTop: 0 }}>Todas as aulas</h2>
+      {!geral && <div className="panel">
+        <h2 style={{ marginTop: 0 }}>Todas as aulas · {sigla(t)}</h2>
         {aulas.length === 0 ? <p className="empty">Nenhuma aula registrada.</p> :
           <ul className="people">{aulas.map(a => { const fora = dia != null && deISO(a.data).getDay() !== dia
             return <li key={a.id} style={{ cursor: 'pointer', display: 'block' }} onClick={() => { setSel(a.data); const d = deISO(a.data); setMes(new Date(d.getFullYear(), d.getMonth(), 1)) }}>
               <div className="ent-cab"><span className="who"><span><b>{fmtLongo(a.data)}</b>{a.data > hoje ? ' · planejada' : ` · ${a.presentes} presentes`}{fora && <span className="badge off" style={{ marginLeft: 6 }}>fora do dia</span>}</span>
                 <span className="m">{a.conteudo ? a.conteudo.slice(0, 120) + (a.conteudo.length > 120 ? '…' : '') : 'sem conteúdo'}</span></span></div>
             </li> })}</ul>}
-      </div>
+      </div>}
     </>
   )
 }
