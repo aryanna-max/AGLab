@@ -64,6 +64,11 @@ export default function InsigniasProfessora({ userId, tid, turmas, online, showT
     visao.forEach(i => { if (!ehPioneira(i.chave)) m[i.chave] = (m[i.chave] || 0) + 1 })
     return m
   }, [visao])
+  const rankIns = useMemo(() => {
+    const m = {}
+    visao.forEach(i => { if (!ehPioneira(i.chave) && todosAlunos[i.aluno_id]) m[i.aluno_id] = (m[i.aluno_id] || 0) + 1 })
+    return Object.entries(m).map(([id, n]) => ({ id, n, ...todosAlunos[id] })).sort((a, b) => b.n - a.n || a.nome.localeCompare(b.nome))
+  }, [visao, todosAlunos])
   const semana = useMemo(() => {
     const corte = Date.now() - 7 * 86400000
     const m = {}
@@ -130,6 +135,14 @@ export default function InsigniasProfessora({ userId, tid, turmas, online, showT
                 : p.candidato ? <>ainda não entregue · próximo: {primeiro(p.candidato.nome)}</> : 'ninguém estreou ainda'}</div></div>
             {p.confirmado && <button className="btn ghost mini" onClick={() => passarAdiante(p)}>Passar ao próximo</button>}
           </div> })}
+      </div>
+
+      <div className="panel">
+        <h2 style={{ marginTop: 0 }}>Ranking de insígnias · {geral ? 'todas as turmas' : curto(turma)}</h2>
+        {rankIns.length === 0 ? <p className="empty">Ninguém tem insígnia ainda.</p> : <>
+          <ul className="people">{rankIns.map((x, i) => <li key={x.id}><span className="left"><span className="who"><span>{i + 1}º · {x.nome}</span>{geral && <span className="m">{x.turma}</span>}</span></span><span className="tag P">{x.n}</span></li>)}</ul>
+          <p className="note">Conta as insígnias comuns (sem Pioneiro). Só para você: insígnia é reconhecimento, não entra no ranking das missões.</p>
+        </>}
       </div>
 
       <div className="panel">

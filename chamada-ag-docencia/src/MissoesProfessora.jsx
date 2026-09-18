@@ -32,7 +32,7 @@ export default function MissoesProfessora({ userId, tid, turmas, online, showToa
       {!online && <p className="note" style={{ color: 'var(--miss)' }}>Offline — as missões precisam de internet.</p>}
       {aba === 'cardapio'
         ? <Cardapio userId={userId} missoes={missoes} turmas={turmas} tid={tid} recarregar={carregar} showToast={showToast} onLancou={() => setAba('entregas')} />
-        : <Lancadas userId={userId} tid={tid} turma={turma} online={online} showToast={showToast} irCardapio={() => setAba('cardapio')} />}
+        : <Lancadas userId={userId} tid={tid} turma={turma} turmas={turmas} online={online} showToast={showToast} irCardapio={() => setAba('cardapio')} />}
     </>
   )
 }
@@ -193,7 +193,7 @@ function Lancar({ userId, missao, turmas, tid, showToast, onFechar }) {
 }
 
 /* ================= LANÇADAS + ENTREGAS + RANKING ================= */
-function Lancadas({ userId, tid, turma, online, showToast, irCardapio }) {
+function Lancadas({ userId, tid, turma, turmas, online, showToast, irCardapio }) {
   const [lancs, setLancs] = useState([])
   const [entregas, setEntregas] = useState([])
   const [aberto, setAberto] = useState(null)
@@ -204,11 +204,22 @@ function Lancadas({ userId, tid, turma, online, showToast, irCardapio }) {
   useEffect(() => { carregar(); setAberto(null) }, [carregar])
   useEffect(() => { const it = setInterval(carregar, 20000); return () => clearInterval(it) }, [carregar])
 
+  // ranking: esta turma ou todas (o geral é só para a professora; o aluno vê só a turma dele)
+  const [geral, setGeralRaw] = useState(() => { try { return localStorage.getItem('orbe_rank_geral') === '1' } catch (e) { return false } })
+  const setGeral = v => { setGeralRaw(v); try { localStorage.setItem('orbe_rank_geral', v ? '1' : '0') } catch (e) {} }
+  const [entregasGeral, setEntregasGeral] = useState([])
+  useEffect(() => {
+    if (!online || !geral) return
+    let vale = true
+    Promise.all(turmas.map(t => store.entregasDaTurma(t.id))).then(ds => { if (vale) setEntregasGeral(ds.flat()) }).catch(e => showToast('Erro: ' + e.message))
+    return () => { vale = false }
+  }, [geral, turmas, online, showToast, entregas])
   const ranking = useMemo(() => {
     const pts = {}
-    entregas.forEach(e => { if (e.missao_lancamentos?.mostrar_ranking && e.nivel) pts[e.aluno_id] = (pts[e.aluno_id] || 0) + (PONTOS[e.nivel] || 0) })
-    return (turma?.alunos || []).map(a => ({ a, pts: pts[a.id] || 0 })).filter(x => x.pts > 0).sort((x, y) => y.pts - x.pts)
-  }, [entregas, turma])
+    ;(geral ? entregasGeral : entregas).forEach(e => { if (e.missao_lancamentos?.mostrar_ranking && e.nivel) pts[e.aluno_id] = (pts[e.aluno_id] || 0) + (PONTOS[e.nivel] || 0) })
+    const doRanking = geral ? turmas.flatMap(t => (t.alunos || []).map(a => ({ ...a, sigla: (t.nome || '').split(' (')[0].split(' — ').pop() }))) : (turma?.alunos || [])
+    return doRanking.map(a => ({ a, pts: pts[a.id] || 0 })).filter(x => x.pts > 0).sort((x, y) => y.pts - x.pts)
+  }, [entregas, entregasGeral, geral, turma, turmas])
 
   if (!turma) return null
   const lanc = lancs.find(l => l.id === aberto)
@@ -232,10 +243,15 @@ function Lancadas({ userId, tid, turma, online, showToast, irCardapio }) {
       </div>
 
       <div className="panel">
-        <h2 style={{ marginTop: 0 }}>Ranking do semestre</h2>
+        <h2 style={{ marginTop: 0 }}>Ranking do semestre · {geral ? 'todas as turmas' : turma.nome.split(' (')[0]}</h2>
+        <div className="btnrow">
+          <button className={'btn mini' + (geral ? ' ghost' : '')} onClick={() => setGeral(false)}>Esta turma</button>
+          <button className={'btn mini' + (geral ? '' : ' ghost')} onClick={() => setGeral(true)}>Todas as turmas</button>
+        </div>
+        {geral && <p className="note">O geral é só para você. O aluno continua vendo só a turma dele.</p>}
         {ranking.length === 0 ? <p className="empty">Ninguém pontuou ainda. Ouro vale 3, prata 2, bronze 1.</p> : <>
           <div className="podio-row">{ranking.slice(0, 3).map((x, i) => <div key={x.a.id} className={'podio-it p' + i}><span className="pd-pos">{i + 1}º</span><Avatar a={x.a} tam="mini" /><span className="pd-nome">{x.a.nome.split(' ')[0]}</span><span className="pd-pts">{x.pts} pts</span></div>)}</div>
-          <ul className="people" style={{ marginTop: 10 }}>{ranking.map((x, i) => <li key={x.a.id}><span className="left"><Avatar a={x.a} tam="mini" /><span className="who"><span>{i + 1}º · {x.a.nome}</span></span></span><span className="tag P">{x.pts} pts</span></li>)}</ul>
+          <ul className="people" style={{ marginTop: 10 }}>{ranking.map((x, i) => <li key={x.a.id}><span className="left"><Avatar a={x.a} tam="mini" /><span className="who"><span>{i + 1}º · {x.a.nome}</span>{x.a.sigla && <span className="m">{x.a.sigla}</span>}</span></span><span className="tag P">{x.pts} pts</span></li>)}</ul>
           <p className="note">Projete só o pódio. A lista completa é para você.</p>
         </>}
       </div>
