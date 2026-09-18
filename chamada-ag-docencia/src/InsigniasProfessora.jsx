@@ -21,38 +21,58 @@ export default function InsigniasProfessora({ userId, tid, turmas, online, showT
   const [dado, setDado] = useState('')
 
   const [pioneiros, setPioneiros] = useState([])
+  const [geral, setGeralRaw] = useState(() => { try { return localStorage.getItem('orbe_ins_geral') === '1' } catch (e) { return false } })
+  const setGeral = v => { setGeralRaw(v); try { localStorage.setItem('orbe_ins_geral', v ? '1' : '0') } catch (e) {} }
+  const [listaGeral, setListaGeral] = useState([])
   const carregar = useCallback(() => {
     if (!online || !tid) return
-    store.insigniasDaTurma(tid).then(setLista).catch(e => showToast('Erro: ' + e.message))
-    store.pioneirosDaTurma(tid).then(setPioneiros).catch(() => setPioneiros([]))
+    let vale = true   // resposta atrasada de outra turma não sobrescreve a atual
+    setLista([]); setPioneiros([])
+    store.insigniasDaTurma(tid).then(d => { if (vale) setLista(d) }).catch(e => showToast('Erro: ' + e.message))
+    store.pioneirosDaTurma(tid).then(d => { if (vale) setPioneiros(d) }).catch(() => { if (vale) setPioneiros([]) })
+    return () => { vale = false }
   }, [tid, online, showToast])
+  useEffect(() => {
+    if (!online || !geral) return
+    let vale = true
+    Promise.all(turmas.map(t => store.insigniasDaTurma(t.id).then(d => d.map(i => ({ ...i, turma_id: t.id })))))
+      .then(ds => { if (vale) setListaGeral(ds.flat()) }).catch(e => showToast('Erro: ' + e.message))
+    return () => { vale = false }
+  }, [geral, turmas, online, showToast, lista])
   async function passarAdiante(p) {
     const nome = POR_CHAVE['pioneiro_' + p.base]?.nome
     if (!confirm(`Tirar "${nome}" de ${p.confirmado.nome} e passar ao próximo da turma?`)) return
     try { await store.decidirPioneiro(tid, p.base, p.confirmado.aluno_id, 'desfazer'); showToast('Passou ao próximo'); carregar() }
     catch (e) { showToast('Erro: ' + e.message) }
   }
-  useEffect(() => { carregar(); setAberto(null) }, [carregar])
+  useEffect(() => { setAberto(null); return carregar() }, [carregar])
 
   const porAluno = useMemo(() => {
     const m = {}
     lista.forEach(i => { (m[i.aluno_id] = m[i.aluno_id] || []).push(i) })
     return m
   }, [lista])
+  const curto = t => (t?.nome || '').split(' (')[0].split(' — ').pop()
+  const visao = geral ? listaGeral : lista
+  const todosAlunos = useMemo(() => {
+    const m = {}
+    turmas.forEach(t => (t.alunos || []).forEach(a => { m[a.id] = { nome: a.nome, turma: curto(t) } }))
+    return m
+  }, [turmas])
   const quantos = useMemo(() => {
     const m = {}
-    lista.forEach(i => { if (!ehPioneira(i.chave)) m[i.chave] = (m[i.chave] || 0) + 1 })
+    visao.forEach(i => { if (!ehPioneira(i.chave)) m[i.chave] = (m[i.chave] || 0) + 1 })
     return m
-  }, [lista])
+  }, [visao])
   const semana = useMemo(() => {
     const corte = Date.now() - 7 * 86400000
     const m = {}
-    lista.filter(i => new Date(i.concedida_em).getTime() >= corte).forEach(i => {
-      const nome = alunos.find(a => a.id === i.aluno_id)?.nome
-      if (nome) (m[i.chave] = m[i.chave] || []).push(primeiro(nome))
+    visao.filter(i => new Date(i.concedida_em).getTime() >= corte).forEach(i => {
+      const a = todosAlunos[i.aluno_id]
+      if (a) (m[i.chave] = m[i.chave] || []).push(geral ? `${primeiro(a.nome)} (${a.turma})` : primeiro(a.nome))
     })
     return Object.entries(m).sort((a, b) => b[1].length - a[1].length)
-  }, [lista, alunos])
+  }, [visao, todosAlunos, geral])
 
   async function conferir() {
     setBusy(true)
@@ -78,11 +98,17 @@ export default function InsigniasProfessora({ userId, tid, turmas, online, showT
         <div className="btnrow">
           <button className="btn" onClick={conferir} disabled={busy || !online}>{busy ? 'Conferindo…' : 'Conferir regras agora'}</button>
         </div>
-        <p className="note">{lista.length} concedida(s) · {Object.keys(porAluno).length} de {alunos.length} alunos têm pelo menos uma.</p>
+        <div className="btnrow">
+          <button className={'btn mini' + (geral ? ' ghost' : '')} onClick={() => setGeral(false)}>Esta turma</button>
+          <button className={'btn mini' + (geral ? '' : ' ghost')} onClick={() => setGeral(true)}>Todas as turmas</button>
+        </div>
+        {geral && <p className="note">"Insígnias da semana" e "Quantos têm cada uma" mostram todas as turmas: {visao.length} concedida(s). Pioneiros e "Por aluno" continuam só desta turma.</p>}
+        <p className="note">Nesta turma: {lista.length} concedida(s) · {Object.keys(porAluno).length} de {alunos.length} alunos têm pelo menos uma.</p>
       </div>
 
       <div className="panel">
-        <h2 style={{ marginTop: 0 }}>Insígnias da semana</h2>
+        <h2 style={{ marginTop: 0 }}>Insígnias da semana · {geral ? 'todas as turmas' : curto(turma)}</h2>
+        <p className="hint">Pela data em que a insígnia foi entregue. As retroativas (regra nova valendo para trás) entram na semana em que a regra foi ligada.</p>
         {semana.length === 0 ? <p className="empty">Nada nos últimos 7 dias. Toque em "Conferir regras agora".</p> : <>
           {semana.map(([chave, nomes]) => <div className="ins-linha" key={chave}>
             <img src={arte(chave)} alt="" />
@@ -107,7 +133,7 @@ export default function InsigniasProfessora({ userId, tid, turmas, online, showT
       </div>
 
       <div className="panel">
-        <h2 style={{ marginTop: 0 }}>Quantos têm cada uma</h2>
+        <h2 style={{ marginTop: 0 }}>Quantos têm cada uma · {geral ? 'todas as turmas' : curto(turma)}</h2>
         <div className="ins-prof">
           {CATEGORIAS.map(([cat, nome, cor]) => <div key={cat}>
             <div className="fld" style={{ color: cor }}>{nome}</div>
