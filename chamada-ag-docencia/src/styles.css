@@ -501,6 +501,7 @@ table.matrix tr.sel-row td{background:rgba(123,79,0,.10)}
 .carta-especial .ce-btns{display:flex;gap:8px;padding:12px 18px 18px;flex-wrap:wrap}
 .carta-especial .btn{background:#C9A227;color:#1B1405;border:0}
 .carta-especial .btn.ghost{background:transparent;color:#F4F1E8;border:1px solid rgba(244,241,232,.4)}
-.carta-especial.alta{position:relative;overflow:hidden;max-height:none}
-.carta-especial.alta img{border-radius:18px}
-.carta-especial.alta .ce-base{position:absolute;left:0;right:0;bottom:0;background:linear-gradient(to bottom,rgba(10,20,60,0),rgba(10,20,60,.78) 22%,rgba(10,20,60,.92))}
+.carta-especial.alta{background:#0A1B55}
+.carta-especial.alta img{height:min(52vh,400px);object-fit:cover;object-position:top}
+.carta-especial.alta .ce-base{margin-top:-28px;position:relative;background:linear-gradient(to bottom,rgba(10,27,85,0),#0A1B55 28px)}
+.carta-especial.alta .ce-txt{padding-top:26px}
