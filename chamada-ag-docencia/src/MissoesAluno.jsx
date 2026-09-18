@@ -76,10 +76,16 @@ function lerCampos(campos, texto) {
 
 function Detalhe({ m, ident, online, agora, onVoltar, recarregar }) {
   const [feitas, setFeitas] = useState(m.minha?.etapas_feitas || {})
-  const [texto, setTexto] = useState(m.minha?.texto || '')
+  // rascunho no celular: a missão se faz por etapas, às vezes em dias diferentes; o que ele digitou não se perde até enviar
+  const kRasc = 'orbe_rasc_' + m.lancamento_id
+  const rasc = (() => { if (m.minha?.enviada_em && m.minha?.status !== 'refazer') return null; try { return JSON.parse(localStorage.getItem(kRasc) || 'null') } catch (e) { return null } })()
+  const [texto, setTextoRaw] = useState(rasc?.texto ?? (m.minha?.texto || ''))
   // campos de resposta: o texto enviado é "pergunta: resposta" por linha (+ observações), e volta aos campos ao reabrir
   const campos = m.campos || []
-  const [resp, setResp] = useState(() => lerCampos(campos, m.minha?.texto))
+  const [resp, setRespRaw] = useState(() => rasc?.resp || lerCampos(campos, m.minha?.texto))
+  const guardar = d => { try { localStorage.setItem(kRasc, JSON.stringify(d)) } catch (e) {} }
+  const setTexto = t => { setTextoRaw(t); guardar({ texto: t }) }
+  const setResp = f => setRespRaw(r => { const n = typeof f === 'function' ? f(r) : f; guardar({ resp: n }); return n })
   const textoFinal = campos.length ? juntarCampos(campos, resp) : texto
   const vazios = campos.filter((c, i) => !(resp.v[i] || '').trim()).length
   const [busy, setBusy] = useState(false)
@@ -116,6 +122,7 @@ function Detalhe({ m, ident, online, agora, onVoltar, recarregar }) {
     setBusy(true); setMsg(null)
     try {
       const r = await enviarMissao(ident, m.lancamento_id, textoFinal)
+      try { localStorage.removeItem(kRasc) } catch (e) {}
       setMsg(r.fora_do_prazo ? { tipo: 'dup', t: 'Enviada fora do prazo. Ficou registrada e a professora decide.' } : { tipo: 'ok', t: m.em_equipe ? 'Envio oficial da equipe registrado.' : 'Missão enviada.' })
       recarregar()
     } catch (e) { setMsg({ tipo: 'err', t: e.message }) } finally { setBusy(false) }
@@ -171,6 +178,7 @@ function Detalhe({ m, ident, online, agora, onVoltar, recarregar }) {
             </div>)}
             <label className="fld">Observações (opcional)</label>
             <textarea value={resp.obs} onChange={e => setResp(r => ({ ...r, obs: e.target.value }))} rows={2} placeholder="Algo que aconteceu em campo, nomes dos pins que você usou…" />
+            <p className="note">As respostas ficam guardadas neste celular enquanto você preenche. Só chegam à professora quando você enviar.</p>
           </> : <textarea value={texto} onChange={e => setTexto(e.target.value)} rows={4} placeholder="Resultados, observações, nomes dos pins e poligonais que você usou…" />}
           <div className="btnrow">
             <button className="btn" onClick={enviar} disabled={busy || !online}>{busy ? 'Enviando…' : m.em_equipe ? (status === 'refazer' ? 'Enviar de novo pela equipe' : 'Enviar pela equipe') : status === 'enviada' || status === 'refazer' ? 'Enviar de novo' : 'Enviar missão'}</button>
