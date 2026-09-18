@@ -883,7 +883,7 @@ function AuxiliarDoDia({ tid, turmas, online, showToast }) {
   useEffect(() => { setQuem(''); setAberto(false) }, [tid])
 
   const linkAux = `${location.origin}/auxiliar`
-  const pessoa = acesso ? (turma?.alunos || []).find(x => x.id === acesso.aluno_id) : null
+  const pessoa = acesso ? [...(turma?.auxiliares || []), ...(turma?.alunos || [])].find(x => x.id === acesso.aluno_id) : null
   const recado = acesso ? [
     `Oi, ${pessoa?.nome || ''}! Você está com a caderneta de hoje da turma ${turma?.nome || ''}.`,
     ``,
@@ -926,7 +926,10 @@ function AuxiliarDoDia({ tid, turmas, online, showToast }) {
         <label className="fld">Quem vai substituir (precisa estar no cadastro desta turma)</label>
         <select value={quem} onChange={e => setQuem(e.target.value)}>
           <option value="">— escolha —</option>
-          {(turma.alunos || []).map(a => <option key={a.id} value={a.id}>{a.nome}{a.matricula ? ` · ${a.matricula}` : ' · sem matrícula'}</option>)}
+          {(turma.auxiliares || []).length > 0 && <optgroup label="Auxiliares da turma">
+            {turma.auxiliares.map(a => <option key={a.id} value={a.id}>{a.nome}{a.matricula ? ` · ${a.matricula}` : ' · sem matrícula'}</option>)}</optgroup>}
+          <optgroup label="Alunos">
+            {(turma.alunos || []).map(a => <option key={a.id} value={a.id}>{a.nome}{a.matricula ? ` · ${a.matricula}` : ' · sem matrícula'}</option>)}</optgroup>
         </select>
         <p className="note">Sem matrícula no cadastro ela não consegue entrar — inclua a matrícula em <b>Turmas &amp; Fotos</b> antes.</p>
         <div className="btnrow">

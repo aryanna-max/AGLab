@@ -89,7 +89,7 @@ export async function loadTurmas() {
     .from('turmas').select('id,nome,codigo').order('nome')
   if (error) throw error
   const { data: alunos, error: e2 } = await supabase
-    .from('alunos').select('id,turma_id,matricula,nome,foto,foto_path,foto_data').order('nome')
+    .from('alunos').select('id,turma_id,matricula,nome,foto,foto_path,foto_data,papel').order('nome')
   if (e2) throw e2
 
   await resolverFotos(alunos)
@@ -97,8 +97,10 @@ export async function loadTurmas() {
   alunos.forEach(a => { if (!a.foto && a.foto_data) a.foto = a.foto_data })
 
   const byT = {}
-  turmas.forEach(t => { byT[t.id] = { ...t, alunos: [] } })
-  alunos.forEach(a => { if (byT[a.turma_id]) byT[a.turma_id].alunos.push(a) })
+  turmas.forEach(t => { byT[t.id] = { ...t, alunos: [], auxiliares: [] } })
+  // papel 'auxiliar' (ex.: Edilene, professora formadora): fica na turma só para a caderneta do dia,
+  // fora da chamada, das contagens e das listas de alunos (decisão dela, 18/09/2026)
+  alunos.forEach(a => { if (byT[a.turma_id]) byT[a.turma_id][a.papel === 'auxiliar' ? 'auxiliares' : 'alunos'].push(a) })
   const list = Object.values(byT)
   setCachedTurmas(list)
   return list
