@@ -16,11 +16,11 @@ const MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julh
 const sigla = t => (t?.nome || '').split(' (')[0].split(' — ').pop()
 const CORES = ['#2749B0', '#B01B1B', '#12804A', '#B8860B', '#6B4FA0']
 
-export default function Aulas({ userId, tid, setTid, turmas, online, showToast, refresh, abrirChamada }) {
+export default function Aulas({ userId, tid, setTid, turmas, online, showToast, refresh, abrirChamada, onMudou }) {
   const t = turmas.find(x => x.id === tid)
   // calendário geral (todas as turmas: sábado tem manhã e tarde) ou só a turma escolhida
-  const [geral, setGeralRaw] = useState(() => { try { return localStorage.getItem('orbe_cal_geral') !== '0' } catch (e) { return true } })
-  const setGeral = v => { setGeralRaw(v); try { localStorage.setItem('orbe_cal_geral', v ? '1' : '0') } catch (e) {} }
+  // o calendário geral (todas as turmas) confundiu (pedido dela, 18/09): fica só por turma
+  const geral = false, setGeral = () => {}
   const reais = useMemo(() => turmas.filter(x => !x.teste && !/TESTE/i.test(x.nome)).sort((a, b) => (a.dia_semana ?? 9) - (b.dia_semana ?? 9) || (a.horario || '').localeCompare(b.horario || '')), [turmas])
   const cor = id => CORES[Math.max(0, reais.findIndex(x => x.id === id)) % CORES.length]
   const [todas, setTodas] = useState({})   // turma_id → aulas
@@ -34,9 +34,9 @@ export default function Aulas({ userId, tid, setTid, turmas, online, showToast, 
   const carregar = useCallback(() => {
     if (!online || !tid) return
     store.aulasDaTurma(tid).then(setAulas).catch(e => showToast('Erro: ' + e.message))
-    Promise.all(reais.map(x => store.aulasDaTurma(x.id).then(a => [x.id, a]))).then(ps => setTodas(Object.fromEntries(ps))).catch(() => {})
-  }, [tid, online, showToast, reais])
+  }, [tid, online, showToast])
   useEffect(() => { carregar() }, [carregar])
+  const recarregar = () => { carregar(); onMudou && onMudou() }   // a frequência logo abaixo acompanha
 
   const porData = useMemo(() => Object.fromEntries(aulas.map(a => [a.data, a])), [aulas])
   const aula = porData[sel]
@@ -57,19 +57,19 @@ export default function Aulas({ userId, tid, setTid, turmas, online, showToast, 
 
   async function criar() {
     setBusy(true)
-    try { await store.criarAula(userId, tid, sel, texto); showToast('Aula registrada em ' + fmtLongo(sel)); carregar() }
+    try { await store.criarAula(userId, tid, sel, texto); showToast('Aula registrada em ' + fmtLongo(sel)); recarregar() }
     catch (e) { showToast('Erro: ' + e.message) } finally { setBusy(false) }
   }
   async function salvarConteudo() {
     if (!aula || texto === (aula.conteudo || '')) return
-    try { await store.salvarConteudo(aula.id, texto); showToast('Conteúdo salvo'); carregar() }
+    try { await store.salvarConteudo(aula.id, texto); showToast('Conteúdo salvo'); recarregar() }
     catch (e) { showToast('Não consegui salvar o conteúdo') }
   }
   async function mudarData() {
     if (!aula || !novaData) return
     if (porData[novaData]) { showToast('Já existe aula em ' + fmtLongo(novaData)); return }
     if (!confirm(`Mudar a aula de ${fmtLongo(aula.data)} para ${fmtLongo(novaData)}? As ${aula.presentes} presença(s) e o conteúdo vão junto.`)) return
-    try { await store.mudarDataAula(aula.id, novaData); showToast('Aula movida para ' + fmtLongo(novaData)); setSel(novaData); carregar() }
+    try { await store.mudarDataAula(aula.id, novaData); showToast('Aula movida para ' + fmtLongo(novaData)); setSel(novaData); recarregar() }
     catch (e) { showToast('Erro: ' + e.message) }
   }
   async function apagar(a = aula) {
@@ -78,7 +78,7 @@ export default function Aulas({ userId, tid, setTid, turmas, online, showToast, 
       ? `Apagar a aula de ${fmtLongo(a.data)}?\n\nEla tem ${a.presentes} presença(s) registrada(s), que serão apagadas junto. Não dá para desfazer.`
       : `Apagar a aula de ${fmtLongo(a.data)}? (sem presenças)`
     if (!confirm(aviso)) return
-    try { await store.apagarAula(a.id); showToast('Aula apagada'); carregar() }
+    try { await store.apagarAula(a.id); showToast('Aula apagada'); recarregar() }
     catch (e) { showToast('Erro: ' + e.message) }
   }
   async function mudarTurma(campos) {
@@ -106,15 +106,11 @@ export default function Aulas({ userId, tid, setTid, turmas, online, showToast, 
           {estranhas.length} aula(s) fora do dia da turma e sem nenhuma presença (provavelmente abertas por engano): {estranhas.map(a => fmtLongo(a.data)).join(' · ')}. Elas contam falta na exportação.
           <div className="btnrow"><button className="btn mini" onClick={async () => {
             if (!confirm(`Apagar as ${estranhas.length} aula(s) sem presença fora do dia da turma?`)) return
-            try { for (const a of estranhas) await store.apagarAula(a.id); showToast(estranhas.length + ' aula(s) apagada(s)'); carregar() } catch (e) { showToast('Erro: ' + e.message) }
+            try { for (const a of estranhas) await store.apagarAula(a.id); showToast(estranhas.length + ' aula(s) apagada(s)'); recarregar() } catch (e) { showToast('Erro: ' + e.message) }
           }}>Apagar essas {estranhas.length}</button></div></div>}
       </div>}
 
       <div className="panel">
-        <div className="btnrow" style={{ marginTop: 0 }}>
-          <button className={'btn mini' + (geral ? '' : ' ghost')} onClick={() => setGeral(true)}>Todas as turmas</button>
-          <button className={'btn mini' + (geral ? ' ghost' : '')} onClick={() => setGeral(false)}>Só {sigla(t)}</button>
-        </div>
         <div className="cal-cab">
           <button className="btn ghost mini" onClick={() => setMes(new Date(mes.getFullYear(), mes.getMonth() - 1, 1))}>‹</button>
           <b>{MESES[mes.getMonth()]} {mes.getFullYear()}</b>

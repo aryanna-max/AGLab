@@ -96,6 +96,7 @@ function Main({ session }) {
   const setTid = useCallback(id => { setTidRaw(id); try { localStorage.setItem(K_TURMA, id) } catch (e) {} }, [])
   useEffect(() => { if (turmas.length && !turmas.some(t => t.id === tid)) setTid(turmas[0].id) }, [turmas, tid, setTid])
   const turma = turmas.find(t => t.id === tid)
+  const [versaoAulas, setVersaoAulas] = useState(0)
   const [dataChamada, setDataChamada] = useState(null)   // dia escolhido na aba Aulas para abrir a chamada
 
   const showToast = useCallback(msg => {
@@ -148,7 +149,7 @@ function Main({ session }) {
       </div>}
 
       <nav className="tabs">
-        {[['chamada', 'Chamada'], ['aulas', '📅 Aulas'], ['missoes', 'Missões'], ['insignias', 'Insígnias'], ['avisos', 'Avisos'], ['analise', 'Análise'], ['radar', 'Radar'], ['mapa', '🗺️ Mapa'], ['conferir', 'Conferir faltantes'], ['resumo', 'Resumo / Exportar'], ['posicao', 'Minha posição'], ['turmas', 'Turmas & Fotos']].map(([k, l]) =>
+        {[['chamada', 'Chamada'], ['aulas', '📅 Aulas e frequência'], ['missoes', 'Missões'], ['insignias', 'Insígnias'], ['avisos', 'Avisos'], ['analise', 'Análise'], ['radar', 'Radar'], ['mapa', '🗺️ Mapa'], ['conferir', 'Conferir faltantes'], ['posicao', 'Minha posição'], ['turmas', 'Turmas & Fotos']].map(([k, l]) =>
           <button key={k} className={tab === k ? 'active' : ''} onClick={() => { setDataChamada(null); setTab(k) }}>{l}</button>)}
       </nav>
 
@@ -157,7 +158,7 @@ function Main({ session }) {
           !turma ? <div className="spin">Escolhendo a turma…</div> :
           <>
             {tab === 'chamada' && <><ColetaTurma userId={userId} tid={tid} turmas={turmas} online={online} showToast={showToast} /><AuxiliarDoDia tid={tid} turmas={turmas} online={online} showToast={showToast} /><Chamada key={dataChamada || 'hoje'} dataInicial={dataChamada} userId={userId} tid={tid} turmas={turmas} online={online} setPending={setPending} showToast={showToast} goConferir={() => setTab('conferir')} goAulas={() => setTab('aulas')} /></>}
-            {tab === 'aulas' && <Aulas userId={userId} tid={tid} setTid={setTid} turmas={turmas} online={online} showToast={showToast} refresh={refresh} abrirChamada={d => { setDataChamada(d); setTab('chamada') }} />}
+            {tab === 'aulas' && <><Aulas userId={userId} tid={tid} setTid={setTid} turmas={turmas} online={online} showToast={showToast} refresh={refresh} abrirChamada={d => { setDataChamada(d); setTab('chamada') }} onMudou={() => setVersaoAulas(v => v + 1)} /><Resumo key={tid + ':' + versaoAulas} tid={tid} turmas={turmas} showToast={showToast} /></>}
             {tab === 'insignias' && <InsigniasProfessora userId={userId} tid={tid} turmas={turmas} online={online} showToast={showToast} />}
             {tab === 'avisos' && <AvisosProfessora userId={userId} tid={tid} turmas={turmas} online={online} showToast={showToast} />}
             {tab === 'missoes' && <MissoesProfessora userId={userId} tid={tid} turmas={turmas} online={online} showToast={showToast} />}
@@ -165,7 +166,6 @@ function Main({ session }) {
             {tab === 'mapa' && <MapaAlunos tid={tid} turmas={turmas} online={online} />}
             {tab === 'radar' && <Radar userId={userId} tid={tid} turmas={turmas} online={online} showToast={showToast} ehComputador={EH_COMPUTADOR} />}
             {tab === 'conferir' && <Conferir userId={userId} tid={tid} turmas={turmas} online={online} setPending={setPending} showToast={showToast} />}
-            {tab === 'resumo' && <Resumo tid={tid} turmas={turmas} showToast={showToast} />}
             {tab === 'posicao' && (EH_COMPUTADOR ? <PosicaoComputador /> : <Posicao userId={userId} online={online} showToast={showToast} />)}
             {tab === 'turmas' && <><GerenciarTurmas userId={userId} tid={tid} turmas={turmas} refresh={refresh} showToast={showToast} online={online} /><TurmasFotos tid={tid} turmas={turmas} refresh={refresh} showToast={showToast} online={online} /></>}
           </>}
@@ -1184,7 +1184,7 @@ function Resumo({ tid, turmas, showToast }) {
         <button className="btn ghost" onClick={exportDetalhado} disabled={!dados || !dates.length}>Exportar detalhado (hora e origem)</button>
         <button className="btn ghost" onClick={exportConteudos} disabled={!dados || !dates.length}>Exportar conteúdos (diário)</button>
       </div>
-      <p className="note">{dates.length} aula(s) dada(s) × {tempos} h-a = <b>{dates.length * tempos} h-a</b>. Cada falta vale {tempos} h-a. Aulas planejadas (depois de hoje) não entram. Para corrigir dias, use a aba 📅 Aulas.</p>
+      <p className="note">{dates.length} aula(s) dada(s) × {tempos} h-a = <b>{dates.length * tempos} h-a</b>. Cada falta vale {tempos} h-a. Aulas planejadas (depois de hoje) não entram. Para corrigir dias, use o calendário acima.</p>
       <p className="note">Na tabela: <b>M</b> manual · <b>Q</b> QR lido por você · <b>A</b> QR do dia lido pelo aluno. Toque na célula para ver a hora. A coluna “Faltas” está em h-a.</p>
       {!navigator.onLine ? <p className="note" style={{ color: 'var(--miss)' }}>Offline — o resumo precisa de internet.</p> :
         busy ? <div className="spin">Carregando…</div> :
