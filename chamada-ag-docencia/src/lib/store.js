@@ -376,6 +376,13 @@ export async function leiturasDaSessao(sessaoId, desde) {
 }
 
 /* ---------- radar: batimentos dos alunos da turma ---------- */
+/* referência da presença de hoje (aula aberta com posição), para o Mapa */
+export async function referenciaDeHoje(turmaId) {
+  const { data, error } = await supabase.from('sessoes_coleta').select('ref_lat,ref_lon,raio_m,janela_inicio')
+    .eq('turma_id', turmaId).eq('aberta', true).order('janela_inicio', { ascending: false }).limit(1)
+  if (error) throw error
+  const s = data && data[0]; return s && s.ref_lat != null ? { lat: s.ref_lat, lon: s.ref_lon, raio: s.raio_m || 50 } : null
+}
 export async function vivos(turmaId) {
   const { data, error } = await supabase.from('presenca_viva')
     .select('aluno_id,lat,lon,acuracia_m,modo,visto_em,alunos!inner(turma_id)')

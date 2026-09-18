@@ -90,7 +90,7 @@ export default function Radar({ userId, tid, turmas, online, showToast, ehComput
   /* Referência do dia: a auxiliar, enquanto o batimento dela estiver fresco.
      Parou de transmitir (fechou a tela, negou o GPS) — volta ao centro de sempre. */
   const auxId = auxAcesso?.aluno_id || null
-  const auxNome = auxId ? (t?.alunos || []).find(a => a.id === auxId)?.nome : null
+  const auxNome = auxId ? [...(t?.auxiliares || []), ...(t?.alunos || [])].find(a => a.id === auxId)?.nome : null
   const refAux = (() => {
     if (!auxId) return null
     const v = vivoMap[auxId]
