@@ -42,6 +42,8 @@ export function CartaoInsignia({ chave, dado, onFechar }) {
 export default function InsigniasAluno({ insignias, nome: meuNome, avatar }) {
   const lista = insignias.dados?.insignias || []
   const porChave = Object.fromEntries(lista.map(i => [i.chave, i]))
+  // pioneiro de cada função na turma (o servidor manda o primeiro nome)
+  const donoPio = Object.fromEntries((insignias.dados?.pioneiros || []).filter(p => !p.eu).map(p => [p.base, p.nome]))
   const [aberta, setAberta] = useState(null)
   const [som, setSom] = useState(somEscolhido)
 
@@ -58,8 +60,8 @@ export default function InsigniasAluno({ insignias, nome: meuNome, avatar }) {
         </div>
       </div>
       {CATEGORIAS.map(([cat, nome, cor]) => {
-        // pioneiras: só as que ele ganhou, no fim de Especiais (não há caminho para mostrar: é ser o primeiro)
-        const doGrupo = [...INSIGNIAS.filter(i => i.cat === cat), ...PIONEIRAS.filter(i => i.cat === cat && porChave[i.k])]
+        // todas aparecem; as que ele não tem, em monocromático (pedido dela, 18/09/2026). Pioneiras no fim de Especiais.
+        const doGrupo = [...INSIGNIAS.filter(i => i.cat === cat), ...PIONEIRAS.filter(i => i.cat === cat)]
         return (
           <div className="panel" key={cat}>
             <h2 style={{ marginTop: 0, color: cor }}>{nome}</h2>
@@ -79,7 +81,7 @@ export default function InsigniasAluno({ insignias, nome: meuNome, avatar }) {
               const i = POR_CHAVE[aberta], minha = porChave[aberta]
               return <div className="ins-detalhe">
                 <b>{minha ? '✓ ' : '🔒 '}{i.nome}</b>
-                <p>{minha ? (minha.dado || 'Conquistada.') : i.regra}</p>
+                <p>{minha ? (minha.dado || 'Conquistada.') : i.pioneiro && donoPio[i.base] ? `Na sua turma, quem estreou foi ${donoPio[i.base]}.` : i.regra}</p>
                 {minha && <p className="note">Conquistada em {fmt(minha.em)}{minha.origem === 'professora' ? ' · dada pela professora' : ''}</p>}
               </div>
             })()}

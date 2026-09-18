@@ -38,7 +38,7 @@ export const INSIGNIAS = [
 /* Família Pioneiro (18/09/2026, decisões dela): o primeiro da turma a estrear cada função do Orbe
    ganha a versão ametista (Especiais) com a bandeira marfim — por abrir caminho, não por domínio.
    Automática (servidor, _conferir_pioneiros a cada 5 min); ela pode passar ao próximo.
-   Não entram na contagem "x de N": só aparecem para quem ganhou. */
+   Não entram na contagem "x de N". Na coleção aparecem todas; as que ele não tem, em monocromático. */
 const FUNCOES_SEM_BASE = { avatar: 'Avatar', avisos: 'Avisos', missao: 'Missão enviada' }
 export const BASES_PIONEIRO = ['no_ar', 'presente', 'rosto', 'avatar', 'avisos', 'primeiro_pin', 'parado', 'tres_amb', 'no_marco',
   'na_mosca', 'poligonal', 'cadastrador', 'caderneta', 'missao', 'equipe', 'envio_oficial', 'primeiro_ouro', 'tres_frentes']
@@ -55,6 +55,6 @@ export const COR_CAT = Object.fromEntries(CATEGORIAS.map(([k, , c]) => [k, c]))
 export const TOTAL = INSIGNIAS.length
 // arte: joias hexagonais (15/09/2026). Equipe em campo e Envio oficial ainda usam o rascunho.
 // ARTE_V muda a cada arte nova publicada: o celular guarda a arte por 180 dias (CacheFirst) pelo endereço
-const ARTE_V = '2026-09-18b'
+const ARTE_V = '2026-09-18c'
 export const arte = (k, { tam = 128, bloqueada = false } = {}) =>
-  `/insignias/${k}${bloqueada && !ehPioneira(k) ? '-bloqueada-128' : '-' + (tam > 128 ? 256 : 128)}.png?v=${ARTE_V}`
+  `/insignias/${k}${bloqueada ? '-bloqueada-128' : '-' + (tam > 128 ? 256 : 128)}.png?v=${ARTE_V}`
