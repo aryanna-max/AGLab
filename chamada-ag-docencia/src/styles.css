@@ -411,3 +411,8 @@ table.matrix tr.sel-row td{background:rgba(123,79,0,.10)}
 .ins-linha img{width:44px;height:44px;flex:0 0 auto}
 .ins-chips{display:flex;gap:4px;flex-wrap:wrap}
 .ins-chips img{width:26px;height:26px}
+
+/* /instalar: passos numerados */
+.inst-lista { list-style: none; padding: 0; margin: 14px 0; display: grid; gap: 12px; }
+.inst-passo { display: flex; gap: 12px; align-items: flex-start; line-height: 1.45; }
+.inst-n { flex: none; width: 28px; height: 28px; border-radius: 50%; background: var(--brand, #1f4e79); color: #fff; display: grid; place-items: center; font-weight: 700; font-size: 14px; }

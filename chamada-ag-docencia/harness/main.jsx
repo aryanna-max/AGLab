@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import '../src/styles.css'
 import { MainParaTeste as Main } from '../src/App.jsx'
 import Aluno from '../src/Aluno.jsx'
+import Instalar from '../src/Instalar.jsx'
 
 // Mostra o erro no topo da página, com as linhas do stack que apontam para o nosso código.
 window.addEventListener('error', e => {
@@ -11,4 +12,4 @@ window.addEventListener('error', e => {
 })
 
 if (location.search.includes('aluno')) { try { localStorage.setItem('agc2_ident', JSON.stringify({ alunoId: 'x', matricula: '20231F61RC0280', nome: 'Alice', turma: 'F61RC', turmaId: 't', temFoto: true })) } catch (e) {} }
-createRoot(document.getElementById('root')).render(location.search.includes('aluno') ? <Aluno /> : <Main session={{ user: { id: 'prof' } }} />)
+createRoot(document.getElementById('root')).render(location.search.includes('instalar') ? <Instalar /> : location.search.includes('aluno') ? <Aluno /> : <Main session={{ user: { id: 'prof' } }} />)
