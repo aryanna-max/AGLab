@@ -208,6 +208,10 @@ export default function Auxiliar() {
           <div className="c miss"><div className="n">{alunos.length - presentes}</div><div className="l">faltam</div></div>
         </div>
         <p className="hint">Quem lê o QR entra sozinho nesta lista. Marque na mão só quem está sem celular.</p>
+        {alunos.some(a => a.a_conferir) && <div className="flash dup" style={{ textAlign: 'left' }}>
+          <b>⚠ A conferir antes de fechar a aula: {alunos.filter(a => a.a_conferir).map(a => a.nome.split(' ')[0]).join(', ')}</b>
+          <div className="note" style={{ margin: '4px 0 0' }}>Registraram pelo app, mas fora do raio da sala. Se estão na aula, toque em marcar.</div>
+        </div>}
         <ul className="people">
           {alunos.map(a => <li key={a.id}>
             <div className="left">
@@ -216,7 +220,7 @@ export default function Auxiliar() {
               <div style={{ minWidth: 0 }}>
                 <div style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.nome}</div>
                 <div className="note" style={{ margin: 0 }}>
-                  {a.presente ? (a.origem === 'auxiliar' ? 'marcado por você' : 'registrou pelo app') : (a.matricula || 'sem matrícula')}
+                  {a.presente ? (a.origem === 'auxiliar' ? 'marcado por você' : 'registrou pelo app') : a.no_limite ? '⚠ a conferir: no limite do GPS, provável presente' : a.a_conferir ? '⚠ a conferir: registrou longe da sala' : (a.matricula || 'sem matrícula')}
                 </div>
               </div>
             </div>

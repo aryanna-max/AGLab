@@ -698,6 +698,22 @@ function ColetaTurma({ userId, tid, turmas, online, showToast }) {
   }
   async function fechar() {
     if (!sessao) return
+    // alerta antes de fechar (regra dela, 18/09/2026): quem ficou "a conferir" e ainda não tem presença marcada
+    const comPresenca = new Set(linhas.filter(l => l.presenca_marcada).map(l => l.aluno_id))
+    const pend = {}
+    linhas.filter(l => ehChamada(l) && aConferirRaio(l) && !comPresenca.has(l.aluno_id)).forEach(l => {
+      const p = pend[l.aluno_id] || (pend[l.aluno_id] = { nome: l.alunos?.nome || '—', limite: false })
+      if (l.extra?.no_limite) p.limite = true
+    })
+    const lista = Object.values(pend)
+    if (lista.length && !confirm(`Antes de encerrar: ${lista.length} aluno(s) a conferir, sem presença marcada:
+
+`
+      + lista.map(p => '• ' + p.nome + (p.limite ? ' — no limite do GPS, provável presente' : '')).join('
+')
+      + '
+
+Marque na aba Chamada quem estava na aula. Encerrar mesmo assim?')) return
     try { await store.fecharSessao(sessao.id); setSessao({ ...sessao, aberta: false }); showToast('Sessão encerrada') }
     catch (e) { showToast('Erro ao encerrar') }
   }
@@ -730,7 +746,9 @@ function ColetaTurma({ userId, tid, turmas, online, showToast }) {
     const add = (l, motivo) => { const k = chave(l) + motivo; if (!vistos.has(k)) { vistos.add(k); out.push({ l, motivo }) } }
     const mesmaPos = {}
     linhas.filter(ehChamada).forEach(l => {
-      if (aConferirRaio(l)) add(l, l.extra.dist_ref_m != null ? `longe da referência: ${metros(l.extra.dist_ref_m, 0)} m (raio ${metros(l.extra.raio_m, 0)} m)` : 'sem posição para conferir')
+      if (aConferirRaio(l)) add(l, l.extra.dist_ref_m == null ? 'sem posição para conferir'
+        : l.extra.no_limite ? `no limite do GPS: ${metros(l.extra.dist_ref_m, 1)} m (raio ${metros(l.extra.raio_m, 0)} m, ±${metros(l.acuracia_m, 1)} m) — provável presente`
+        : `longe da referência: ${metros(l.extra.dist_ref_m, 0)} m (raio ${metros(l.extra.raio_m, 0)} m)`)
       if ((l.extra?.n_leituras || 0) >= 5 && l.extra?.espalhamento_m === 0) add(l, 'posição idêntica em todas as leituras (GPS falso?)')
       if (l.acuracia_m != null && l.acuracia_m < 1) add(l, `acurácia de ${metros(l.acuracia_m, 1)} m, rara em celular (GPS falso?)`)
       if (foraDoCampus(l)) add(l, 'leitura longe do campus')
