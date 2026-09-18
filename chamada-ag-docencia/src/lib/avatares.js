@@ -7,16 +7,21 @@
    O banco guarda só a chave ('lumi'); a arte mora em public/avatares e é trocada aqui,
    neste arquivo, sem mexer em banco nem em tela.
 
-   A turma do Orbe é o ponto de partida. Quando a lista dela chegar, é só trocar/estender
-   esta tabela e soltar a arte em public/avatares com os mesmos nomes de arquivo. */
+   A arte dela entra por avatares-professora.json, gerado pelo sincronizar-avatares.py da
+   pasta "00_Orbe — Projeto/Avatares" (que também gera os jpg de public/avatares). Nome é
+   opcional: sem nome, a grade mostra só a imagem. A turma do Orbe vem depois. */
 
-export const AVATARES = [
+import DELA from './avatares-professora.json'
+
+const TURMA_ORBE = [
   { k: 'orbe', nome: 'Orbe' },
   { k: 'vertice', nome: 'Vértice' },
   { k: 'navi', nome: 'Navi' },
   { k: 'lumi', nome: 'Lumi' },
   { k: 'teo', nome: 'Téo' },
 ]
+
+export const AVATARES = [...DELA, ...TURMA_ORBE]
 
 export const POR_CHAVE = Object.fromEntries(AVATARES.map(a => [a.k, a]))
 export const existe = k => !!(k && POR_CHAVE[k])

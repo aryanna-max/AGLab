@@ -21,12 +21,12 @@ export default function MeuAvatar({ ident, online, onEscolhido, onVoltar }) {
 
   async function salvar() {
     if (!escolha || escolha === atual) return
-    if (atual && !confirm(`Trocar para ${nomeAvatar(escolha)}? Depois disso você só troca de novo daqui a uma semana.`)) return
+    if (atual && !confirm(`Trocar para ${nomeAvatar(escolha) || 'este avatar'}? Depois disso você só troca de novo daqui a uma semana.`)) return
     setBusy(true); setErro(''); setMsg('')
     try {
       const r = await salvarAvatar(ident, escolha)
       onEscolhido(r.avatar, r.avatar_em)
-      setMsg(`Pronto. Você é ${nomeAvatar(r.avatar)} agora.`)
+      setMsg(nomeAvatar(r.avatar) ? `Pronto. Você é ${nomeAvatar(r.avatar)} agora.` : 'Pronto. Este é o seu avatar agora.')
     } catch (e) {
       setErro(e.message || 'Não consegui salvar agora.')
       if (e.avatar) { setEscolha(e.avatar); onEscolhido(e.avatar, e.avatar_em) }
@@ -46,7 +46,7 @@ export default function MeuAvatar({ ident, online, onEscolhido, onVoltar }) {
           <button key={a.k} className={'ins-it' + (escolha === a.k ? ' av-on' : '')}
             onClick={() => setEscolha(a.k)} aria-pressed={escolha === a.k}>
             <img src={arteAvatar(a.k, { tam: 256 })} alt="" width="64" height="64" />
-            <span>{a.nome}{atual === a.k ? ' · seu' : ''}</span>
+            {(a.nome || atual === a.k) && <span>{a.nome}{atual === a.k ? (a.nome ? ' · seu' : 'seu') : ''}</span>}
           </button>
         ))}
       </div>
