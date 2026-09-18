@@ -970,7 +970,8 @@ function AuxiliarDoDia({ tid, turmas, online, showToast }) {
 /* ---------- PINS E POLIGONAIS DA TURMA ---------- */
 /* ---------- CHAMADA ---------- */
 function Chamada({ userId, tid, turmas, online, setPending, showToast, goAulas, dataInicial }) {
-  const [soFaltantes, setSoFaltantes] = useState(false)   // o antigo "Conferir faltantes" (18/09: virou o final da Chamada)
+  const [soFaltantes, setSoFaltantes] = useState(false)
+  const [fechada, setFechada] = useState(false)   // chamada salva: a lista recolhe (pedido dela, 18/09); reabre para editar   // o antigo "Conferir faltantes" (18/09: virou o final da Chamada)
   const [data, setData] = useState(dataInicial || todayISO())
   const [semAula, setSemAula] = useState(false)
   const [criada, setCriada] = useState(0)   // recarrega depois de registrar a aula
@@ -1004,7 +1005,7 @@ function Chamada({ userId, tid, turmas, online, setPending, showToast, goAulas, 
     setBusy(true)
     const puxa = async ch => { const p = await store.getPresentes(ch.id); if (!alive) return; const m = {}; p.forEach(id => m[id] = true); setPresent(m); setAtualizado(new Date()) }
     store.chamadaAuto(userId, turmas.find(x => x.id === tid), data)
-      .then(async ch => { if (!alive) return; if (!ch) { setSemAula(true); return } setChamadaId(ch.id); await puxa(ch); it = setInterval(() => puxa(ch).catch(() => {}), 5000) })
+      .then(async ch => { if (!alive) return; if (!ch) { setSemAula(true); return } setChamadaId(ch.id); setFechada(!!ch.confirmada); await puxa(ch); it = setInterval(() => puxa(ch).catch(() => {}), 5000) })
       .catch(() => showToast('Erro ao abrir chamada'))
       .finally(() => alive && setBusy(false))
     return () => { alive = false; if (it) clearInterval(it) }
@@ -1030,8 +1031,8 @@ function Chamada({ userId, tid, turmas, online, setPending, showToast, goAulas, 
 
   const rows = t ? t.alunos.filter(a => (!soFaltantes || !present[a.id]) && (!q || a.nome.toLowerCase().includes(q.toLowerCase()) || (a.matricula || '').includes(q))) : []
   async function salvarChamada() {
-    if (chamadaId && online) { try { await store.confirmarChamada(chamadaId); showToast('Chamada salva') } catch (e) { showToast('Erro ao salvar') } }
-    else if (chamadaId) { store.queueOp({ type: 'confirm', chamadaId }); setPending(store.outboxCount()); showToast('Salvo offline — sincroniza depois') }
+    if (chamadaId && online) { try { await store.confirmarChamada(chamadaId); showToast('Chamada salva'); setFechada(true); setSoFaltantes(false); window.scrollTo({ top: 0, behavior: 'smooth' }) } catch (e) { showToast('Erro ao salvar') } }
+    else if (chamadaId) { store.queueOp({ type: 'confirm', chamadaId }); setPending(store.outboxCount()); showToast('Salvo offline — sincroniza depois'); setFechada(true); setSoFaltantes(false) }
   }
 
   return (
@@ -1056,6 +1057,10 @@ function Chamada({ userId, tid, turmas, online, setPending, showToast, goAulas, 
         <div className="c"><div className="n">{counts.tot}</div><div className="l">Turma</div></div>
       </div>
 
+      {fechada && chamadaId ? <div className="flash ok" style={{ textAlign: 'left', marginTop: 12 }}>
+        ✓ <b>Chamada salva</b>: {counts.p} presente(s) e {counts.f} falta(s). Presença pelo GPS que chegar agora ainda entra sozinha.
+        <div className="btnrow"><button className="btn ghost mini" onClick={() => setFechada(false)}>Reabrir a lista para corrigir</button></div>
+      </div> : <>
       <div className="btnrow">
         <button className={'btn mini' + (soFaltantes ? ' ghost' : '')} onClick={() => setSoFaltantes(false)}>Todos</button>
         <button className={'btn mini' + (soFaltantes ? '' : ' ghost')} onClick={() => setSoFaltantes(true)}>Só faltantes ({counts.f})</button>
@@ -1075,6 +1080,7 @@ function Chamada({ userId, tid, turmas, online, setPending, showToast, goAulas, 
         {!soFaltantes && <button className="btn ghost" onClick={() => { setSoFaltantes(true); window.scrollTo({ top: 0, behavior: 'smooth' }) }}>Conferir faltantes ▸</button>}
         <button className="btn" onClick={salvarChamada} disabled={!chamadaId}>Salvar chamada do dia</button>
       </div>
+      </>}
     </div>
   )
 }
