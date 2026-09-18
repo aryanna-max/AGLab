@@ -149,7 +149,7 @@ function Main({ session }) {
       </div>}
 
       <nav className="tabs">
-        {[['chamada', 'Chamada'], ['aulas', '📅 Aulas e frequência'], ['missoes', 'Missões'], ['insignias', 'Insígnias'], ['avisos', 'Avisos'], ['analise', 'Análise'], ['radar', 'Radar'], ['mapa', '🗺️ Mapa'], ['conferir', 'Conferir faltantes'], ['posicao', 'Minha posição'], ['turmas', 'Turmas & Fotos']].map(([k, l]) =>
+        {[['chamada', 'Chamada'], ['aulas', '📅 Aulas e frequência'], ['missoes', 'Missões'], ['insignias', 'Insígnias'], ['avisos', 'Avisos'], ['analise', 'Análise'], ['radar', 'Radar'], ['mapa', '🗺️ Mapa'], ['posicao', 'Minha posição'], ['turmas', 'Turmas & Fotos']].map(([k, l]) =>
           <button key={k} className={tab === k ? 'active' : ''} onClick={() => { setDataChamada(null); setTab(k) }}>{l}</button>)}
       </nav>
 
@@ -157,7 +157,7 @@ function Main({ session }) {
         turmas.length === 0 ? <SeedPanel userId={userId} onDone={refresh} showToast={showToast} /> :
           !turma ? <div className="spin">Escolhendo a turma…</div> :
           <>
-            {tab === 'chamada' && <><ColetaTurma userId={userId} tid={tid} turmas={turmas} online={online} showToast={showToast} /><AuxiliarDoDia tid={tid} turmas={turmas} online={online} showToast={showToast} /><Chamada key={dataChamada || 'hoje'} dataInicial={dataChamada} userId={userId} tid={tid} turmas={turmas} online={online} setPending={setPending} showToast={showToast} goConferir={() => setTab('conferir')} goAulas={() => setTab('aulas')} /></>}
+            {tab === 'chamada' && <><ColetaTurma userId={userId} tid={tid} turmas={turmas} online={online} showToast={showToast} /><AuxiliarDoDia tid={tid} turmas={turmas} online={online} showToast={showToast} /><Chamada key={dataChamada || 'hoje'} dataInicial={dataChamada} userId={userId} tid={tid} turmas={turmas} online={online} setPending={setPending} showToast={showToast} goAulas={() => setTab('aulas')} /></>}
             {tab === 'aulas' && <><Aulas userId={userId} tid={tid} setTid={setTid} turmas={turmas} online={online} showToast={showToast} refresh={refresh} abrirChamada={d => { setDataChamada(d); setTab('chamada') }} onMudou={() => setVersaoAulas(v => v + 1)} /><Resumo key={tid + ':' + versaoAulas} tid={tid} turmas={turmas} showToast={showToast} /></>}
             {tab === 'insignias' && <InsigniasProfessora userId={userId} tid={tid} turmas={turmas} online={online} showToast={showToast} />}
             {tab === 'avisos' && <AvisosProfessora userId={userId} tid={tid} turmas={turmas} online={online} showToast={showToast} />}
@@ -165,7 +165,6 @@ function Main({ session }) {
             {tab === 'analise' && <Analise tid={tid} turmas={turmas} online={online} showToast={showToast} />}
             {tab === 'mapa' && <MapaAlunos tid={tid} turmas={turmas} online={online} />}
             {tab === 'radar' && <Radar userId={userId} tid={tid} turmas={turmas} online={online} showToast={showToast} ehComputador={EH_COMPUTADOR} />}
-            {tab === 'conferir' && <Conferir userId={userId} tid={tid} turmas={turmas} online={online} setPending={setPending} showToast={showToast} />}
             {tab === 'posicao' && (EH_COMPUTADOR ? <PosicaoComputador /> : <Posicao userId={userId} online={online} showToast={showToast} />)}
             {tab === 'turmas' && <><GerenciarTurmas userId={userId} tid={tid} turmas={turmas} refresh={refresh} showToast={showToast} online={online} /><TurmasFotos tid={tid} turmas={turmas} refresh={refresh} showToast={showToast} online={online} /></>}
           </>}
@@ -967,7 +966,8 @@ function AuxiliarDoDia({ tid, turmas, online, showToast }) {
 
 /* ---------- PINS E POLIGONAIS DA TURMA ---------- */
 /* ---------- CHAMADA ---------- */
-function Chamada({ userId, tid, turmas, online, setPending, showToast, goConferir, goAulas, dataInicial }) {
+function Chamada({ userId, tid, turmas, online, setPending, showToast, goAulas, dataInicial }) {
+  const [soFaltantes, setSoFaltantes] = useState(false)   // o antigo "Conferir faltantes" (18/09: virou o final da Chamada)
   const [data, setData] = useState(dataInicial || todayISO())
   const [semAula, setSemAula] = useState(false)
   const [criada, setCriada] = useState(0)   // recarrega depois de registrar a aula
@@ -1025,7 +1025,11 @@ function Chamada({ userId, tid, turmas, online, setPending, showToast, goConferi
   }
   const toggle = alunoId => present[alunoId] ? unmark(alunoId) : mark(alunoId)
 
-  const rows = t ? t.alunos.filter(a => !q || a.nome.toLowerCase().includes(q.toLowerCase()) || (a.matricula || '').includes(q)) : []
+  const rows = t ? t.alunos.filter(a => (!soFaltantes || !present[a.id]) && (!q || a.nome.toLowerCase().includes(q.toLowerCase()) || (a.matricula || '').includes(q))) : []
+  async function salvarChamada() {
+    if (chamadaId && online) { try { await store.confirmarChamada(chamadaId); showToast('Chamada salva') } catch (e) { showToast('Erro ao salvar') } }
+    else if (chamadaId) { store.queueOp({ type: 'confirm', chamadaId }); setPending(store.outboxCount()); showToast('Salvo offline — sincroniza depois') }
+  }
 
   return (
     <div className="panel">
@@ -1049,6 +1053,11 @@ function Chamada({ userId, tid, turmas, online, setPending, showToast, goConferi
         <div className="c"><div className="n">{counts.tot}</div><div className="l">Turma</div></div>
       </div>
 
+      <div className="btnrow">
+        <button className={'btn mini' + (soFaltantes ? ' ghost' : '')} onClick={() => setSoFaltantes(false)}>Todos</button>
+        <button className={'btn mini' + (soFaltantes ? '' : ' ghost')} onClick={() => setSoFaltantes(true)}>Só faltantes ({counts.f})</button>
+      </div>
+      {soFaltantes && <p className="note">Chame os nomes. Quem estava presente: toque no nome e ele vira Presente.</p>}
       <input type="text" value={q} onChange={e => setQ(e.target.value)} placeholder="Buscar aluno…" style={{ marginTop: 12 }} />
       <ul className="people">
         {busy ? <li className="empty">Abrindo chamada…</li> :
@@ -1058,7 +1067,11 @@ function Chamada({ userId, tid, turmas, online, setPending, showToast, goConferi
               <span className={'tag ' + (isP ? 'P' : 'F')}>{isP ? 'Presente' : 'Falta'}</span>
             </li>) })}
       </ul>
-      <div className="btnrow"><button className="btn" onClick={goConferir}>Encerrar e conferir faltantes ▸</button></div>
+      {soFaltantes && !busy && chamadaId && rows.length === 0 && <p className="empty">Todos presentes 🎉</p>}
+      <div className="btnrow">
+        {!soFaltantes && <button className="btn ghost" onClick={() => { setSoFaltantes(true); window.scrollTo({ top: 0, behavior: 'smooth' }) }}>Conferir faltantes ▸</button>}
+        <button className="btn" onClick={salvarChamada} disabled={!chamadaId}>Salvar chamada do dia</button>
+      </div>
     </div>
   )
 }
