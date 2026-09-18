@@ -58,6 +58,7 @@ const especificos = {
       acuracia_m: 5 + i, modo: i === 3 ? 'referencia' : 'gps', visto_em: new Date().toISOString(),
     }))
   },
+  melhorLeituraDe: async () => ({ lat: -8.05882828659363, lon: -34.9513732181457, acuracia_m: 3.52937, criado_em: '2026-09-11T19:24:54Z', capturado_em: '2026-09-11T19:24:54Z' }),
   minhaUltimaLeitura: async () => ({ lat: -8.0587, lon: -34.9512, acuracia_m: 8, rotulo: 'sala', criado_em: agora, capturado_em: agora }),
   leiturasDaTurma: async () => leit, pinsDaTurma: async () => pins, poligonaisDaTurma: async () => polis, sessoesDaTurma: async () => [sess],
   resumoTurma: async () => ({ chamadas: [{ id: 'c1', data: '2026-09-11' }], presencas: [] }), turmasDoSeedFaltando: async () => [],
@@ -109,6 +110,7 @@ export const marcosPublicos = especificos['marcosPublicos'] || (async () => null
 export const acessoAuxiliarHoje = especificos['acessoAuxiliarHoje'] || (async () => null)
 export const liberarAuxiliar = especificos['liberarAuxiliar'] || (async () => null)
 export const revogarAuxiliar = especificos['revogarAuxiliar'] || (async () => null)
+export const melhorLeituraDe = especificos['melhorLeituraDe'] || (async () => null)
 export const minhaUltimaLeitura = especificos['minhaUltimaLeitura'] || (async () => null)
 export const outboxCount = especificos['outboxCount'] || (async () => null)
 export const pinsDaTurma = especificos['pinsDaTurma'] || (async () => null)

@@ -416,6 +416,18 @@ export async function minhaUltimaLeitura() {
   return data && data[0] ? data[0] : null
 }
 
+/* A leitura de melhor acurácia informada de uma pessoa da turma (ex.: a auxiliar).
+   Serve de centro fixo do radar quando a professora prefere um ponto medido com calma
+   a uma posição ao vivo que oscila. */
+export async function melhorLeituraDe(alunoId) {
+  const { data, error } = await supabase.from('leituras_gps')
+    .select('lat,lon,acuracia_m,criado_em,capturado_em')
+    .eq('aluno_id', alunoId).not('acuracia_m', 'is', null)
+    .order('acuracia_m', { ascending: true }).limit(1)
+  if (error) throw error
+  return data && data[0] ? data[0] : null
+}
+
 /* ---------- a professora usa o Orbe (Ir até, pins, poligonais) com a conta dela ----------
    Mesma interface que a RPC do aluno (apiAluno em Orbe.jsx), mas direto nas tabelas via RLS,
    com aluno_id nulo. As chaves p_* são as da RPC, para o Orbe não saber quem está usando. */
