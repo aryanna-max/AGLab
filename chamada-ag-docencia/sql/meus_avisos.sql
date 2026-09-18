@@ -22,3 +22,8 @@ begin
 end $$;
 revoke all on function public.meus_avisos(text, uuid) from public;
 grant execute on function public.meus_avisos(text, uuid) to anon, authenticated;
+
+-- 18/09/2026 (migração avisos_automaticos no Supabase): avisos.origem/ref_id, _aviso_auto, gatilhos
+-- missao_entregas_avisos (aceita/refazer → celular; equipe enviou → só quadro), missao_lancamentos_prazo
+-- (prazo acabando, só quadro), sessoes_coleta_aviso (aula aberta → celular). meus_avisos: 8 últimos + 'auto'.
+-- Vocabulário dela: notificação = chega no celular (e também vira aviso); aviso = aparece no quadro.

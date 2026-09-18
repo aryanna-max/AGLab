@@ -610,7 +610,7 @@ export async function inscricoesAtivas() {
   if (error) throw error; return data || []
 }
 export async function avisosDaTurma(turmaId) {
-  const { data, error } = await supabase.from('avisos').select('*').or(`turma_id.eq.${turmaId},turma_id.is.null`)
+  const { data, error } = await supabase.from('avisos').select('*').eq('origem', 'professora').or(`turma_id.eq.${turmaId},turma_id.is.null`)
     .order('agendado_para', { ascending: false }).limit(30)
   if (error) throw error; return data || []
 }

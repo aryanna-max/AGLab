@@ -607,9 +607,9 @@ export default function Aluno() {
       </div>}
       <CardPresenca />
       {listaAv.length > 0 && <div className="panel avisos-home">
-        <h2>🔔 Avisos da professora</h2>
+        <h2>🔔 Avisos</h2>
         {listaAv.map(v => <button key={v.id} className={'av-item' + (v.abrir && v.abrir !== 'home' ? ' clica' : '')} onClick={() => abrirPorAviso(v.abrir)}>
-          <span className="av-tit"><b>{v.titulo}</b><span className="av-em">{fmtQuando(v.em)}</span></span>
+          <span className="av-tit"><b>{v.auto ? '⚙️ ' : ''}{v.titulo}</b><span className="av-em">{fmtQuando(v.em)}</span></span>
           {v.texto && <span className="av-txt">{v.texto}</span>}
         </button>)}
       </div>}
