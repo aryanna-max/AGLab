@@ -187,6 +187,7 @@ export default function Aluno() {
       leituras: ls.map(l => ({ lat: l.lat, lon: l.lon, acc: l.acc, alt: l.alt, fixTs: l.fixTs })) })
   }   // na Chamada, medir é um passo explícito (confusão relatada em 15/09)
   const [enviando, setEnviando] = useState(false)
+  const [aConferir, setAConferir] = useState(false)   // registrado, mas a presença fica para a professora conferir
   const [placar, setPlacar] = useState(null)
   const [naFila, setNaFila] = useState(() => ler(K_FILA, []).length)
   const [online, setOnline] = useState(navigator.onLine)
@@ -360,6 +361,8 @@ export default function Aluno() {
       if (rotulo === 'chamada') {
         if (data.presenca) fixarPresenca(data, item.codigo, false)
         else if (data.motivo === 'fora_da_janela') fixarPresenca(data, item.codigo, true)
+        else if (data.motivo === 'a_conferir') setAConferir(true)
+        else if (data.motivo === 'sem_sessao') { setErro('Não achei aula aberta agora para a sua turma. Se a professora mostrar um QR, leia o QR.'); setTela('ler-aula') }
       } else { setAviso('Leitura enviada — ' + (rotulo === 'outro' && descricao ? descricao : nomeLocal(rotulo))); setTimeout(() => setAviso(''), 2500) }
     } catch (e) {
       if (ehErroDeRede(e)) {
@@ -370,7 +373,19 @@ export default function Aluno() {
   }
 
   /* ---------- navegação ---------- */
-  function irChamada() { setErro(''); setTela('ler-aula') }
+  /* Presença na sala (regra dela, 18/09/2026: "pra eles é na sala"): com aula da turma aberta
+     agora, marca sem QR — o servidor confere se a posição está perto da referência do dia e,
+     se não estiver, deixa "a conferir" para a professora. O aluno não vê distância nem raio.
+     Sem aula aberta conhecida, cai no leitor de QR de sempre. */
+  function irChamada() {
+    setErro(''); setAConferir(false)
+    const h = historico.dados?.hoje
+    if (!h?.aberta_agora) { setTela('ler-aula'); return }
+    setCodigoAula(''); codigoRef.current = ''
+    setAula({ turma: identRef.current?.turma || '', local: h.local || null, janela_aberta: true })
+    setModo('aula'); modoRef.current = 'aula'; autoRef.current = false
+    setTela('chamada-ok'); ligarGPS()
+  }
   function irArea(area) {
     setErro('')
     if (!identRef.current) { setDepoisDeIdent(area); setTela('identificar'); return }
@@ -614,6 +629,13 @@ export default function Aluno() {
         {presenca
           ? <><h2 style={{ marginTop: 0 }}>Pronto. Presença enviada.</h2>
               <p className="hint">Pode guardar o celular. Se a professora pedir para medir, toque abaixo.</p></>
+          : aConferir && !ocupando
+          ? <><h2 style={{ marginTop: 0 }}>Registrado.</h2>
+              <p className="hint">A professora vai conferir a sua presença. Se o GPS estava ruim, dá para tentar de novo, parado.</p>
+              <div className="btnrow" style={{ justifyContent: 'center' }}>
+                <button className="btn" onClick={() => { setAConferir(false); comecarChamada() }} disabled={!pos || enviando}>Tentar de novo</button>
+                <button className="btn ghost" onClick={voltarHome}>Voltar</button>
+              </div></>
           : ocupando
           ? <div className="ocup">
               {(() => { const R = 44, C = 2 * Math.PI * R; return <svg viewBox="0 0 100 100" className="ocup-anel">

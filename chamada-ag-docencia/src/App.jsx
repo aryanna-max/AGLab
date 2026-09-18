@@ -697,6 +697,30 @@ function ColetaTurma({ userId, tid, turmas, online, showToast }) {
   // o campus inteiro cabe em ~250 m da PERC; acima disso a leitura veio de fora
   const LONGE_M = 400
   const foraDoCampus = l => l.dist_perc_m != null && l.dist_perc_m > LONGE_M
+  /* Casos suspeitos (pedido dela, 18/09/2026). Nada disso dá falta sozinho: é a lista do que
+     ela confere antes de fechar a chamada.
+     - presença sem QR longe da referência do dia (acima do raio da sessão)
+     - GPS falso provável: 5+ leituras na ocupação com espalhamento zero, ou acurácia < 1 m
+     - dois alunos com a mesma posição até o centímetro (um celular marcando por dois)
+     - leitura longe do campus */
+  const aConferirRaio = l => !!(l.extra?.sem_qr && !l.presenca_marcada)
+  const suspeitos = (() => {
+    const out = [], chave = l => `${l.aluno_id}`
+    const vistos = new Set()
+    const add = (l, motivo) => { const k = chave(l) + motivo; if (!vistos.has(k)) { vistos.add(k); out.push({ l, motivo }) } }
+    const mesmaPos = {}
+    linhas.filter(ehChamada).forEach(l => {
+      if (aConferirRaio(l)) add(l, l.extra.dist_ref_m != null ? `longe da referência: ${metros(l.extra.dist_ref_m, 0)} m (raio ${metros(l.extra.raio_m, 0)} m)` : 'sem posição para conferir')
+      if ((l.extra?.n_leituras || 0) >= 5 && l.extra?.espalhamento_m === 0) add(l, 'posição idêntica em todas as leituras (GPS falso?)')
+      if (l.acuracia_m != null && l.acuracia_m < 1) add(l, `acurácia de ${metros(l.acuracia_m, 1)} m, rara em celular (GPS falso?)`)
+      if (foraDoCampus(l)) add(l, 'leitura longe do campus')
+      if (l.lat != null) { const k = l.lat.toFixed(7) + ',' + (l.lon ?? 0).toFixed(7); (mesmaPos[k] = mesmaPos[k] || new Set()).add(l.aluno_id) }
+    })
+    Object.values(mesmaPos).filter(ids => ids.size > 1).forEach(ids => ids.forEach(id => {
+      const l = linhas.find(x => x.aluno_id === id && ehChamada(x)); if (l) add(l, `mesma posição de outro aluno (${ids.size} alunos)`)
+    }))
+    return out
+  })()
 
   return (
     <div className="panel">
@@ -739,8 +763,9 @@ function ColetaTurma({ userId, tid, turmas, online, showToast }) {
           {qr && <img className="cb-qr" src={qr} alt="" />}
           <div className="cb-link">{linkAluno}</div>
         </div>
-        <div className="count-strip" style={{ marginTop: 12 }}>
-          <div className="c ok"><div className="n">{presentesColeta}</div><div className="l">presentes pela coleta</div></div>
+        <p className="hint" style={{ margin: '12px 0 0' }}>Leituras de <b>hoje, {new Date().toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: '2-digit' })}</b>{linhas.length ? '' : ' — nenhuma ainda'}.</p>
+        <div className="count-strip" style={{ marginTop: 8 }}>
+          <div className="c ok"><div className="n">{presentesColeta}</div><div className="l">presentes hoje pela coleta</div></div>
           <div className="c"><div className="n">{alunosDistintos}</div><div className="l">alunos</div></div>
           <div className="c"><div className="n">{linhas.length}</div><div className="l">leituras</div></div>
         </div>
@@ -765,6 +790,13 @@ function ColetaTurma({ userId, tid, turmas, online, showToast }) {
         <div className="btnrow"><button className="btn ghost" onClick={fechar}>Encerrar sessão</button></div>
       </>}
 
+      {suspeitos.length > 0 && <div className="flash dup" style={{ textAlign: 'left', marginTop: 14 }}>
+        <b>Casos suspeitos · confira antes de fechar a chamada ({suspeitos.length})</b>
+        <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
+          {suspeitos.map(({ l, motivo }, i) => <li key={l.id + i}><b>{l.alunos?.nome || '—'}</b> · {motivo} · {new Date(l.capturado_em || l.criado_em).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</li>)}
+        </ul>
+        <p className="note" style={{ margin: '6px 0 0' }}>Nenhum destes vira falta sozinho: presença "a conferir" só entra se você marcar na chamada.</p>
+      </div>}
       {linhas.length > 0 && <div className="scrollx" style={{ marginTop: 14 }}>
         <table className="matrix"><thead><tr>
           <th className="nm">Aluno</th><th>Onde</th><th>± horiz.</th><th>± vert.</th><th>até PERC</th><th>Capturada</th><th>Presença</th>
@@ -778,10 +810,10 @@ function ColetaTurma({ userId, tid, turmas, online, showToast }) {
               {l.dist_perc_m == null ? '—' : l.dist_perc_m > 2000 ? metros(l.dist_perc_m / 1000, 1) + ' km' : metros(l.dist_perc_m, 0) + ' m'}{foraDoCampus(l) ? ' ⚠' : ''}
             </td>
             <td title={atrasada(l) ? 'subiu da fila em ' + new Date(l.criado_em).toLocaleString('pt-BR') : ''}>
-              {new Date(l.capturado_em || l.criado_em).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}{atrasada(l) ? ' ⏳' : ''}
+              {new Date(l.capturado_em || l.criado_em).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}{atrasada(l) ? ' ⏳' : ''}
             </td>
             <td className={!ehChamada(l) ? '' : l.presenca_marcada ? 'P' : 'F'}>
-              {!ehChamada(l) ? '—' : l.presenca_marcada ? 'marcada' : 'fora da janela'}
+              {!ehChamada(l) ? '—' : l.presenca_marcada ? 'marcada' : aConferirRaio(l) ? 'a conferir ⚠' : 'fora da janela'}
             </td>
           </tr>)}
         </tbody></table>
