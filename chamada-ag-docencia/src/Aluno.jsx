@@ -212,6 +212,7 @@ export default function Aluno() {
   const [avAberto, setAvAberto] = useState(() => ler(K_AV_ABERTO, false))
   // carta especial (aviso com imagem): abre em tela cheia; a que ele ainda não viu abre sozinha uma vez
   const [cartaId, setCartaId] = useState(null)
+  const [cartaAlta, setCartaAlta] = useState(false)   // imagem vertical: o texto vai por cima do terço de baixo
   useEffect(() => {
     const vistas = ler(K_CARTAS_VISTAS, [])
     const nova = (avisosProf.dados?.avisos || []).find(v => v.imagem && !vistas.includes(v.id))
@@ -638,12 +639,14 @@ export default function Aluno() {
       <CardPresenca />
       {(() => { const c = cartaId && listaAv.find(v => v.id === cartaId); if (!c) return null
         return <div className="velado" onClick={fecharCarta}>
-          <div className="carta-especial" onClick={e => e.stopPropagation()}>
-            {c.imagem && <img src={c.imagem} alt="" />}
+          <div className={'carta-especial' + (cartaAlta ? ' alta' : '')} onClick={e => e.stopPropagation()}>
+            {c.imagem && <img src={c.imagem} alt="" onLoad={e => setCartaAlta(e.currentTarget.naturalHeight > e.currentTarget.naturalWidth * 1.2)} />}
+            <div className="ce-base">
             <div className="ce-txt"><b>{c.titulo}</b>{c.texto && <p>{c.texto}</p>}</div>
             <div className="ce-btns">
               {c.destino && <button className="btn" onClick={() => { const d = c.destino; fecharCarta(); abrirPorAviso(d) }}>Ver a missão</button>}
               <button className="btn ghost" onClick={fecharCarta}>Fechar</button>
+            </div>
             </div>
           </div>
         </div> })()}
