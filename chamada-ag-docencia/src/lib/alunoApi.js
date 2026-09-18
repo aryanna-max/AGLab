@@ -128,6 +128,13 @@ export async function marcarEtapa(ident, lancamentoId, etapa, feita) {
   return data
 }
 
+// respostas salvas sem enviar (a professora só vê o que foi enviado)
+export async function salvarRascunho(ident, lancamentoId, texto) {
+  const { data, error } = await supabase.rpc('salvar_rascunho_missao', { ...idArgs(ident), p_lancamento_id: lancamentoId, p_texto: texto })
+  if (error) throw error
+  if (!data?.ok) throw new Error(data?.erro || 'Não consegui salvar.')
+  return data
+}
 export async function enviarMissao(ident, lancamentoId, texto) {
   const { data, error } = await supabase.rpc('enviar_missao', { ...idArgs(ident), p_lancamento_id: lancamentoId, p_texto: texto })
   if (error) throw error

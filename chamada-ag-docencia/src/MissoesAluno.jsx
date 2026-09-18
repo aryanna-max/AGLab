@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { fmtPrazo, marcarEtapa, enviarMissao, marcarVista, missaoVista } from './lib/alunoApi'
+import { fmtPrazo, marcarEtapa, enviarMissao, salvarRascunho, marcarVista, missaoVista } from './lib/alunoApi'
 import Avatar from './Avatar.jsx'
 
 /* Missões do aluno: as que a professora lançou para a turma dele, com prazo,
@@ -78,14 +78,23 @@ function Detalhe({ m, ident, online, agora, onVoltar, recarregar }) {
   const [feitas, setFeitas] = useState(m.minha?.etapas_feitas || {})
   // rascunho no celular: a missão se faz por etapas, às vezes em dias diferentes; o que ele digitou não se perde até enviar
   const kRasc = 'orbe_rasc_' + m.lancamento_id
-  const rasc = (() => { if (m.minha?.enviada_em && m.minha?.status !== 'refazer') return null; try { return JSON.parse(localStorage.getItem(kRasc) || 'null') } catch (e) { return null } })()
-  const [texto, setTextoRaw] = useState(rasc?.texto ?? (m.minha?.texto || ''))
-  // campos de resposta: o texto enviado é "pergunta: resposta" por linha (+ observações), e volta aos campos ao reabrir
+  // o que abre nos campos: o mais recente entre o rascunho deste celular e o salvo no servidor; se não houver, o que foi enviado
   const campos = m.campos || []
-  const [resp, setRespRaw] = useState(() => rasc?.resp || lerCampos(campos, m.minha?.texto))
-  const guardar = d => { try { localStorage.setItem(kRasc, JSON.stringify(d)) } catch (e) {} }
-  const setTexto = t => { setTextoRaw(t); guardar({ texto: t }) }
-  const setResp = f => setRespRaw(r => { const n = typeof f === 'function' ? f(r) : f; guardar({ resp: n }); return n })
+  const inicial = (() => {
+    let local = null; try { local = JSON.parse(localStorage.getItem(kRasc) || 'null') } catch (e) {}
+    const srv = m.minha?.rascunho != null && m.minha?.rascunho_em ? { texto: m.minha.rascunho, em: m.minha.rascunho_em } : null
+    const enviadoDepois = t => m.minha?.enviada_em && (!t || m.minha.enviada_em > t)
+    const cand = [local && !enviadoDepois(local.em) ? local : null, srv && !enviadoDepois(srv.em) ? srv : null].filter(Boolean)
+      .sort((a, b) => (b.em || '').localeCompare(a.em || ''))[0]
+    return cand ? cand.texto : (m.minha?.texto || '')
+  })()
+  const [texto, setTextoRaw] = useState(campos.length ? '' : inicial)
+  // campos de resposta: o texto é "pergunta: resposta" por linha (+ observações), e volta aos campos ao reabrir
+  const [resp, setRespRaw] = useState(() => lerCampos(campos, inicial))
+  const [salvoEm, setSalvoEm] = useState(null)
+  const guardar = t => { try { localStorage.setItem(kRasc, JSON.stringify({ texto: t, em: new Date().toISOString() })) } catch (e) {} }
+  const setTexto = t => { setTextoRaw(t); guardar(t); setSalvoEm(null) }
+  const setResp = f => setRespRaw(r => { const n = typeof f === 'function' ? f(r) : f; guardar(juntarCampos(campos, n)); setSalvoEm(null); return n })
   const textoFinal = campos.length ? juntarCampos(campos, resp) : texto
   const vazios = campos.filter((c, i) => !(resp.v[i] || '').trim()).length
   const [busy, setBusy] = useState(false)
@@ -111,6 +120,12 @@ function Detalhe({ m, ident, online, agora, onVoltar, recarregar }) {
     setFeitas(f => { const n = { ...f }; if (agoraFeita) n[i] = new Date().toISOString(); else delete n[i]; return n })
     try { const r = await marcarEtapa(ident, m.lancamento_id, i, agoraFeita); setFeitas(r.etapas_feitas || {}) }
     catch (e) { setMsg({ tipo: 'err', t: e.message }); setFeitas(f => { const n = { ...f }; if (agoraFeita) delete n[i]; else n[i] = true; return n }) }
+  }
+  async function salvar() {
+    if (!online) { setMsg({ tipo: 'err', t: 'Sem rede: as respostas ficaram guardadas neste celular. Salve de novo quando tiver sinal.' }); return }
+    setBusy(true); setMsg(null)
+    try { await salvarRascunho(ident, m.lancamento_id, textoFinal); setSalvoEm(new Date()) }
+    catch (e) { setMsg({ tipo: 'err', t: e.message }) } finally { setBusy(false) }
   }
   async function enviar() {
     if (m.em_equipe) {
@@ -178,11 +193,13 @@ function Detalhe({ m, ident, online, agora, onVoltar, recarregar }) {
             </div>)}
             <label className="fld">Observações (opcional)</label>
             <textarea value={resp.obs} onChange={e => setResp(r => ({ ...r, obs: e.target.value }))} rows={2} placeholder="Algo que aconteceu em campo, nomes dos pins que você usou…" />
-            <p className="note">As respostas ficam guardadas neste celular enquanto você preenche. Só chegam à professora quando você enviar.</p>
+            <p className="note">💾 <b>Salvar</b> guarda as respostas para continuar depois, até em outro celular. A professora só vê quando você toca em <b>Enviar</b>.</p>
           </> : <textarea value={texto} onChange={e => setTexto(e.target.value)} rows={4} placeholder="Resultados, observações, nomes dos pins e poligonais que você usou…" />}
           <div className="btnrow">
+            <button className="btn ghost" onClick={salvar} disabled={busy || !online}>💾 Salvar</button>
             <button className="btn" onClick={enviar} disabled={busy || !online}>{busy ? 'Enviando…' : m.em_equipe ? (status === 'refazer' ? 'Enviar de novo pela equipe' : 'Enviar pela equipe') : status === 'enviada' || status === 'refazer' ? 'Enviar de novo' : 'Enviar missão'}</button>
           </div>
+          {salvoEm && <p className="note">✓ Salvo às {salvoEm.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}. Ainda não foi enviado.</p>}
           {pz.vencido && <p className="note">O prazo passou. Ainda dá para enviar: fica marcado como fora do prazo e a professora decide.</p>}
         </>}
         {msg && <div className={'flash ' + msg.tipo} style={{ textAlign: 'left' }}>{msg.t}</div>}
