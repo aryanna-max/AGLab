@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { tocarConquista, somEscolhido, definirSom, SONS } from './lib/som'
-import { INSIGNIAS, CATEGORIAS, TOTAL, POR_CHAVE, arte } from './lib/insignias'
+import { INSIGNIAS, PIONEIRAS, CATEGORIAS, TOTAL, POR_CHAVE, arte, ehPioneira } from './lib/insignias'
 import Avatar from './Avatar.jsx'
 
 /* Coleção do aluno: o que ele já sabe fazer.
@@ -13,7 +13,7 @@ export function Vitrine({ minhas, onAbrir }) {
   const ultimas = minhas.slice(-5).reverse()
   return (
     <button className="vitrine" onClick={onAbrir}>
-      <span className="vt-top"><b>Minhas insígnias</b><span className="vt-n">{minhas.length} de {TOTAL} ›</span></span>
+      <span className="vt-top"><b>Minhas insígnias</b><span className="vt-n">{minhas.filter(i => !ehPioneira(i.chave)).length} de {TOTAL} ›</span></span>
       <span className="vt-fila">
         {ultimas.map(i => <img key={i.chave} src={arte(i.chave)} alt={POR_CHAVE[i.chave]?.nome || ''} />)}
         {ultimas.length === 0 && <span className="note" style={{ margin: 0 }}>Nenhuma ainda. Toque para ver as {TOTAL} e o que falta para cada uma.</span>}
@@ -49,7 +49,7 @@ export default function InsigniasAluno({ insignias, nome: meuNome, avatar }) {
     <>
       <div className="panel">
         {/* a coleção é dele: quem aparece aqui é o avatar que ele escolheu, nunca a selfie */}
-        <h2 style={{ marginTop: 0, display: 'flex', alignItems: 'center', gap: 10 }}><Avatar nome={meuNome} avatar={avatar} />{lista.length} de {TOTAL}</h2>
+        <h2 style={{ marginTop: 0, display: 'flex', alignItems: 'center', gap: 10 }}><Avatar nome={meuNome} avatar={avatar} />{lista.filter(i => !ehPioneira(i.chave)).length} de {TOTAL}</h2>
         <p className="hint">Insígnia é reconhecimento do que você já sabe fazer. Não vale ponto no ranking das missões.</p>
         <label className="fld">🔔 Som ao ganhar uma insígnia</label>
         <div className="btnrow" style={{ marginTop: 0 }}>
@@ -58,7 +58,8 @@ export default function InsigniasAluno({ insignias, nome: meuNome, avatar }) {
         </div>
       </div>
       {CATEGORIAS.map(([cat, nome, cor]) => {
-        const doGrupo = INSIGNIAS.filter(i => i.cat === cat)
+        // pioneiras: só as que ele ganhou, no fim de Especiais (não há caminho para mostrar: é ser o primeiro)
+        const doGrupo = [...INSIGNIAS.filter(i => i.cat === cat), ...PIONEIRAS.filter(i => i.cat === cat && porChave[i.k])]
         return (
           <div className="panel" key={cat}>
             <h2 style={{ marginTop: 0, color: cor }}>{nome}</h2>

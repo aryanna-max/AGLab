@@ -567,7 +567,6 @@ export default function Aluno() {
         Medir posição não: no computador a localização vem do Wi-Fi e não vale como dado — use o celular para Presença e Campo.{' '}
         <span style={{ cursor: 'pointer', textDecoration: 'underline', fontWeight: 700 }} onClick={irParaProfessora}>Voltar para a professora</span>
       </div>}
-      <img className="home-turma" src="/orbe-turma.png" width="1120" height="606" alt="A turma do Orbe: Orbe, Vértice, Navi, Lumi e Téo" />
       <CardPresenca />
       {listaAv.length > 0 && <div className="panel avisos-home">
         <h2>🔔 Avisos da professora</h2>
@@ -623,6 +622,7 @@ export default function Aluno() {
         <p className="note" style={{ marginTop: 4 }}><b>iPhone:</b> Compartilhar → <b>Adicionar à Tela de Início</b>. <b>Android:</b> menu ⋮ → <b>Instalar app</b>.</p>
       </div>
       <p className="note" style={{ textAlign: 'center', cursor: 'pointer' }} onClick={irParaProfessora}>Sou professor(a)</p>
+      <img className="home-turma" src="/orbe-turma.png" width="1120" height="606" alt="A turma do Orbe: Orbe, Vértice, Navi, Lumi e Téo" />
     </div>
   )
 

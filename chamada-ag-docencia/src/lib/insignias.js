@@ -35,10 +35,24 @@ export const INSIGNIAS = [
   { k: 'parceiro', cat: 'especiais', nome: 'Parceiro de campo', regra: 'Segurou a equipe numa prática difícil. A professora concede.', daProfessora: true },
 ]
 
-export const POR_CHAVE = Object.fromEntries(INSIGNIAS.map(i => [i.k, i]))
+/* Família Pioneiro (18/09/2026, decisões dela): o primeiro da turma a estrear cada função do Orbe
+   ganha a versão ametista (Especiais) com a bandeira marfim — por abrir caminho, não por domínio.
+   Automática (servidor, _conferir_pioneiros a cada 5 min); ela pode passar ao próximo.
+   Não entram na contagem "x de N": só aparecem para quem ganhou. */
+const FUNCOES_SEM_BASE = { avatar: 'Avatar', avisos: 'Avisos', missao: 'Missão enviada' }
+export const BASES_PIONEIRO = ['no_ar', 'presente', 'rosto', 'avatar', 'avisos', 'primeiro_pin', 'parado', 'tres_amb', 'no_marco',
+  'na_mosca', 'poligonal', 'cadastrador', 'caderneta', 'missao', 'equipe', 'envio_oficial', 'primeiro_ouro', 'tres_frentes']
+const nomeFuncao = b => FUNCOES_SEM_BASE[b] || INSIGNIAS.find(i => i.k === b)?.nome || b
+export const PIONEIRAS = BASES_PIONEIRO.map(b => ({
+  k: 'pioneiro_' + b, base: b, cat: 'especiais', pioneiro: true, nome: 'Pioneiro · ' + nomeFuncao(b),
+  regra: 'Primeiro da turma a estrear: ' + nomeFuncao(b) + '.',
+}))
+export const ehPioneira = k => (k || '').startsWith('pioneiro_')
+
+export const POR_CHAVE = Object.fromEntries([...INSIGNIAS, ...PIONEIRAS].map(i => [i.k, i]))
 export const NOME_CAT = Object.fromEntries(CATEGORIAS.map(([k, n]) => [k, n]))
 export const COR_CAT = Object.fromEntries(CATEGORIAS.map(([k, , c]) => [k, c]))
 export const TOTAL = INSIGNIAS.length
 // arte: joias hexagonais (15/09/2026). Equipe em campo e Envio oficial ainda usam o rascunho.
 export const arte = (k, { tam = 128, bloqueada = false } = {}) =>
-  `/insignias/${k}${bloqueada ? '-bloqueada-128' : '-' + (tam > 128 ? 256 : 128)}.png`
+  `/insignias/${k}${bloqueada && !ehPioneira(k) ? '-bloqueada-128' : '-' + (tam > 128 ? 256 : 128)}.png`
