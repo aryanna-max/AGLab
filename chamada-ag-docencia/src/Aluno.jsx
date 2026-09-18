@@ -590,13 +590,29 @@ export default function Aluno() {
   const nAbertas = abertasM.length
   const proxima = abertasM.slice().sort((a, b) => new Date(a.prazo_em) - new Date(b.prazo_em))[0]
   const subMissoes = proxima ? `${nAbertas} aberta(s) · ${fmtPrazo(proxima.prazo_em).texto}` : 'O que a professora lançou para a turma.'
-  // alerta ao abrir o app: missão nova ainda não vista, ou prazo vencendo em breve
-  const novaM = abertasM.find(m => !missaoVista(m.lancamento_id))
-  const urgM = abertasM.find(m => fmtPrazo(m.prazo_em).urgente && (m.minha?.status !== 'enviada' && m.minha?.status !== 'aceita'))
   const minhasIns = insignias.dados?.insignias || []
   const novaIns = minhasIns.find(i => i.nova)
-  const alerta = novaM ? { titulo: `Nova missão: ${novaM.titulo}`, sub: fmtPrazo(novaM.prazo_em).texto, urgente: false }
-    : urgM ? { titulo: `Prazo acabando: ${urgM.titulo}`, sub: fmtPrazo(urgM.prazo_em).texto, urgente: true } : null
+
+  /* Destaque da missão aberta (opção A, escolhida por ela em 18/09/2026): cartão dourado no topo com a
+     missão de prazo mais próximo que ele ainda não enviou; vermelho com menos de 1 h; some quando envia. */
+  const pendM = abertasM.filter(m => !['enviada', 'aceita'].includes(m.minha?.status))
+    .sort((a, b) => new Date(a.prazo_em) - new Date(b.prazo_em))
+  const DestaqueMissao = () => {
+    const m = pendM[0]; if (!m) return null
+    const total = (m.etapas || []).length, feitas = Object.keys(m.minha?.etapas_feitas || {}).length
+    const min = (new Date(m.prazo_em).getTime() - Date.now()) / 60000
+    const falta = min < 60 ? `faltam ${Math.max(1, Math.round(min))} min` : min < 24 * 60 ? `faltam ${Math.floor(min / 60)} h${Math.round(min % 60) ? ' ' + Math.round(min % 60) + ' min' : ''}` : fmtPrazo(m.prazo_em).texto
+    const refazer = m.minha?.status === 'refazer'
+    const abrir = () => { setAbrirMissaoId(m.lancamento_id); irArea('missoes') }
+    return <button className={'destaque-missao' + (min < 60 ? ' urgente' : '')} onClick={abrir}>
+      <span className="dm-top">🎯 {refazer ? 'Refazer' : 'Missão aberta'} · {falta}{m.em_equipe ? ' · em equipe' : ''}</span>
+      <b className="dm-tit">{m.titulo}</b>
+      {total > 0 && <><span className="dm-prog"><i style={{ width: `${Math.round(100 * feitas / total)}%` }} /></span>
+        <span className="dm-sub">{feitas} de {total} etapas</span></>}
+      <span className="dm-btn">{feitas > 0 || refazer ? 'Continuar missão' : 'Começar missão'}</span>
+      {pendM.length > 1 && <span className="dm-mais">+{pendM.length - 1} aberta(s) no card Missões</span>}
+    </button>
+  }
 
   if (tela === 'home') return (
     <div className="wrap">
@@ -610,6 +626,7 @@ export default function Aluno() {
         <span style={{ cursor: 'pointer', textDecoration: 'underline', fontWeight: 700 }} onClick={irParaProfessora}>Voltar para a professora</span>
       </div>}
       <CardPresenca />
+      <DestaqueMissao />
       {listaAv.length > 0 && (() => {
         // recolhível (pedido dela, 18/09/2026): fechado mostra o mais recente e quantos são novos
         const novos = listaAv.filter(v => new Date(v.em).getTime() > avVistoEm).length
@@ -628,10 +645,6 @@ export default function Aluno() {
       {/* sempre à vista, mesmo com zero: as bloqueadas mostram o caminho (princípio do guia) */}
       <Vitrine minhas={minhasIns} onAbrir={() => irArea('insignias')} />
       {novaIns && <CartaoInsignia chave={novaIns.chave} dado={novaIns.dado} onFechar={() => { insignias.marcarVistas(); irArea('insignias') }} />}
-      {alerta && <button className={'alerta-missao' + (alerta.urgente ? ' urgente' : '')} onClick={() => irArea('missoes')}>
-        <span className="am-ico">{alerta.urgente ? '⏱' : '✨'}</span>
-        <span className="am-txt"><b>{alerta.titulo}</b><span>{alerta.sub}</span></span>
-      </button>}
       <PassosOrbe />
       <div className="escolha tres">
         <button className="card-perfil" onClick={() => irArea('presenca')}>
