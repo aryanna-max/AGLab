@@ -629,8 +629,11 @@ function ColetaTurma({ userId, tid, turmas, online, showToast }) {
   const [codigo, setCodigo] = useState('')
   const [tempo, setTempo] = useState('ensolarado')
   const [local, setLocal] = useState('sala')
-  const [hIni, setHIni] = useState('12:50')
-  const [hFim, setHFim] = useState('17:40')
+  // janela da presença sai do horário da turma (F32RC é de manhã: 07:45–11:50); sem horário, a tarde de sempre
+  const horarioDe = id => { const m = (turmas.find(x => x.id === id)?.horario || '').match(/(\d{2}:\d{2})\D+(\d{2}:\d{2})/); return m ? [m[1], m[2]] : ['12:50', '17:40'] }
+  const [hIni, setHIni] = useState(() => horarioDe(tid)[0])
+  const [hFim, setHFim] = useState(() => horarioDe(tid)[1])
+  useEffect(() => { const [i, f] = horarioDe(tid); setHIni(i); setHFim(f) }, [tid, turmas.find(x => x.id === tid)?.horario])
   const [sessao, setSessao] = useState(null)
   const [linhas, setLinhas] = useState([])
   const [busy, setBusy] = useState(false)
