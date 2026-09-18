@@ -53,6 +53,25 @@ export const POR_CHAVE = Object.fromEntries([...INSIGNIAS, ...PIONEIRAS].map(i =
 export const NOME_CAT = Object.fromEntries(CATEGORIAS.map(([k, n]) => [k, n]))
 export const COR_CAT = Object.fromEntries(CATEGORIAS.map(([k, , c]) => [k, c]))
 export const TOTAL = INSIGNIAS.length
+
+/* Raridade (18/09/2026, decisão dela: mista). As automáticas pela fração de alunos que têm
+   (turmas reais, sem turma teste e sem auxiliar); as dadas por ela e as Pioneiro são sempre lendárias.
+   Não vale ponto: é selo de coleção. rar = { total, por_chave } do servidor (_raridade_insignias). */
+export const NIVEIS_RAR = {
+  comum: { nome: 'Comum', cor: '#6B7280' },
+  incomum: { nome: 'Incomum', cor: '#12804A' },
+  rara: { nome: 'Rara', cor: '#2749B0' },
+  lendaria: { nome: 'Lendária', cor: '#B8860B' },
+}
+export function raridade(chave, rar) {
+  const ins = POR_CHAVE[chave]
+  const n = rar?.por_chave?.[chave] || 0, total = rar?.total || 0
+  if (ins?.daProfessora || ehPioneira(chave)) return { nivel: 'lendaria', n, total, fixa: true }
+  if (!total) return null
+  const f = n / total
+  return { nivel: f > 0.5 ? 'comum' : f >= 0.2 ? 'incomum' : f >= 0.05 ? 'rara' : 'lendaria', n, total }
+}
+export const ehRara = (chave, rar) => ['rara', 'lendaria'].includes(raridade(chave, rar)?.nivel)
 // arte: joias hexagonais (15/09/2026). Equipe em campo e Envio oficial ainda usam o rascunho.
 // ARTE_V muda a cada arte nova publicada: o celular guarda a arte por 180 dias (CacheFirst) pelo endereço
 const ARTE_V = '2026-09-18c'

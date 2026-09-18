@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import * as store from './lib/store'
-import { INSIGNIAS, CATEGORIAS, POR_CHAVE, TOTAL, arte, ehPioneira } from './lib/insignias'
+import { INSIGNIAS, CATEGORIAS, POR_CHAVE, TOTAL, arte, ehPioneira, raridade, ehRara, NIVEIS_RAR } from './lib/insignias'
 import Avatar from './Avatar.jsx'
 
 /* Insígnias — lado da professora.
@@ -24,6 +24,9 @@ export default function InsigniasProfessora({ userId, tid, turmas, online, showT
   const [geral, setGeralRaw] = useState(() => { try { return localStorage.getItem('orbe_ins_geral') === '1' } catch (e) { return false } })
   const setGeral = v => { setGeralRaw(v); try { localStorage.setItem('orbe_ins_geral', v ? '1' : '0') } catch (e) {} }
   const [listaGeral, setListaGeral] = useState([])
+  const [rar, setRar] = useState(null)
+  const [entregas, setEntregas] = useState([])
+  const [ordem, setOrdem] = useState('missoes')
   const carregar = useCallback(() => {
     if (!online || !tid) return
     let vale = true   // resposta atrasada de outra turma não sobrescreve a atual
@@ -32,6 +35,14 @@ export default function InsigniasProfessora({ userId, tid, turmas, online, showT
     store.pioneirosDaTurma(tid).then(d => { if (vale) setPioneiros(d) }).catch(() => { if (vale) setPioneiros([]) })
     return () => { vale = false }
   }, [tid, online, showToast])
+  useEffect(() => {
+    if (!online) return
+    let vale = true
+    store.raridadeInsignias().then(d => { if (vale) setRar(d) }).catch(() => {})
+    Promise.all((geral ? turmas : turmas.filter(t => t.id === tid)).map(t => store.entregasDaTurma(t.id)))
+      .then(ds => { if (vale) setEntregas(ds.flat()) }).catch(() => { if (vale) setEntregas([]) })
+    return () => { vale = false }
+  }, [online, geral, turmas, tid, lista])
   useEffect(() => {
     if (!online || !geral) return
     let vale = true
@@ -64,11 +75,17 @@ export default function InsigniasProfessora({ userId, tid, turmas, online, showT
     visao.forEach(i => { if (!ehPioneira(i.chave)) m[i.chave] = (m[i.chave] || 0) + 1 })
     return m
   }, [visao])
-  const rankIns = useMemo(() => {
-    const m = {}
-    visao.forEach(i => { if (!ehPioneira(i.chave) && todosAlunos[i.aluno_id]) m[i.aluno_id] = (m[i.aluno_id] || 0) + 1 })
-    return Object.entries(m).map(([id, n]) => ({ id, n, ...todosAlunos[id] })).sort((a, b) => b.n - a.n || a.nome.localeCompare(b.nome))
-  }, [visao, todosAlunos])
+  // quadro de engajamento: colunas separadas, nada somado (insígnia não vira ponto)
+  const quadro = useMemo(() => {
+    const ids = geral ? Object.keys(todosAlunos) : alunos.map(a => a.id)
+    const lin = Object.fromEntries(ids.map(id => [id, { id, ...todosAlunos[id], pts: 0, ins: 0, raras: 0 }]))
+    const PONTOS = { bronze: 1, prata: 2, ouro: 3 }
+    entregas.forEach(e => { const l = lin[e.aluno_id]; if (l && e.nivel && e.missao_lancamentos?.mostrar_ranking) l.pts += PONTOS[e.nivel] || 0 })
+    visao.forEach(i => { const l = lin[i.aluno_id]; if (!l) return; if (!ehPioneira(i.chave)) l.ins++; if (ehRara(i.chave, rar)) l.raras++ })
+    const k = { missoes: 'pts', insignias: 'ins', raras: 'raras' }[ordem]
+    return Object.values(lin).filter(l => l.nome).sort((a, b) => ordem === 'nome' ? a.nome.localeCompare(b.nome) : b[k] - a[k] || a.nome.localeCompare(b.nome))
+  }, [geral, todosAlunos, alunos, entregas, visao, rar, ordem])
+  const zerados = quadro.filter(l => !l.pts && !l.ins).length
   const semana = useMemo(() => {
     const corte = Date.now() - 7 * 86400000
     const m = {}
@@ -138,11 +155,16 @@ export default function InsigniasProfessora({ userId, tid, turmas, online, showT
       </div>
 
       <div className="panel">
-        <h2 style={{ marginTop: 0 }}>Ranking de insígnias · {geral ? 'todas as turmas' : curto(turma)}</h2>
-        {rankIns.length === 0 ? <p className="empty">Ninguém tem insígnia ainda.</p> : <>
-          <ul className="people">{rankIns.map((x, i) => <li key={x.id}><span className="left"><span className="who"><span>{i + 1}º · {x.nome}</span>{geral && <span className="m">{x.turma}</span>}</span></span><span className="tag P">{x.n}</span></li>)}</ul>
-          <p className="note">Conta as insígnias comuns (sem Pioneiro). Só para você: insígnia é reconhecimento, não entra no ranking das missões.</p>
-        </>}
+        <h2 style={{ marginTop: 0 }}>Quadro de engajamento · {geral ? 'todas as turmas' : curto(turma)}</h2>
+        <p className="hint">Só para você. Colunas separadas, nada somado. Toque no título da coluna para ordenar. {zerados > 0 && <b>{zerados} aluno(s) zerado(s) em tudo.</b>}</p>
+        <div className="scrollx"><table className="matrix"><thead><tr>
+          {[['nome', 'Aluno'], ['missoes', 'Missões (pts)'], ['insignias', 'Insígnias'], ['raras', 'Raras + lendárias']].map(([k, t]) =>
+            <th key={k} className={k === 'nome' ? 'nm' : ''} style={{ cursor: 'pointer', textDecoration: ordem === k ? 'underline' : 'none' }} onClick={() => setOrdem(k)}>{t}</th>)}
+        </tr></thead><tbody>{quadro.map(l => <tr key={l.id}>
+          <td className="nm">{l.nome}{geral && <span className="m"> · {l.turma}</span>}</td>
+          <td className={l.pts ? 'P' : ''}>{l.pts}</td><td>{l.ins}</td><td>{l.raras}</td>
+        </tr>)}</tbody></table></div>
+        <p className="note">Missões: ouro 3, prata 2, bronze 1 (só missões com ranking ligado). Insígnias sem as Pioneiro. Raras + lendárias inclui Pioneiro e as que você dá.</p>
       </div>
 
       <div className="panel">
@@ -152,7 +174,8 @@ export default function InsigniasProfessora({ userId, tid, turmas, online, showT
             <div className="fld" style={{ color: cor }}>{nome}</div>
             {INSIGNIAS.filter(i => i.cat === cat).map(i => <div key={i.k} className="ins-linha" style={{ borderBottom: 0, padding: '2px 0' }}>
               <img src={arte(i.k, { bloqueada: !quantos[i.k] })} style={{ width: 30, height: 30 }} alt="" />
-              <div style={{ fontSize: 13 }}>{i.nome}<b style={{ marginLeft: 6 }}>{quantos[i.k] || 0}</b></div>
+              <div style={{ fontSize: 13 }}>{i.nome}<b style={{ marginLeft: 6 }}>{quantos[i.k] || 0}</b>
+                {(() => { const r = raridade(i.k, rar); return r && <span className="selo-rar" style={{ background: NIVEIS_RAR[r.nivel].cor, marginLeft: 6 }}>{NIVEIS_RAR[r.nivel].nome}</span> })()}</div>
             </div>)}
           </div>)}
         </div>

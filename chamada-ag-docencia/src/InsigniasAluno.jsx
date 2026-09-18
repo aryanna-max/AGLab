@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { tocarConquista, somEscolhido, definirSom, SONS } from './lib/som'
-import { INSIGNIAS, PIONEIRAS, CATEGORIAS, TOTAL, POR_CHAVE, arte, ehPioneira } from './lib/insignias'
+import { INSIGNIAS, PIONEIRAS, CATEGORIAS, TOTAL, POR_CHAVE, arte, ehPioneira, raridade, NIVEIS_RAR } from './lib/insignias'
 import Avatar from './Avatar.jsx'
 
 /* Coleção do aluno: o que ele já sabe fazer.
@@ -44,6 +44,7 @@ export default function InsigniasAluno({ insignias, nome: meuNome, avatar }) {
   const porChave = Object.fromEntries(lista.map(i => [i.chave, i]))
   // pioneiro de cada função na turma (o servidor manda o primeiro nome)
   const donoPio = Object.fromEntries((insignias.dados?.pioneiros || []).filter(p => !p.eu).map(p => [p.base, p.nome]))
+  const rar = insignias.dados?.raridade
   const [aberta, setAberta] = useState(null)
   const [som, setSom] = useState(somEscolhido)
 
@@ -81,6 +82,9 @@ export default function InsigniasAluno({ insignias, nome: meuNome, avatar }) {
               const i = POR_CHAVE[aberta], minha = porChave[aberta]
               return <div className="ins-detalhe">
                 <b>{minha ? '✓ ' : '🔒 '}{i.nome}</b>
+                {(() => { const r = raridade(aberta, rar); if (!r) return null
+                  return <p className="note" style={{ margin: '4px 0' }}><span className="selo-rar" style={{ background: NIVEIS_RAR[r.nivel].cor }}>{NIVEIS_RAR[r.nivel].nome}</span>
+                    {i.pioneiro ? ' Uma por turma.' : i.daProfessora ? ' Só a professora dá.' : r.n === 0 ? ' Ninguém tem ainda.' : ` ${r.n} de ${r.total} alunos do Orbe têm.`}</p> })()}
                 <p>{minha ? (minha.dado || 'Conquistada.') : i.pioneiro && donoPio[i.base] ? `Na sua turma, quem estreou foi ${donoPio[i.base]}.` : i.regra}</p>
                 {minha && <p className="note">Conquistada em {fmt(minha.em)}{minha.origem === 'professora' ? ' · dada pela professora' : ''}</p>}
               </div>

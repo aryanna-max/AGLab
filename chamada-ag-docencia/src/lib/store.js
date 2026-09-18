@@ -595,6 +595,11 @@ export async function insigniasDaTurma(turmaId) {
     .eq('alunos.turma_id', turmaId).order('concedida_em', { ascending: false })
   if (error) throw error; return data || []
 }
+// raridade de cada insígnia entre os alunos das turmas reais dela
+export async function raridadeInsignias() {
+  const { data, error } = await supabase.rpc('raridade_insignias')
+  if (error) throw error; return data
+}
 // confere as regras automáticas da turma inteira (vale retroativo)
 export async function conferirInsignias(turmaId) {
   const { data, error } = await supabase.rpc('conferir_insignias_turma', { p_turma: turmaId })
