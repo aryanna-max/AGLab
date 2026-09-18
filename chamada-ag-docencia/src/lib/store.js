@@ -350,10 +350,13 @@ export async function fecharSessao(id) {
 
 /* Leituras da sessão, já com o nome do aluno — a professora enxerga tudo
    pelo RLS dela; o aluno nunca lê esta tabela. */
-export async function leiturasDaSessao(sessaoId) {
-  const { data, error } = await supabase.from('leituras_gps')
+// desde: a sessão reaberta numa semana nova carrega as leituras da anterior — a tela do dia pede só as de hoje
+export async function leiturasDaSessao(sessaoId, desde) {
+  let q = supabase.from('leituras_gps')
     .select('id,rotulo,acuracia_m,alt_acuracia_m,altitude_m,dist_perc_m,criado_em,capturado_em,presenca_marcada,extra,aluno_id,alunos(nome,matricula)')
-    .eq('sessao_id', sessaoId).order('criado_em', { ascending: false })
+    .eq('sessao_id', sessaoId)
+  if (desde) q = q.gte('criado_em', desde)
+  const { data, error } = await q.order('criado_em', { ascending: false })
   if (error) throw error
   return data
 }
@@ -412,6 +415,18 @@ export async function minhaUltimaLeitura() {
   const { data, error } = await supabase.from('leituras_gps')
     .select('lat,lon,acuracia_m,rotulo,criado_em,capturado_em')
     .is('aluno_id', null).order('criado_em', { ascending: false }).limit(1)
+  if (error) throw error
+  return data && data[0] ? data[0] : null
+}
+
+/* A leitura de melhor acurácia informada de uma pessoa da turma (ex.: a auxiliar).
+   Serve de centro fixo do radar quando a professora prefere um ponto medido com calma
+   a uma posição ao vivo que oscila. */
+export async function melhorLeituraDe(alunoId) {
+  const { data, error } = await supabase.from('leituras_gps')
+    .select('lat,lon,acuracia_m,criado_em,capturado_em')
+    .eq('aluno_id', alunoId).not('acuracia_m', 'is', null)
+    .order('acuracia_m', { ascending: true }).limit(1)
   if (error) throw error
   return data && data[0] ? data[0] : null
 }
