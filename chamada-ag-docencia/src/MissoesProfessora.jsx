@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import * as store from './lib/store'
 import { FRENTES, CARDAPIO_SUGERIDO } from './lib/cardapioMissoes'
+import Avatar from './Avatar.jsx'
 
 /* Missões — lado da professora.
    Cardápio: biblioteca dela, sem turma. Lançar: escolhe a missão, qualquer turma, prazo
@@ -233,8 +234,8 @@ function Lancadas({ userId, tid, turma, online, showToast, irCardapio }) {
       <div className="panel">
         <h2 style={{ marginTop: 0 }}>Ranking do semestre</h2>
         {ranking.length === 0 ? <p className="empty">Ninguém pontuou ainda. Ouro vale 3, prata 2, bronze 1.</p> : <>
-          <div className="podio-row">{ranking.slice(0, 3).map((x, i) => <div key={x.a.id} className={'podio-it p' + i}><span className="pd-pos">{i + 1}º</span><span className="pd-nome">{x.a.nome.split(' ')[0]}</span><span className="pd-pts">{x.pts} pts</span></div>)}</div>
-          <ul className="people" style={{ marginTop: 10 }}>{ranking.map((x, i) => <li key={x.a.id}><span className="left"><span className="who"><span>{i + 1}º · {x.a.nome}</span></span></span><span className="tag P">{x.pts} pts</span></li>)}</ul>
+          <div className="podio-row">{ranking.slice(0, 3).map((x, i) => <div key={x.a.id} className={'podio-it p' + i}><span className="pd-pos">{i + 1}º</span><Avatar a={x.a} tam="mini" /><span className="pd-nome">{x.a.nome.split(' ')[0]}</span><span className="pd-pts">{x.pts} pts</span></div>)}</div>
+          <ul className="people" style={{ marginTop: 10 }}>{ranking.map((x, i) => <li key={x.a.id}><span className="left"><Avatar a={x.a} tam="mini" /><span className="who"><span>{i + 1}º · {x.a.nome}</span></span></span><span className="tag P">{x.pts} pts</span></li>)}</ul>
           <p className="note">Projete só o pódio. A lista completa é para você.</p>
         </>}
       </div>
@@ -268,8 +269,8 @@ function Entregas({ userId, lanc, turma, entregas, showToast, onVoltar, recarreg
           const nFeitas = Object.keys(e?.etapas_feitas || {}).length
           return <li key={a.id} className="entrega-li">
             <div className="ent-cab">
-              <span className="who"><span>{a.nome}</span>
-                <span className="m">{e?.enviada_em ? `enviada ${fmtDH(e.enviada_em)}` : e ? 'em andamento' : 'não abriu'}{etapas.length ? ` · ${nFeitas}/${etapas.length} etapas` : ''}{e?.medalha_auto ? ` · ${e.medalha_auto.vale === 'melhor' ? 'melhor' : '1º'} pin a ${Number(e.medalha_auto.erro).toLocaleString('pt-BR')} m do marco (${e.medalha_auto.n_pins} pin${e.medalha_auto.n_pins > 1 ? 's' : ''})` : ''}{e?.fora_do_prazo ? ' · ' : ''}{e?.fora_do_prazo && <b style={{ color: 'var(--miss)' }}>fora do prazo</b>}</span></span>
+              <span className="left"><Avatar a={a} tam="mini" /><span className="who"><span>{a.nome}</span>
+                <span className="m">{e?.enviada_em ? `enviada ${fmtDH(e.enviada_em)}` : e ? 'em andamento' : 'não abriu'}{etapas.length ? ` · ${nFeitas}/${etapas.length} etapas` : ''}{e?.medalha_auto ? ` · ${e.medalha_auto.vale === 'melhor' ? 'melhor' : '1º'} pin a ${Number(e.medalha_auto.erro).toLocaleString('pt-BR')} m do marco (${e.medalha_auto.n_pins} pin${e.medalha_auto.n_pins > 1 ? 's' : ''})` : ''}{e?.fora_do_prazo ? ' · ' : ''}{e?.fora_do_prazo && <b style={{ color: 'var(--miss)' }}>fora do prazo</b>}</span></span></span>
               <span className={'tag ' + (e?.status === 'aceita' ? 'P' : e?.status === 'refazer' ? 'F' : '')}>{e?.status || '—'}</span>
             </div>
             {e?.texto && <p className="ent-texto">{e.texto}</p>}
@@ -310,6 +311,7 @@ function EntregasEquipe({ userId, lanc, turma, entregas, showToast, onVoltar, re
   const [rascunho, setRascunho] = useState({})
   const [ajuste, setAjuste] = useState(null)
   const nome = useMemo(() => Object.fromEntries(turma.alunos.map(a => [a.id, a.nome])), [turma])
+  const alunoPorId = useMemo(() => Object.fromEntries(turma.alunos.map(a => [a.id, a])), [turma])
   const porAluno = useMemo(() => { const m = {}; entregas.forEach(e => { m[e.aluno_id] = e }); return m }, [entregas])
   const carregarEquipes = useCallback(() => store.equipesDoLancamento(lanc.id).then(eqs => { setEquipes(eqs); return eqs }).catch(e => { showToast('Erro: ' + e.message); return null }), [lanc.id, showToast])
   useEffect(() => { carregarEquipes().then(eqs => { if (eqs && !eqs.length) setFormando(true) }) }, [carregarEquipes])
@@ -354,7 +356,7 @@ function EntregasEquipe({ userId, lanc, turma, entregas, showToast, onVoltar, re
               <span className={'tag ' + (e?.status === 'aceita' ? 'P' : e?.status === 'refazer' ? 'F' : '')}>{e?.status || '—'}</span>
             </div>
             <ul className="eq-membros" style={{ margin: '6px 0' }}>
-              {eq.membros.map(m => <li key={m.aluno_id}><span>{e?.enviada_em && m.aluno_id === e.enviada_por ? '📱 ' : ''}{nome[m.aluno_id] || '?'}</span><span className="fn">{[e?.enviada_em && m.aluno_id === e.enviada_por ? 'enviou' : '', misto ? porAluno[m.aluno_id]?.nivel : ''].filter(Boolean).join(' · ')}</span></li>)}
+              {eq.membros.map(m => <li key={m.aluno_id}><Avatar a={alunoPorId[m.aluno_id] || { nome: nome[m.aluno_id] }} tam="mini" /><span style={{ flex: 1, minWidth: 0 }}>{e?.enviada_em && m.aluno_id === e.enviada_por ? '📱 ' : ''}{nome[m.aluno_id] || '?'}</span><span className="fn">{[e?.enviada_em && m.aluno_id === e.enviada_por ? 'enviou' : '', misto ? porAluno[m.aluno_id]?.nivel : ''].filter(Boolean).join(' · ')}</span></li>)}
             </ul>
             {e?.texto && <p className="ent-texto">{e.texto}</p>}
             <div className="row ent-acoes">
@@ -435,12 +437,12 @@ function FormarEquipes({ userId, lanc, turma, equipes, showToast, onFechar }) {
               <button className="btn ghost mini" title="Remover a equipe (os membros ficam sem equipe)" onClick={() => removerEquipe(i)}>✕</button>
             </div>
             {ms.length === 0 ? <p className="note" style={{ margin: 0 }}>vazia</p> :
-              <ul className="eq-membros">{ms.map(a => <li key={a.id}><span>{a.nome}</span><span className="fn">{presentes?.has(a.id) ? 'presente' : ''}</span></li>)}</ul>}
+              <ul className="eq-membros">{ms.map(a => <li key={a.id}><Avatar a={a} tam="mini" /><span style={{ flex: 1, minWidth: 0 }}>{a.nome}</span><span className="fn">{presentes?.has(a.id) ? 'presente' : ''}</span></li>)}</ul>}
           </div> })}
       </div>
       <h3 style={{ margin: '12px 0 4px' }}>Alunos{sem.length ? ` · ${sem.length} sem equipe` : ''}</h3>
       <div className="scrollx"><table className="aloc"><tbody>
-        {alunos.map(a => <tr key={a.id} className={presentes?.has(a.id) ? 'pres' : ''}><td>{a.nome}</td><td style={{ width: 170 }}>
+        {alunos.map(a => <tr key={a.id} className={presentes?.has(a.id) ? 'pres' : ''}><td><Avatar a={a} tam="mini" />{a.nome}</td><td style={{ width: 170 }}>
           <select value={grupo[a.id] ?? ''} onChange={e => { const v = e.target.value; setGrupo(g => { const n = { ...g }; if (v === '') delete n[a.id]; else n[a.id] = Number(v); return n }) }}>
             <option value="">— sem equipe —</option>
             {nomes.map((nm, i) => <option key={i} value={i}>{nm || `Equipe ${i + 1}`}</option>)}

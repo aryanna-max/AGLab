@@ -13,6 +13,9 @@ import { prepararSom, tocarAviso } from './lib/som'
 import { EH_COMPUTADOR } from './lib/aparelho'
 import { resumirOcupacao } from './lib/topo'
 import { estadoAvisos, ativarAvisosAluno, sincronizarAvisosAluno, TEXTO_ESTADO } from './lib/avisos'
+import Avatar from './Avatar.jsx'
+import MeuAvatar from './MeuAvatar.jsx'
+import { guardarSelfieDoServidor } from './lib/selfie'
 
 const CHAMADA_S = 20          // a presença é uma ocupação: 20 s parado, média das leituras (decisão dela, 15/09)
 const CHAMADA_MIN = 3
@@ -145,7 +148,7 @@ export default function Aluno() {
   const params = new URLSearchParams(location.search)
   const codigoDaUrl = (params.get('aula') || '').toUpperCase()
 
-  const [tela, setTela] = useState('home')   // home | presenca | missoes | insignias | ler-aula | identificar | chamada-ok | medir
+  const [tela, setTela] = useState('home')   // home | presenca | missoes | insignias | avatar | ler-aula | identificar | chamada-ok | medir
   const [ident, setIdent] = useState(() => { const i = ler(K_IDENT, null); return EH_COMPUTADOR && i && !i.teste ? null : i })
   const [presenca, setPresenca] = useState(() => { const p = ler(K_PRES, null); return p && p.data === hojeISO() ? p : null })
   const [codigoAula, setCodigoAula] = useState(codigoDaUrl)   // código lido do QR do dia (só na chamada)
@@ -211,8 +214,11 @@ export default function Aluno() {
     if (!id || !navigator.onLine) return
     supabase.rpc('validar_sessao', { p_codigo: '', p_matricula: id.matricula || '', p_aluno_id: id.alunoId || null }).then(({ data }) => {
       if (!data?.ok) return
-      if (data.tem_foto !== id.temFoto || data.tem_selfie !== id.temSelfie || data.nome !== id.nome || !!data.teste !== !!id.teste) {
-        const i = { ...id, nome: data.nome, turma: data.turma, turmaId: data.turma_id, temFoto: data.tem_foto, temSelfie: data.tem_selfie, teste: !!data.teste }
+      guardarSelfieDoServidor(id, data.selfie)   // celular novo ou app reinstalado: a cara dele volta com ele
+      if (data.tem_foto !== id.temFoto || data.tem_selfie !== id.temSelfie || data.nome !== id.nome || !!data.teste !== !!id.teste
+          || (data.avatar || '') !== (id.avatar || '') || (data.avatar_em || null) !== (id.avatarEm || null)) {
+        const i = { ...id, nome: data.nome, turma: data.turma, turmaId: data.turma_id, temFoto: data.tem_foto, temSelfie: data.tem_selfie,
+          avatar: data.avatar || '', avatarEm: data.avatar_em || null, teste: !!data.teste }
         gravar(K_IDENT, i); setIdent(i); identRef.current = i
       }
     }).catch(() => {})
@@ -285,8 +291,10 @@ export default function Aluno() {
       if (!data?.ok) { setErro(data?.erro || 'Não encontrei você.'); return false }
       // no computador, só o login de teste (regra dela, 16/09): aluno real usa o celular
       if (EH_COMPUTADOR && !data.teste) { setErro('No computador a tela do aluno é só para teste: entre com uma matrícula da TURMA TESTE (TESTE1 a TESTE4). Alunos usam o celular.'); return false }
-      const i = { alunoId: data.aluno_id, matricula: data.matricula, nome: data.nome, turma: data.turma, turmaId: data.turma_id, temFoto: data.tem_foto, temSelfie: data.tem_selfie, teste: !!data.teste }
+      const i = { alunoId: data.aluno_id, matricula: data.matricula, nome: data.nome, turma: data.turma, turmaId: data.turma_id, temFoto: data.tem_foto, temSelfie: data.tem_selfie,
+        avatar: data.avatar || '', avatarEm: data.avatar_em || null, teste: !!data.teste }
       gravar(K_IDENT, i); setIdent(i); identRef.current = i; setMatInput(i.matricula || '')
+      guardarSelfieDoServidor(i, data.selfie)
       return true
     } catch (e) {
       if (ehErroDeRede(e) && (matricula || alunoId) && !EH_COMPUTADOR) {
@@ -461,6 +469,7 @@ export default function Aluno() {
       <span className="spacer" />
       {naFila > 0 && <span className="badge off">{naFila} na fila</span>}
       {!online && <span className="badge off">sem rede</span>}
+      {ident && <Avatar nome={ident.nome} avatar={ident.avatar} tam="mini" />}
     </header>
   )
 
@@ -475,7 +484,16 @@ export default function Aluno() {
   if (tela === 'presenca') return (
     <div className="wrap"><Cabecalho titulo="Presença" />
       <PresencaAluno historico={historico} presencaHoje={presenca} online={online} onMarcar={irChamada}
-        foto={ident && <MinhaFoto ident={ident} online={online} pedir={ident.temFoto === false} jaEnviada={ident.temSelfie} onEnviada={() => { insignias.recarregar(); const i = { ...ident, temFoto: true, temSelfie: true }; gravar(K_IDENT, i); setIdent(i) }} />} />
+        foto={ident && <MinhaFoto ident={ident} online={online} pedir={ident.temFoto === false} jaEnviada={ident.temSelfie}
+          onTrocarAvatar={() => irArea('avatar')}
+          onEnviada={() => { insignias.recarregar(); const i = { ...ident, temFoto: true, temSelfie: true }; gravar(K_IDENT, i); setIdent(i) }} />} />
+    </div>
+  )
+
+  if (tela === 'avatar') return (
+    <div className="wrap"><Cabecalho titulo="Meu avatar" />
+      <MeuAvatar ident={ident} online={online} onVoltar={voltarHome}
+        onEscolhido={(av, em) => { const i = { ...identRef.current, avatar: av, avatarEm: em }; gravar(K_IDENT, i); setIdent(i); identRef.current = i }} />
     </div>
   )
 
@@ -487,7 +505,7 @@ export default function Aluno() {
 
   if (tela === 'insignias') return (
     <div className="wrap"><Cabecalho titulo="Insígnias" />
-      <InsigniasAluno insignias={insignias} />
+      <InsigniasAluno insignias={insignias} nome={ident?.nome} avatar={ident?.avatar} />
     </div>
   )
 
@@ -540,7 +558,9 @@ export default function Aluno() {
   if (tela === 'home') return (
     <div className="wrap">
       <header className="app"><img className="orbe-mini" src="/orbe-mascote.png" alt="" /><h1>Orbe</h1><span className="sub">Topografia · IFPE · aluno</span><span className="spacer" />
-        {naFila > 0 && <span className="badge off">{naFila} na fila</span>}{!online && <span className="badge off">sem rede</span>}</header>
+        {naFila > 0 && <span className="badge off">{naFila} na fila</span>}{!online && <span className="badge off">sem rede</span>}
+        {ident && <button className="eu-avatar" onClick={() => irArea('avatar')} title="Meu avatar" aria-label="Meu avatar">
+          <Avatar nome={ident.nome} avatar={ident.avatar} tam="mini" /></button>}</header>
       {EH_COMPUTADOR && <div className="flash dup" style={{ textAlign: 'left' }}>
         <b>Modo de teste: tela do aluno no computador.</b> Missões, presença, insígnias e avisos funcionam para conferir.
         Medir posição não: no computador a localização vem do Wi-Fi e não vale como dado — use o celular para Presença e Campo.{' '}
@@ -553,6 +573,10 @@ export default function Aluno() {
       {alerta && <button className={'alerta-missao' + (alerta.urgente ? ' urgente' : '')} onClick={() => irArea('missoes')}>
         <span className="am-ico">{alerta.urgente ? '⏱' : '✨'}</span>
         <span className="am-txt"><b>{alerta.titulo}</b><span>{alerta.sub}</span></span>
+      </button>}
+      {ident && !ident.avatar && <button className="alerta-missao" onClick={() => irArea('avatar')}>
+        <span className="am-ico">🙂</span>
+        <span className="am-txt"><b>Escolha o seu avatar</b><span>É a sua cara no app e para a turma. A sua foto continua só com a professora.</span></span>
       </button>}
       <div className="escolha tres">
         <button className="card-perfil" onClick={() => irArea('presenca')}>

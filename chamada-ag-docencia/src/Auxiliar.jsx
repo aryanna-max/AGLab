@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from './supabaseClient'
 import { qrDataUrl } from './lib/qr'
+import Avatar from './Avatar.jsx'
 
 /* Caderneta do dia para quem está substituindo a professora.
    Entra com a própria matrícula (ela já está no cadastro da turma) + o PIN que a
@@ -210,7 +211,8 @@ export default function Auxiliar() {
         <ul className="people">
           {alunos.map(a => <li key={a.id}>
             <div className="left">
-              <span className="avatar">{(a.nome || '?').trim().charAt(0).toUpperCase()}</span>
+              {/* aqui a selfie NÃO entra: a caderneta de um dia mostra nome e presença, nada de fotos */}
+              <Avatar nome={a.nome} />
               <div style={{ minWidth: 0 }}>
                 <div style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.nome}</div>
                 <div className="note" style={{ margin: 0 }}>

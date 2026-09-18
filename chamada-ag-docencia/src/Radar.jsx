@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import * as store from './lib/store'
 import { paraUTM25S } from './lib/geo'
+import { iniciais as initials } from './Avatar.jsx'
 
 /* Radar da professora: quem está por perto, como bolinhas com foto.
    - aceso (anel verde pulsando): mandou batimento nos últimos 90 s — está com o Orbe ou a Chamada aberta
@@ -22,7 +23,6 @@ const BLOCO_F = { lat: -8.0587608, lon: -34.9512426 }
 const RAIO_MIN = 10, RAIO_MAX = 250
 const PASSOS_AUTO = [15, 25, 40, 60, 100, 150, 250]
 
-const initials = n => { const p = String(n || '').trim().split(/\s+/); return ((p[0]?.[0] || '') + (p.length > 1 ? p[p.length - 1][0] : '')).toUpperCase() || '?' }
 const hojeISO = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` }
 const fmtM = m => m >= 10 ? Math.round(m) + ' m' : m.toFixed(1).replace('.', ',') + ' m'
 

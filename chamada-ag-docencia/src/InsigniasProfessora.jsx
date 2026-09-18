@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import * as store from './lib/store'
 import { INSIGNIAS, CATEGORIAS, POR_CHAVE, TOTAL, arte } from './lib/insignias'
+import Avatar from './Avatar.jsx'
 
 /* Insígnias — lado da professora.
    As automáticas saem das regras conferidas no servidor (presenças, pins, poligonais,
@@ -103,7 +104,7 @@ export default function InsigniasProfessora({ userId, tid, turmas, online, showT
           {alunos.map(a => { const dele = porAluno[a.id] || []
             return <li key={a.id} style={{ display: 'block', cursor: 'pointer' }} onClick={() => { setAberto(aberto === a.id ? null : a.id); setDado('') }}>
               <div className="ent-cab">
-                <span className="who"><span>{a.nome}</span><span className="m">{dele.length} de {TOTAL}</span></span>
+                <span className="left"><Avatar a={a} tam="mini" /><span className="who"><span>{a.nome}</span><span className="m">{dele.length} de {TOTAL}</span></span></span>
                 <span className="ins-chips">{dele.slice(0, 8).map(i => <img key={i.id} src={arte(i.chave)} title={POR_CHAVE[i.chave]?.nome} alt="" />)}</span>
               </div>
               {aberto === a.id && <div onClick={e => e.stopPropagation()}>

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { fmtPrazo, marcarEtapa, enviarMissao, marcarVista, missaoVista } from './lib/alunoApi'
+import Avatar from './Avatar.jsx'
 
 /* Missões do aluno: as que a professora lançou para a turma dele, com prazo,
    etapas (gravadas na hora), entrega, nível alcançado, devolutiva e ranking. */
@@ -27,7 +28,7 @@ export default function MissoesAluno({ ident, online, missoes, abrirId }) {
     <>
       {sem && sem.podio && sem.podio.length > 0 && <div className="panel podio">
         <h2 style={{ marginTop: 0 }}>Ranking do semestre</h2>
-        <div className="podio-row">{sem.podio.map((p, i) => <div key={i} className={'podio-it p' + i}><span className="pd-pos">{i + 1}º</span><span className="pd-nome">{p.nome}</span><span className="pd-pts">{p.pontos} pts</span></div>)}</div>
+        <div className="podio-row">{sem.podio.map((p, i) => <div key={i} className={'podio-it p' + i}><span className="pd-pos">{i + 1}º</span><Avatar nome={p.nome} avatar={p.avatar} tam="mini" /><span className="pd-nome">{p.nome}</span><span className="pd-pts">{p.pontos} pts</span></div>)}</div>
         <p className="note">{sem.meus_pontos > 0 ? <>Você tem <b>{sem.meus_pontos} pts</b> · {sem.minha_posicao}º de {sem.total}.</> : 'Complete uma missão para entrar no ranking.'} Ouro vale 3, prata 2, bronze 1.</p>
       </div>}
 
@@ -185,7 +186,7 @@ function Equipe({ m }) {
       <h2 style={{ marginTop: 0 }}>{eq.nome}</h2>
       <ul className="eq-membros">
         {(eq.membros || []).map((x, i) => { const enviou = m.minha?.enviada_em && (x.eu ? m.minha.enviada_por_mim : !m.minha.enviada_por_mim && x.nome === m.minha.enviada_por)
-          return <li key={i} className={x.eu ? 'eu' : ''}><span>{enviou ? '📱 ' : ''}{x.nome}{x.eu ? ' (você)' : ''}</span>{enviou && <span className="fn">enviou</span>}</li> })}
+          return <li key={i} className={x.eu ? 'eu' : ''}><Avatar nome={x.nome} avatar={x.avatar} tam="mini" /><span style={{ flex: 1, minWidth: 0 }}>{enviou ? '📱 ' : ''}{x.nome}{x.eu ? ' (você)' : ''}</span>{enviou && <span className="fn">enviou</span>}</li> })}
       </ul>
       <p className="note">Sem funções definidas: dividam a atividade entre vocês. Todos os celulares registram; só um envia a missão.</p>
     </div>

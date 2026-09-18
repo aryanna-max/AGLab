@@ -77,8 +77,20 @@ ul.people li{display:flex;align-items:center;justify-content:space-between;gap:1
 ul.people li .left{display:flex;align-items:center;gap:11px;min-width:0}
 .who{display:flex;flex-direction:column;min-width:0}
 .who .m{font-size:12px;color:var(--muted)}
-.avatar{width:44px;height:44px;border-radius:10px;object-fit:cover;background:var(--chip);flex:0 0 auto;display:flex;align-items:center;justify-content:center;font-weight:800;color:var(--muted);font-size:15px;overflow:hidden}
+.avatar{width:44px;height:44px;border-radius:10px;object-fit:cover;background:var(--chip);flex:0 0 auto;display:inline-flex;vertical-align:middle;align-items:center;justify-content:center;font-weight:800;color:var(--muted);font-size:15px;overflow:hidden}
 .avatar img{width:100%;height:100%;object-fit:cover;display:block}
+/* a mesma cara em lista e tabela densa: insígnias, missões, equipes, análise */
+.avatar.mini{width:26px;height:26px;border-radius:8px;font-size:11px}
+.aloc .avatar.mini,.matrix .avatar.mini{margin-right:7px}
+.podio-it .avatar.mini{align-self:center;margin-bottom:4px}
+/* o aluno no cabeçalho do próprio app: o avatar escolhido, à direita */
+header.app .avatar.mini{margin-left:2px}
+.eu-avatar{background:none;border:0;padding:0;margin-left:2px;line-height:0;border-radius:9px;cursor:pointer}
+.eu-avatar:focus-visible{outline:2px solid var(--brand2);outline-offset:2px}
+/* escolha do avatar: a mesma grade das insígnias, com o escolhido em destaque */
+.av-grade .ins-it img{border-radius:14px}
+.ins-it.av-on{font-weight:800}
+.ins-it.av-on img{outline:3px solid var(--ok);outline-offset:2px}
 .tag{font-size:12px;font-weight:700;border-radius:999px;padding:3px 9px}
 .tag.P{background:var(--ok-bg);color:var(--ok)}.tag.F{background:var(--miss-bg);color:var(--miss)}
 .confirm{display:flex;align-items:center;gap:16px;margin:12px auto 2px;max-width:420px;border:2px solid var(--ok);background:var(--ok-bg);border-radius:16px;padding:14px 16px;animation:pop .18s ease-out}
@@ -274,6 +286,13 @@ tr.reocup td{opacity:.75;font-style:italic}
 
 /* ---------- selfie do aluno ---------- */
 .selfie-row{display:flex;gap:14px;align-items:flex-start}
+/* as duas caras do aluno: a selfie na bolinha e, embaixo, o avatar que a turma vê */
+.selfie-col{display:flex;flex-direction:column;align-items:center;gap:7px;flex:0 0 auto}
+.selfie-av{background:none;border:0;padding:0;font:inherit;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px}
+.selfie-av[disabled]{cursor:default}
+.selfie-av .avatar{width:52px;height:52px;border-radius:14px}
+.selfie-av span{font-size:11px;line-height:1.15;color:var(--muted);text-align:center;max-width:84px}
+.selfie-av:focus-visible{outline:2px solid var(--brand2);outline-offset:3px;border-radius:14px}
 .selfie-prev{width:84px;height:84px;border-radius:50%;overflow:hidden;flex:0 0 auto;background:var(--line);display:flex;align-items:center;justify-content:center;font-size:32px;font-weight:700;opacity:.9}
 .selfie-prev img{width:100%;height:100%;object-fit:cover}
 .selfie-pedir{border-color:#b8860b;box-shadow:0 0 0 3px rgba(184,134,11,.18)}

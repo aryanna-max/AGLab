@@ -78,6 +78,15 @@ export function useInsignias(ident, online) {
   return { dados, recarregar, marcarVistas }
 }
 
+/* Avatar escolhido. O limite de uma troca por semana é decidido no servidor: se ele
+   recusar, o erro traz o avatar que continua valendo e a data da próxima troca. */
+export async function salvarAvatar(ident, chave) {
+  const { data, error } = await supabase.rpc('salvar_avatar', { ...idArgs(ident), p_avatar: chave })
+  if (error) throw error
+  if (!data?.ok) { const e = new Error(data?.erro || 'Não consegui salvar o avatar.'); e.avatar = data?.avatar; e.avatar_em = data?.avatar_em; e.limite = !!data?.limite; throw e }
+  return data
+}
+
 export async function marcarEtapa(ident, lancamentoId, etapa, feita) {
   const { data, error } = await supabase.rpc('marcar_etapa_missao', { ...idArgs(ident), p_lancamento_id: lancamentoId, p_etapa: etapa, p_feita: feita })
   if (error) throw error
