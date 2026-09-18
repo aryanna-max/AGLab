@@ -13,6 +13,8 @@ import { prepararSom, tocarAviso } from './lib/som'
 import { EH_COMPUTADOR } from './lib/aparelho'
 import { resumirOcupacao } from './lib/topo'
 import { estadoAvisos, ativarAvisosAluno, sincronizarAvisosAluno, TEXTO_ESTADO } from './lib/avisos'
+import Avatar from './Avatar.jsx'
+import { useMinhaSelfie, guardarSelfieDoServidor } from './lib/selfie'
 
 const CHAMADA_S = 20          // a presença é uma ocupação: 20 s parado, média das leituras (decisão dela, 15/09)
 const CHAMADA_MIN = 3
@@ -199,6 +201,8 @@ export default function Aluno() {
   useEffect(() => { modoRef.current = modo }, [modo])
   useEffect(() => { identRef.current = ident }, [ident])
   useEffect(() => { codigoRef.current = codigoAula }, [codigoAula])
+  // a selfie da Presença é o avatar do aluno no resto do app (cabeçalho, insígnias)
+  const selfie = useMinhaSelfie(ident)
   const historico = useHistoricoPresenca(ident, online)
   const missoes = useMissoes(ident, online)
   const insignias = useInsignias(ident, online)
@@ -210,6 +214,7 @@ export default function Aluno() {
     if (!id || !navigator.onLine) return
     supabase.rpc('validar_sessao', { p_codigo: '', p_matricula: id.matricula || '', p_aluno_id: id.alunoId || null }).then(({ data }) => {
       if (!data?.ok) return
+      guardarSelfieDoServidor(id, data.selfie)   // celular novo ou app reinstalado: a cara dele volta com ele
       if (data.tem_foto !== id.temFoto || data.tem_selfie !== id.temSelfie || data.nome !== id.nome || !!data.teste !== !!id.teste) {
         const i = { ...id, nome: data.nome, turma: data.turma, turmaId: data.turma_id, temFoto: data.tem_foto, temSelfie: data.tem_selfie, teste: !!data.teste }
         gravar(K_IDENT, i); setIdent(i); identRef.current = i
@@ -286,6 +291,7 @@ export default function Aluno() {
       if (EH_COMPUTADOR && !data.teste) { setErro('No computador a tela do aluno é só para teste: entre com uma matrícula da TURMA TESTE (TESTE1 a TESTE4). Alunos usam o celular.'); return false }
       const i = { alunoId: data.aluno_id, matricula: data.matricula, nome: data.nome, turma: data.turma, turmaId: data.turma_id, temFoto: data.tem_foto, temSelfie: data.tem_selfie, teste: !!data.teste }
       gravar(K_IDENT, i); setIdent(i); identRef.current = i; setMatInput(i.matricula || '')
+      guardarSelfieDoServidor(i, data.selfie)
       return true
     } catch (e) {
       if (ehErroDeRede(e) && (matricula || alunoId) && !EH_COMPUTADOR) {
@@ -446,6 +452,7 @@ export default function Aluno() {
       <span className="spacer" />
       {naFila > 0 && <span className="badge off">{naFila} na fila</span>}
       {!online && <span className="badge off">sem rede</span>}
+      {ident && <Avatar nome={ident.nome} foto={selfie} tam="mini" />}
     </header>
   )
 
@@ -472,7 +479,7 @@ export default function Aluno() {
 
   if (tela === 'insignias') return (
     <div className="wrap"><Cabecalho titulo="Insígnias" />
-      <InsigniasAluno insignias={insignias} />
+      <InsigniasAluno insignias={insignias} nome={ident?.nome} selfie={selfie} />
     </div>
   )
 
@@ -525,7 +532,8 @@ export default function Aluno() {
   if (tela === 'home') return (
     <div className="wrap">
       <header className="app"><img className="orbe-mini" src="/orbe-mascote.png" alt="" /><h1>Orbe</h1><span className="sub">Topografia · IFPE · aluno</span><span className="spacer" />
-        {naFila > 0 && <span className="badge off">{naFila} na fila</span>}{!online && <span className="badge off">sem rede</span>}</header>
+        {naFila > 0 && <span className="badge off">{naFila} na fila</span>}{!online && <span className="badge off">sem rede</span>}
+        {ident && <Avatar nome={ident.nome} foto={selfie} tam="mini" />}</header>
       {EH_COMPUTADOR && <div className="flash dup" style={{ textAlign: 'left' }}>
         <b>Modo de teste: tela do aluno no computador.</b> Missões, presença, insígnias e avisos funcionam para conferir.
         Medir posição não: no computador a localização vem do Wi-Fi e não vale como dado — use o celular para Presença e Campo.{' '}

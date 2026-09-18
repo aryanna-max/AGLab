@@ -13,18 +13,12 @@ import { EH_COMPUTADOR } from './lib/aparelho'
 import { baixarCartao, compartilharCartao } from './lib/cartao'
 import Orbe from './Orbe.jsx'
 import { MARCOS, mesclarMarcos } from './lib/topo'
+import Avatar from './Avatar.jsx'
 
 /* ---------- utils ---------- */
 const todayISO = () => { const d = new Date(); const m = String(d.getMonth() + 1).padStart(2, '0'); const dd = String(d.getDate()).padStart(2, '0'); return `${d.getFullYear()}-${m}-${dd}` }
 const fmtDate = iso => { if (!iso) return ''; const p = iso.split('-'); return p.length === 3 ? `${p[2]}/${p[1]}` : iso }
 const K_TURMA = 'agc2_turma_prof'
-const initials = n => { const p = String(n || '').trim().split(/\s+/); return ((p[0]?.[0] || '') + (p.length > 1 ? p[p.length - 1][0] : '')).toUpperCase() || '?' }
-
-function Avatar({ a, big }) {
-  const cls = big ? 'confirm-photo' : 'avatar'
-  return <span className={cls}>{a.foto ? <img src={a.foto} alt="" /> : initials(a.nome)}</span>
-}
-
 /* ---------- LOGIN ---------- */
 function Login() {
   const [modo, setModo] = useState('entrar')

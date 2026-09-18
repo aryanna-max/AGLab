@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { tocarConquista, somEscolhido, definirSom, SONS } from './lib/som'
 import { INSIGNIAS, CATEGORIAS, TOTAL, POR_CHAVE, arte } from './lib/insignias'
+import Avatar from './Avatar.jsx'
 
 /* Coleção do aluno: o que ele já sabe fazer.
    Bloqueadas aparecem em cinza com a regra à vista — a coleção mostra o caminho.
@@ -38,7 +39,7 @@ export function CartaoInsignia({ chave, dado, onFechar }) {
   )
 }
 
-export default function InsigniasAluno({ insignias }) {
+export default function InsigniasAluno({ insignias, nome: meuNome, selfie }) {
   const lista = insignias.dados?.insignias || []
   const porChave = Object.fromEntries(lista.map(i => [i.chave, i]))
   const [aberta, setAberta] = useState(null)
@@ -47,7 +48,8 @@ export default function InsigniasAluno({ insignias }) {
   return (
     <>
       <div className="panel">
-        <h2 style={{ marginTop: 0 }}>{lista.length} de {TOTAL}</h2>
+        {/* a coleção é dele: a selfie da Presença é a cara que aparece aqui */}
+        <h2 style={{ marginTop: 0, display: 'flex', alignItems: 'center', gap: 10 }}><Avatar nome={meuNome} foto={selfie} />{lista.length} de {TOTAL}</h2>
         <p className="hint">Insígnia é reconhecimento do que você já sabe fazer. Não vale ponto no ranking das missões.</p>
         <label className="fld">🔔 Som ao ganhar uma insígnia</label>
         <div className="btnrow" style={{ marginTop: 0 }}>

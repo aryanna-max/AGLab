@@ -23,6 +23,14 @@ const RPC = {
     { chave: 'na_mosca', dado: 'Pin a 2,4 m do M0452', origem: 'automatica', em: iso(agora - 60000), nova: true },
     { chave: 'olho', dado: 'Percebeu que o M0451 saiu do lugar', origem: 'professora', em: iso(agora - 86400000), nova: false }] },
 }
+// o app do aluno recebe a própria selfie de volta (validar_sessao, modo livre):
+// é ela que vira o avatar dele no cabeçalho e na coleção de insígnias
+const MINHA_SELFIE = 'data:image/svg+xml;utf8,' + encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><rect width="64" height="64" fill="#1f4e79"/>' +
+  '<circle cx="32" cy="25" r="11" fill="#fff" opacity=".9"/><ellipse cx="32" cy="56" rx="19" ry="14" fill="#fff" opacity=".9"/></svg>')
+RPC.validar_sessao = { ok: true, modo: 'livre', nome: 'Alice', turma: 'Saneamento Integrado — F61RC (2026.2)', turma_id: 't',
+  aluno_id: 'x', matricula: '20231F61RC0280', tem_foto: true, tem_selfie: true, selfie: MINHA_SELFIE, teste: false }
+
 export const supabase = {
   auth: { signOut: async () => {}, getSession: async () => ({ data: { session: null } }) },
   rpc: async nome => ({ data: RPC[nome] ?? { ok: true }, error: null }),
