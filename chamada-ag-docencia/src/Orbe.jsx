@@ -46,6 +46,17 @@ export default function Orbe({ pos, ident, codigo, onAviso, api }) {
   )
 }
 
+/* Declinação magnética no campus IFPE Recife (−8,0588 / −34,9512): −21,03° (21° W), NOAA WMM-2025,
+   calculada para 18/09/2026; variação anual +0,12°/ano. Rever a cada ano ou quando sair o WMM seguinte. */
+const DECLINACAO_CAMPUS = -21.03
+/* Convergência meridiana no fuso UTM 25 S (meridiano central −33°): γ = atan(tan Δλ · sen φ).
+   No campus dá ≈ +0,27° — pequena, mas entra para a conta fechar. */
+function convergenciaMeridiana(lat, lon) {
+  if (lat == null || lon == null) return 0
+  const r = Math.PI / 180
+  return Math.atan(Math.tan((lon + 33) * r) * Math.sin(lat * r)) / r
+}
+
 /* ================= 🎯 IR ATÉ (locar) ================= */
 function IrAte({ pos }) {
   const [alvoNome, setAlvoNome] = useState(MARCOS[1].nome)
@@ -109,7 +120,12 @@ function IrAte({ pos }) {
      treme com o aparelho. A bússola vira só uma agulha fina ("seu celular"): gire o corpo até a
      agulha encostar na seta. Alinhado (±15°), a seta fica verde. */
   const setaRot = az != null ? az : 0
-  const desvio = az != null && rumoAparelho != null ? ((az - rumoAparelho + 540) % 360) - 180 : null
+  /* A bússola do celular aponta para o NORTE MAGNÉTICO; o azimute do app é de QUADRÍCULA (UTM 25 S,
+     calculado de ΔN e ΔE). Sem correção, "alinhado" levava o aluno uns 21° para o lado (achado 18/09/2026).
+     Norte verdadeiro = magnético + declinação; quadrícula = verdadeiro − convergência meridiana. */
+  const rumoQuadricula = rumoAparelho != null && pos
+    ? (rumoAparelho + DECLINACAO_CAMPUS - convergenciaMeridiana(pos.lat, pos.lon) + 720) % 360 : null
+  const desvio = az != null && rumoQuadricula != null ? ((az - rumoQuadricula + 540) % 360) - 180 : null
   /* A instrução é o destaque (pedido dela, 18/09): em faixas, com folga de 6° para trocar de
      faixa — a bússola tremendo não faz o texto piscar. 0 frente · 1 um pouco · 2 vire · 3 meia-volta */
   const faixaRef = useRef(null)
@@ -165,7 +181,7 @@ function IrAte({ pos }) {
             <text x="80" y="34" textAnchor="middle" className="ir-n">N</text>
             <text x="132" y="84" textAnchor="middle" className="ir-card">E</text><text x="80" y="140" textAnchor="middle" className="ir-card">S</text><text x="28" y="84" textAnchor="middle" className="ir-card">O</text>
             {/* agulha fina da bússola do celular: referência secundária, pode tremer */}
-            {rumoAparelho != null && <g style={{ transform: `rotate(${rumoAparelho}deg)`, transformOrigin: '80px 80px', transition: 'transform .4s ease-out' }}>
+            {rumoQuadricula != null && <g style={{ transform: `rotate(${rumoQuadricula}deg)`, transformOrigin: '80px 80px', transition: 'transform .4s ease-out' }}>
               <line x1="80" y1="80" x2="80" y2="16" className="ir-agulha" />
               <circle cx="80" cy="16" r="4" className="ir-agulha-pt" />
             </g>}
@@ -178,10 +194,12 @@ function IrAte({ pos }) {
           </svg>
           <div className="ir-dist">{dist > 2000 ? metros(dist / 1000, 2) + ' km' : metros(dist, 0) + ' m'}</div>
           {!chegou && <div className="ir-sub">azimute {grausDMS(az)} · rumo {rumo(az)}</div>}
-          <div className="ir-sub">ΔN {dN >= 0 ? '+' : ''}{metros(dN, 1)} m · ΔE {dE >= 0 ? '+' : ''}{metros(dE, 1)} m</div>
+          {/* sem bússola também se chega: duas pernas pelos pontos cardeais (pergunta dela, 18/09) */}
+          {!chegou && <div className="ir-pernas">ou ande <b>{metros(Math.abs(dN), 0)} m para o {dN >= 0 ? 'Norte' : 'Sul'}</b> e <b>{metros(Math.abs(dE), 0)} m para o {dE >= 0 ? 'Leste' : 'Oeste'}</b></div>}
+          <div className="ir-sub">ΔN {dN >= 0 ? '+' : ''}{metros(dN, 1)} m · ΔE {dE >= 0 ? '+' : ''}{metros(dE, 1)} m · azimute de quadrícula (UTM)</div>
         </div>
         <p className="note">
-          {bussola === 'on' ? <>A <b>seta grossa</b> é o caminho, calculado pelo GPS. A <b>agulha fina</b> é para onde o seu celular aponta — ela treme perto de metal e concreto; use só para se virar. Celular deitado na horizontal. Se a distância cai, você está no caminho.</> : bussola === 'negada' ? 'Sem bússola: o N fica para cima e a seta mostra o azimute — oriente-se pelo sol, pela sombra ou por um ponto conhecido.' :
+          {bussola === 'on' ? <>A <b>seta grossa</b> é o caminho, calculado pelo GPS. A <b>agulha fina</b> é para onde o seu celular aponta — ela treme perto de metal e concreto; use só para se virar. Celular deitado na horizontal. Se a distância cai, você está no caminho. A agulha já vem corrigida da <b>declinação magnética</b> de Recife (21° W): a bússola aponta para o norte magnético, o mapa usa o norte da quadrícula.</> : bussola === 'negada' ? 'Sem bússola: o N fica para cima e a seta mostra o azimute — oriente-se pelo sol, pela sombra ou por um ponto conhecido.' :
             <>O N fica para cima e a seta mostra o azimute. <span style={{ textDecoration: 'underline', cursor: 'pointer', fontWeight: 700 }} onClick={ligarBussola}>Ligar bússola</span> para ver também a agulha do celular.</>}
           {alvo.sigma != null && <> Alvo conhecido a ±{alvo.sigma < 1 ? metros(alvo.sigma * 100, 0) + ' cm' : metros(alvo.sigma, 0) + ' m'}.</>}
         </p>

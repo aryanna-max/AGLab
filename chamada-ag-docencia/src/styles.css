@@ -325,6 +325,7 @@ tr.reocup td{opacity:.75;font-style:italic}
 .ir-instr{display:flex;align-items:center;justify-content:center;gap:10px;font-size:26px;font-weight:800;line-height:1.15;
   padding:12px 10px;border-radius:12px;margin:0 0 8px;background:var(--panel);border:2px solid var(--brand2);color:var(--brand2)}
 .ir-instr b{font-size:30px}
+.ir-pernas{font-size:16px;margin:6px 0 2px;color:var(--ink,#1a1c1f)}
 .ir-instr-ic{font-size:34px;line-height:1}
 .ir-instr.f0,.ir-instr.fok{background:var(--ok-bg);border-color:var(--ok);color:var(--ok)}
 .ir-instr.f1{border-color:#d4a017;color:#9a6b00}
