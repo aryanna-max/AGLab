@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react'
 import { supabase } from './supabaseClient'
 import { arquivoParaJpeg } from './lib/foto'
 import { gravarSelfie, useSelfieGuardada } from './lib/selfie'
+import Avatar from './Avatar.jsx'
 
 /* Selfie do próprio aluno. Fica pequena (160 px) e vai por salvar_selfie para a linha
    dele em `alunos` — a professora vê na lista e no radar sem fazer nada.
@@ -10,7 +11,7 @@ import { gravarSelfie, useSelfieGuardada } from './lib/selfie'
    enviada, não troca mais. Só a professora libera uma nova (Turmas & Fotos). O servidor
    também recusa uma segunda selfie. Sem rede: fica "a enviar" e ainda pode ser trocada. */
 
-export default function MinhaFoto({ ident, online, pedir, jaEnviada, onEnviada }) {
+export default function MinhaFoto({ ident, online, pedir, jaEnviada, onEnviada, onTrocarAvatar }) {
   // a selfie mora em lib/selfie: esta tela grava lá, e o resto do app lê de lá como avatar
   const minha = useSelfieGuardada(ident)
   const [rascunho, setRascunho] = useState(null)      // foto escolhida, ainda não enviada
@@ -66,10 +67,17 @@ export default function MinhaFoto({ ident, online, pedir, jaEnviada, onEnviada }
   return (
     <div className={'panel' + (pedir && !mostrar && !travada ? ' selfie-pedir' : '')}>
       <div className="selfie-row">
-        <div className="selfie-prev">{mostrar ? <img src={mostrar} alt="" /> : <span>{(ident.nome || '?')[0]}</span>}</div>
+        <div className="selfie-col">
+          <div className="selfie-prev">{mostrar ? <img src={mostrar} alt="" /> : <span>{(ident.nome || '?')[0]}</span>}</div>
+          <button className="selfie-av" onClick={onTrocarAvatar} disabled={!onTrocarAvatar}>
+            <Avatar nome={ident.nome} avatar={ident.avatar} />
+            <span>{ident.avatar ? 'meu avatar' : 'escolher avatar'}</span>
+          </button>
+        </div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <h2 style={{ marginTop: 0 }}>Minha foto</h2>
-          <p className="hint">É como a professora vê você na lista e no radar.</p>
+          <p className="hint">A <b>foto</b> é só para a professora — é como ela vê você na lista e no radar.
+            O <b>avatar</b>, abaixo dela, é a sua cara para a turma: no app e nas missões em equipe.</p>
           {travada ? <>
             <div className="btnrow" style={{ alignItems: 'center' }}><span className="badge on">enviada</span></div>
             <p className="note">A selfie já foi enviada e não pode ser trocada. Se precisar, fale com a professora.</p>

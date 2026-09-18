@@ -286,6 +286,13 @@ tr.reocup td{opacity:.75;font-style:italic}
 
 /* ---------- selfie do aluno ---------- */
 .selfie-row{display:flex;gap:14px;align-items:flex-start}
+/* as duas caras do aluno: a selfie na bolinha e, embaixo, o avatar que a turma vê */
+.selfie-col{display:flex;flex-direction:column;align-items:center;gap:7px;flex:0 0 auto}
+.selfie-av{background:none;border:0;padding:0;font:inherit;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px}
+.selfie-av[disabled]{cursor:default}
+.selfie-av .avatar{width:52px;height:52px;border-radius:14px}
+.selfie-av span{font-size:11px;line-height:1.15;color:var(--muted);text-align:center;max-width:84px}
+.selfie-av:focus-visible{outline:2px solid var(--brand2);outline-offset:3px;border-radius:14px}
 .selfie-prev{width:84px;height:84px;border-radius:50%;overflow:hidden;flex:0 0 auto;background:var(--line);display:flex;align-items:center;justify-content:center;font-size:32px;font-weight:700;opacity:.9}
 .selfie-prev img{width:100%;height:100%;object-fit:cover}
 .selfie-pedir{border-color:#b8860b;box-shadow:0 0 0 3px rgba(184,134,11,.18)}

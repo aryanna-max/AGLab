@@ -469,7 +469,9 @@ export default function Aluno() {
   if (tela === 'presenca') return (
     <div className="wrap"><Cabecalho titulo="Presença" />
       <PresencaAluno historico={historico} presencaHoje={presenca} online={online} onMarcar={irChamada}
-        foto={ident && <MinhaFoto ident={ident} online={online} pedir={ident.temFoto === false} jaEnviada={ident.temSelfie} onEnviada={() => { insignias.recarregar(); const i = { ...ident, temFoto: true, temSelfie: true }; gravar(K_IDENT, i); setIdent(i) }} />} />
+        foto={ident && <MinhaFoto ident={ident} online={online} pedir={ident.temFoto === false} jaEnviada={ident.temSelfie}
+          onTrocarAvatar={() => irArea('avatar')}
+          onEnviada={() => { insignias.recarregar(); const i = { ...ident, temFoto: true, temSelfie: true }; gravar(K_IDENT, i); setIdent(i) }} />} />
     </div>
   )
 
