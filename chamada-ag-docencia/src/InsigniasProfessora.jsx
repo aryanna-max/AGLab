@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import * as store from './lib/store'
-import { INSIGNIAS, CATEGORIAS, POR_CHAVE, TOTAL, arte } from './lib/insignias'
+import { INSIGNIAS, CATEGORIAS, POR_CHAVE, TOTAL, arte, ehPioneira } from './lib/insignias'
 import Avatar from './Avatar.jsx'
 
 /* Insígnias — lado da professora.
@@ -20,10 +20,18 @@ export default function InsigniasProfessora({ userId, tid, turmas, online, showT
   const [aberto, setAberto] = useState(null)      // aluno com o painel de conceder aberto
   const [dado, setDado] = useState('')
 
+  const [pioneiros, setPioneiros] = useState([])
   const carregar = useCallback(() => {
     if (!online || !tid) return
     store.insigniasDaTurma(tid).then(setLista).catch(e => showToast('Erro: ' + e.message))
+    store.pioneirosDaTurma(tid).then(setPioneiros).catch(() => setPioneiros([]))
   }, [tid, online, showToast])
+  async function passarAdiante(p) {
+    const nome = POR_CHAVE['pioneiro_' + p.base]?.nome
+    if (!confirm(`Tirar "${nome}" de ${p.confirmado.nome} e passar ao próximo da turma?`)) return
+    try { await store.decidirPioneiro(tid, p.base, p.confirmado.aluno_id, 'desfazer'); showToast('Passou ao próximo'); carregar() }
+    catch (e) { showToast('Erro: ' + e.message) }
+  }
   useEffect(() => { carregar(); setAberto(null) }, [carregar])
 
   const porAluno = useMemo(() => {
@@ -33,7 +41,7 @@ export default function InsigniasProfessora({ userId, tid, turmas, online, showT
   }, [lista])
   const quantos = useMemo(() => {
     const m = {}
-    lista.forEach(i => { m[i.chave] = (m[i.chave] || 0) + 1 })
+    lista.forEach(i => { if (!ehPioneira(i.chave)) m[i.chave] = (m[i.chave] || 0) + 1 })
     return m
   }, [lista])
   const semana = useMemo(() => {
@@ -85,6 +93,20 @@ export default function InsigniasProfessora({ userId, tid, turmas, online, showT
       </div>
 
       <div className="panel">
+        <h2 style={{ marginTop: 0 }}>Pioneiros da turma</h2>
+        <p className="hint">O primeiro da turma a estrear cada função ganha a versão Pioneiro, sozinho (o servidor confere a cada 5 minutos).
+          Se não valer, passe ao próximo: quem vem depois na ordem ganha.</p>
+        {pioneiros.map(p => { const ins = POR_CHAVE['pioneiro_' + p.base]
+          return <div className="ins-linha" key={p.base}>
+            <img src={arte('pioneiro_' + p.base)} alt="" style={p.confirmado ? null : { opacity: .35 }} />
+            <div style={{ flex: 1 }}><b>{ins?.nome || p.base}</b>
+              <div className="muted-x">{p.confirmado ? <>{p.confirmado.nome} · {fmt(p.confirmado.feito_em)}</>
+                : p.candidato ? <>ainda não entregue · próximo: {primeiro(p.candidato.nome)}</> : 'ninguém estreou ainda'}</div></div>
+            {p.confirmado && <button className="btn ghost mini" onClick={() => passarAdiante(p)}>Passar ao próximo</button>}
+          </div> })}
+      </div>
+
+      <div className="panel">
         <h2 style={{ marginTop: 0 }}>Quantos têm cada uma</h2>
         <div className="ins-prof">
           {CATEGORIAS.map(([cat, nome, cor]) => <div key={cat}>
@@ -104,7 +126,7 @@ export default function InsigniasProfessora({ userId, tid, turmas, online, showT
           {alunos.map(a => { const dele = porAluno[a.id] || []
             return <li key={a.id} style={{ display: 'block', cursor: 'pointer' }} onClick={() => { setAberto(aberto === a.id ? null : a.id); setDado('') }}>
               <div className="ent-cab">
-                <span className="left"><Avatar a={a} tam="mini" /><span className="who"><span>{a.nome}</span><span className="m">{dele.length} de {TOTAL}</span></span></span>
+                <span className="left"><Avatar a={a} tam="mini" /><span className="who"><span>{a.nome}</span><span className="m">{dele.filter(i => !ehPioneira(i.chave)).length} de {TOTAL}</span></span></span>
                 <span className="ins-chips">{dele.slice(0, 8).map(i => <img key={i.id} src={arte(i.chave)} title={POR_CHAVE[i.chave]?.nome} alt="" />)}</span>
               </div>
               {aberto === a.id && <div onClick={e => e.stopPropagation()}>

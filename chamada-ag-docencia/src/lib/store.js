@@ -672,3 +672,13 @@ export async function revogarAuxiliar(turmaId) {
   const { error } = await supabase.rpc('revogar_auxiliar', { p_turma_id: turmaId })
   if (error) throw error
 }
+
+/* Pioneiros (18/09/2026): automáticos no servidor; ela só vê e pode passar ao próximo */
+export async function pioneirosDaTurma(turmaId) {
+  const { data, error } = await supabase.rpc('pioneiros_da_turma', { p_turma: turmaId })
+  if (error) throw error; if (!data?.ok) throw new Error(data?.erro || 'falhou'); return data.pioneiros || []
+}
+export async function decidirPioneiro(turmaId, base, alunoId, acao) {
+  const { data, error } = await supabase.rpc('decidir_pioneiro', { p_turma: turmaId, p_base: base, p_aluno: alunoId, p_acao: acao })
+  if (error) throw error; if (!data?.ok) throw new Error(data?.erro || 'falhou')
+}
