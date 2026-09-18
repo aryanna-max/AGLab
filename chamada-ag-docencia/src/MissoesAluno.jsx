@@ -171,7 +171,7 @@ function MedalhaAuto({ m }) {
       <p className="hint">Faça o pin com o nome <b>{md.marco}</b> em cima do marco. O app mede a distância do pin até o marco e dá a medalha na hora. Pode tentar de novo: vale o seu <b>melhor pin</b> até o prazo.</p>
       <p className="note">🥇 até {fmt(lim.ouro)} m · 🥈 até {fmt(lim.prata)} m · 🥉 até {fmt(lim.bronze)} m</p>
       {a ? <div className="devolutiva"><b>Seu melhor pin ficou a {fmt(a.erro)} m do marco</b>
-          <p>{a.nivel ? NIVEL[a.nivel] : `Ainda sem medalha: precisa ficar a até ${fmt(lim.bronze)} m.`}{a.n_pins > 1 ? ` · ${a.n_pins} tentativas` : ''}</p></div>
+          <p>{(m.minha?.nivel || a.nivel) ? NIVEL[m.minha?.nivel || a.nivel] : `Ainda sem medalha: precisa ficar a até ${fmt(lim.bronze)} m.`}{a.n_pins > 1 ? ` · ${a.n_pins} tentativas` : ''}</p></div>
         : <p className="note">Nenhum pin {md.marco} ainda.</p>}
     </div>
   )
