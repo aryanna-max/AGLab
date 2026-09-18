@@ -21,7 +21,8 @@ const TURMA_ORBE = [
   { k: 'teo', nome: 'Téo' },
 ]
 
-export const AVATARES = [...DELA, ...TURMA_ORBE]
+const semRepetir = lista => lista.filter((a, i) => lista.findIndex(x => x.k === a.k) === i)
+export const AVATARES = semRepetir([...DELA, ...TURMA_ORBE])
 
 export const POR_CHAVE = Object.fromEntries(AVATARES.map(a => [a.k, a]))
 export const existe = k => !!(k && POR_CHAVE[k])
