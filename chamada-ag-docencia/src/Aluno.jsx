@@ -426,7 +426,7 @@ export default function Aluno() {
     if (!ok) return
     const destino = depoisDeIdent; setDepoisDeIdent(null)
     if (destino === 'chamada') await entrarNaAula(codigoRef.current)
-    else if (destino === 'presenca' || destino === 'missoes' || destino === 'insignias') setTela(destino)
+    else if (['presenca', 'missoes', 'insignias', 'selfie', 'avatar'].includes(destino)) setTela(destino)
     else { setModo('livre'); modoRef.current = 'livre'; setTela('medir'); ligarGPS() }
   }
   function voltarHome() { if (ocupRef.current.ativa) cancelarChamada(); pararGPS(); setPos(null); setPlacar(null); setErro(''); setAviso(''); setMedirNaAula(false); setAbrirMissaoId(null); setTela('home') }
@@ -487,6 +487,44 @@ export default function Aluno() {
         foto={ident && <MinhaFoto ident={ident} online={online} pedir={ident.temFoto === false} jaEnviada={ident.temSelfie}
           onTrocarAvatar={() => irArea('avatar')}
           onEnviada={() => { insignias.recarregar(); const i = { ...ident, temFoto: true, temSelfie: true }; gravar(K_IDENT, i); setIdent(i) }} />} />
+    </div>
+  )
+
+  /* Complete o seu Orbe (18/09/2026, pedido dela: "notificações, selfie... avatar"): os três passos
+     de quem chega, num quadro só na tela inicial. Fica até tudo estar feito; o feito aparece com ✓. */
+  const fotoEnviada = () => { insignias.recarregar(); const i = { ...identRef.current, temFoto: true, temSelfie: true }; gravar(K_IDENT, i); setIdent(i); identRef.current = i }
+  const PassosOrbe = () => {
+    if (!ident) return null
+    const temAvisos = !EH_COMPUTADOR && estadoAv && estadoAv !== 'sem-suporte'
+    const okAvisos = estadoAv === 'ativo', okSelfie = ident.temSelfie === true || ident.temFoto === true, okAvatar = !!ident.avatar
+    if ((!temAvisos || okAvisos) && okSelfie && okAvatar) return null
+    const feitos = [okAvisos && temAvisos, okSelfie, okAvatar].filter(Boolean).length, total = temAvisos ? 3 : 2
+    return <div className="panel passos-home">
+      <h2>Complete o seu Orbe <span className="ph-n">{feitos} de {total}</span></h2>
+      {temAvisos && <div className={'ph-it' + (okAvisos ? ' ok' : '')}>
+        <span className="ph-ico">{okAvisos ? '✓' : '🔔'}</span>
+        <span className="ph-txt"><b>Notificações</b><span>{okAvisos ? 'Ativadas: os avisos da professora chegam mesmo com o app fechado.'
+          : estadoAv === 'inativo' ? 'Missão nova e recados da aula chegam no celular, mesmo com o app fechado.' : TEXTO_ESTADO[estadoAv]}</span></span>
+        {!okAvisos && estadoAv === 'inativo' && <button className="btn mini" onClick={ativarAvisos} disabled={ativandoAv || !online}>{ativandoAv ? 'Ativando…' : 'Ativar'}</button>}
+      </div>}
+      {temAvisos && erroAv && <div className="flash err" style={{ textAlign: 'left' }}>{erroAv}</div>}
+      <div className={'ph-it' + (okSelfie ? ' ok' : '')}>
+        <span className="ph-ico">{okSelfie ? '✓' : '📷'}</span>
+        <span className="ph-txt"><b>Selfie</b><span>{okSelfie ? 'Enviada. Fica só com a professora.' : 'Só a professora vê: é como ela reconhece você na chamada.'}</span></span>
+        {!okSelfie && <button className="btn mini" onClick={() => irArea('selfie')}>Tirar</button>}
+      </div>
+      <div className={'ph-it' + (okAvatar ? ' ok' : '')}>
+        <span className="ph-ico">{okAvatar ? <Avatar nome={ident.nome} avatar={ident.avatar} tam="mini" /> : '🙂'}</span>
+        <span className="ph-txt"><b>Avatar</b><span>{okAvatar ? 'Escolhido. É a sua cara para a turma.' : 'A sua cara no app e para a turma.'}</span></span>
+        {!okAvatar && <button className="btn mini" onClick={() => irArea('avatar')}>Escolher</button>}
+      </div>
+    </div>
+  }
+
+  if (tela === 'selfie') return (
+    <div className="wrap"><Cabecalho titulo="Minha foto" />
+      <MinhaFoto ident={ident} online={online} pedir={!ident?.temSelfie} jaEnviada={ident?.temSelfie}
+        onTrocarAvatar={() => irArea('avatar')} onEnviada={() => { fotoEnviada(); setTimeout(voltarHome, 1200) }} />
     </div>
   )
 
@@ -582,10 +620,7 @@ export default function Aluno() {
         <span className="am-ico">{alerta.urgente ? '⏱' : '✨'}</span>
         <span className="am-txt"><b>{alerta.titulo}</b><span>{alerta.sub}</span></span>
       </button>}
-      {ident && !ident.avatar && <button className="alerta-missao" onClick={() => irArea('avatar')}>
-        <span className="am-ico">🙂</span>
-        <span className="am-txt"><b>Escolha o seu avatar</b><span>É a sua cara no app e para a turma. A sua foto continua só com a professora.</span></span>
-      </button>}
+      <PassosOrbe />
       <div className="escolha tres">
         <button className="card-perfil" onClick={() => irArea('presenca')}>
           <span className="cp-emoji">📍</span><span className="cp-tit">Presença</span>
@@ -602,16 +637,6 @@ export default function Aluno() {
       </div>
       {erro && <div className="flash err">{erro}</div>}
       {aviso && <div className="flash dup">{aviso}</div>}
-      {ident && !EH_COMPUTADOR && estadoAv && estadoAv !== 'ativo' && estadoAv !== 'sem-suporte' && !avDispensado && <div className="panel aviso-push">
-        <b>🔔 Ativar avisos da professora</b>
-        <p className="note" style={{ margin: '4px 0 0' }}>Missão nova e recados da aula chegam no celular, mesmo com o app fechado.</p>
-        {estadoAv !== 'inativo' && <p className="note" style={{ margin: '6px 0 0' }}>{TEXTO_ESTADO[estadoAv]}</p>}
-        <div className="btnrow">
-          {estadoAv === 'inativo' && <button className="btn" onClick={ativarAvisos} disabled={ativandoAv || !online}>{ativandoAv ? 'Ativando…' : 'Ativar avisos'}</button>}
-          <button className="btn ghost" onClick={() => { gravar(K_AVISOS_DISP, Date.now()); setAvDispensado(true) }}>Agora não</button>
-        </div>
-        {erroAv && <div className="flash err" style={{ textAlign: 'left' }}>{erroAv}</div>}
-      </div>}
 
       <p className="note" style={{ textAlign: 'center' }}>
         {ident ? <>Você: <b>{ident.nome || ident.matricula}</b> · <span style={{ cursor: 'pointer', textDecoration: 'underline' }} onClick={trocarIdent}>trocar</span></>
