@@ -60,7 +60,20 @@ function IrAte({ pos }) {
       if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
         const r = await DeviceOrientationEvent.requestPermission(); if (r !== 'granted') { setBussola('negada'); return }
       }
-      const h = ev => { const a = ev.webkitCompassHeading != null ? ev.webkitCompassHeading : (ev.alpha != null ? 360 - ev.alpha : null); if (a != null) setRumoAparelho(a) }
+      // suaviza a bússola: média móvel do seno e do cosseno (média de ângulo direto erra em 359°→1°)
+      // no Android chegam dois eventos: o "absolute" (referido ao norte) e o comum, que pode ser relativo
+      // à posição inicial do aparelho. Misturar os dois faz a seta pular; com o absoluto disponível, o comum é ignorado.
+      const suav = { s: null, c: null, temAbs: false }
+      const h = ev => {
+        if (ev.type === 'deviceorientationabsolute') suav.temAbs = true
+        else if (ev.webkitCompassHeading == null && (suav.temAbs || ev.absolute === false)) return
+        const a = ev.webkitCompassHeading != null ? ev.webkitCompassHeading : (ev.alpha != null ? 360 - ev.alpha : null)
+        if (a == null) return
+        const r = a * Math.PI / 180, k = 0.08
+        suav.s = suav.s == null ? Math.sin(r) : suav.s + k * (Math.sin(r) - suav.s)
+        suav.c = suav.c == null ? Math.cos(r) : suav.c + k * (Math.cos(r) - suav.c)
+        setRumoAparelho(((Math.atan2(suav.s, suav.c) * 180 / Math.PI) + 360) % 360)
+      }
       window.addEventListener('deviceorientationabsolute', h, true); window.addEventListener('deviceorientation', h, true)
       setBussola('on')
     } catch (er) { setBussola('negada') }
@@ -127,7 +140,7 @@ function IrAte({ pos }) {
           <div className="ir-sub">ΔN {dN >= 0 ? '+' : ''}{metros(dN, 1)} m · ΔE {dE >= 0 ? '+' : ''}{metros(dE, 1)} m</div>
         </div>
         <p className="note">
-          {bussola === 'on' ? 'Com a bússola ligada, o mostrador gira: segure o celular na horizontal e siga a seta.' : bussola === 'negada' ? 'Sem bússola: o N fica para cima e a seta mostra o azimute — oriente-se pelo sol ou pela sombra.' :
+          {bussola === 'on' ? 'Com a bússola ligada, o mostrador gira: segure o celular deitado na horizontal e siga a seta. Seta instável? Faça um 8 no ar com o celular, afaste-se de metal e ande alguns passos. A distância vem do GPS: se ela cai, você está no caminho.' : bussola === 'negada' ? 'Sem bússola: o N fica para cima e a seta mostra o azimute — oriente-se pelo sol ou pela sombra.' :
             <>Sem bússola o N fica para cima e a seta mostra o azimute. <span style={{ textDecoration: 'underline', cursor: 'pointer', fontWeight: 700 }} onClick={ligarBussola}>Ligar bússola</span> para o mostrador girar com o aparelho.</>}
           {alvo.sigma != null && <> Alvo conhecido a ±{alvo.sigma < 1 ? metros(alvo.sigma * 100, 0) + ' cm' : metros(alvo.sigma, 0) + ' m'}.</>}
         </p>
@@ -196,7 +209,10 @@ function Pins({ pos, ident, codigo, onAviso, api }) {
         p_leituras: ls.map(l => ({ lat: l.lat, lon: l.lon, acc: l.acc, alt: l.alt, altAcc: l.altAcc, utmN: l.utmN, utmE: l.utmE, distPerc: l.distPerc, capturado_em: l.capturado_em, online: l.online, fixTs: l.fixTs }))
       })
       if (!data?.ok) { setErro(data?.erro || 'Não consegui salvar o pin.'); return }
-      onAviso && onAviso(`Pin ${nm} salvo: média de ${r.n} leituras, espalhamento ±${metros(r.desvioHz, 1)} m`)
+      const med = data.medalha
+      const NV = { ouro: '🥇 Ouro', prata: '🥈 Prata', bronze: '🥉 Bronze' }
+      onAviso && onAviso(med ? `Pin ${nm}: ${metros(med.erro, 1)} m do marco · ${med.nivel ? NV[med.nivel] : 'ainda sem medalha'} (missão ${med.missao})`
+        : `Pin ${nm} salvo: média de ${r.n} leituras, espalhamento ±${metros(r.desvioHz, 1)} m`)
       setNome(''); setFoto(null); await carregar()
     } catch (e) { setErro(ehErroDeRede(e) ? 'Sem rede — o pin precisa de conexão para ser salvo. Tente de novo com sinal.' : 'Falhou: ' + (e.message || 'erro')) }
     finally { setSalvando(false) }

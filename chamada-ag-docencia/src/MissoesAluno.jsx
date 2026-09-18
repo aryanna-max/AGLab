@@ -125,6 +125,8 @@ function Detalhe({ m, ident, online, agora, onVoltar, recarregar }) {
         <p className="note">Cada etapa marcada fica gravada no servidor na hora.</p>
       </div>}
 
+      {m.medalha && <MedalhaAuto m={m} />}
+
       {m.niveis && (m.niveis.bronze || m.niveis.prata || m.niveis.ouro) && <div className="panel">
         <h2 style={{ marginTop: 0 }}>Níveis</h2>
         <ul className="niveis-lista">
@@ -156,6 +158,22 @@ function Detalhe({ m, ident, online, agora, onVoltar, recarregar }) {
         {m.ranking.ouro.length > 0 && <p className="note">No ouro: <b>{m.ranking.ouro.join(', ')}</b></p>}
       </div>}
     </>
+  )
+}
+
+/* Medalha automática: o servidor mede cada pin com o nome do marco e guarda o melhor até o prazo. */
+function MedalhaAuto({ m }) {
+  const md = m.medalha, a = m.minha?.medalha_auto, lim = md.limites || {}
+  const fmt = v => Number(v).toLocaleString('pt-BR', { maximumFractionDigits: 2 })
+  return (
+    <div className="panel">
+      <h2 style={{ marginTop: 0 }}>Medalha automática</h2>
+      <p className="hint">Faça o pin com o nome <b>{md.marco}</b> em cima do marco. O app mede a distância do pin até o marco e dá a medalha na hora. Pode tentar de novo: vale o seu <b>melhor pin</b> até o prazo.</p>
+      <p className="note">🥇 até {fmt(lim.ouro)} m · 🥈 até {fmt(lim.prata)} m · 🥉 até {fmt(lim.bronze)} m</p>
+      {a ? <div className="devolutiva"><b>Seu melhor pin ficou a {fmt(a.erro)} m do marco</b>
+          <p>{a.nivel ? NIVEL[a.nivel] : `Ainda sem medalha: precisa ficar a até ${fmt(lim.bronze)} m.`}{a.n_pins > 1 ? ` · ${a.n_pins} tentativas` : ''}</p></div>
+        : <p className="note">Nenhum pin {md.marco} ainda.</p>}
+    </div>
   )
 }
 

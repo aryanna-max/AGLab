@@ -222,7 +222,7 @@ function Lancadas({ userId, tid, turma, online, showToast, irCardapio }) {
           <div className="scrollx"><table className="matrix"><thead><tr><th className="nm">Missão</th><th>prazo</th><th>enviadas</th><th>fora do prazo</th><th>avaliadas</th><th>estado</th></tr></thead>
             <tbody>{lancs.map(l => { const es = entregas.filter(e => e.lancamento_id === l.id); const aberta = !l.encerrado && new Date(l.prazo_em) > new Date()
               return <tr key={l.id} style={{ cursor: 'pointer' }} onClick={() => setAberto(l.id)}>
-                <td className="nm">{l.em_equipe && <span className="tag equipe" style={{ marginRight: 6 }}>equipe</span>}{l.missoes?.titulo}</td><td>{fmtDH(l.prazo_em)}</td>
+                <td className="nm">{l.em_equipe && <span className="tag equipe" style={{ marginRight: 6 }}>equipe</span>}{l.missoes?.titulo}{l.inicia_em && new Date(l.inicia_em) > new Date() ? <span className="m"> · começa {fmtDH(l.inicia_em)}</span> : ''}</td><td>{fmtDH(l.prazo_em)}</td>
                 <td>{es.filter(e => e.enviada_em).length}/{turma.alunos.length}</td>
                 <td className={es.some(e => e.fora_do_prazo) ? 'F' : ''}>{es.filter(e => e.fora_do_prazo).length}</td>
                 <td>{es.filter(e => e.nivel).length}</td>
@@ -269,7 +269,7 @@ function Entregas({ userId, lanc, turma, entregas, showToast, onVoltar, recarreg
           return <li key={a.id} className="entrega-li">
             <div className="ent-cab">
               <span className="who"><span>{a.nome}</span>
-                <span className="m">{e?.enviada_em ? `enviada ${fmtDH(e.enviada_em)}` : e ? 'em andamento' : 'não abriu'}{etapas.length ? ` · ${nFeitas}/${etapas.length} etapas` : ''}{e?.fora_do_prazo ? ' · ' : ''}{e?.fora_do_prazo && <b style={{ color: 'var(--miss)' }}>fora do prazo</b>}</span></span>
+                <span className="m">{e?.enviada_em ? `enviada ${fmtDH(e.enviada_em)}` : e ? 'em andamento' : 'não abriu'}{etapas.length ? ` · ${nFeitas}/${etapas.length} etapas` : ''}{e?.medalha_auto ? ` · melhor pin a ${Number(e.medalha_auto.erro).toLocaleString('pt-BR')} m do marco (${e.medalha_auto.n_pins} tentativa${e.medalha_auto.n_pins > 1 ? 's' : ''})` : ''}{e?.fora_do_prazo ? ' · ' : ''}{e?.fora_do_prazo && <b style={{ color: 'var(--miss)' }}>fora do prazo</b>}</span></span>
               <span className={'tag ' + (e?.status === 'aceita' ? 'P' : e?.status === 'refazer' ? 'F' : '')}>{e?.status || '—'}</span>
             </div>
             {e?.texto && <p className="ent-texto">{e.texto}</p>}
