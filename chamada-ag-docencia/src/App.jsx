@@ -660,7 +660,8 @@ function ColetaTurma({ userId, tid, turmas, online, showToast }) {
   useEffect(() => {
     if (!sessao?.id || !online) return
     let vivo = true
-    const puxa = () => store.leiturasDaSessao(sessao.id).then(d => vivo && setLinhas(d)).catch(() => {})
+    // só as de hoje (meia-noite local): a mesma sessão reaberta na semana seguinte não mistura as aulas
+    const puxa = () => { const h = new Date(); h.setHours(0, 0, 0, 0); return store.leiturasDaSessao(sessao.id, h.toISOString()).then(d => vivo && setLinhas(d)).catch(() => {}) }
     puxa()
     const it = setInterval(puxa, 5000)
     return () => { vivo = false; clearInterval(it) }

@@ -350,10 +350,13 @@ export async function fecharSessao(id) {
 
 /* Leituras da sessão, já com o nome do aluno — a professora enxerga tudo
    pelo RLS dela; o aluno nunca lê esta tabela. */
-export async function leiturasDaSessao(sessaoId) {
-  const { data, error } = await supabase.from('leituras_gps')
+// desde: a sessão reaberta numa semana nova carrega as leituras da anterior — a tela do dia pede só as de hoje
+export async function leiturasDaSessao(sessaoId, desde) {
+  let q = supabase.from('leituras_gps')
     .select('id,rotulo,acuracia_m,alt_acuracia_m,altitude_m,dist_perc_m,criado_em,capturado_em,presenca_marcada,extra,aluno_id,alunos(nome,matricula)')
-    .eq('sessao_id', sessaoId).order('criado_em', { ascending: false })
+    .eq('sessao_id', sessaoId)
+  if (desde) q = q.gte('criado_em', desde)
+  const { data, error } = await q.order('criado_em', { ascending: false })
   if (error) throw error
   return data
 }
