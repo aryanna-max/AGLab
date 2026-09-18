@@ -682,3 +682,14 @@ export async function decidirPioneiro(turmaId, base, alunoId, acao) {
   const { data, error } = await supabase.rpc('decidir_pioneiro', { p_turma: turmaId, p_base: base, p_aluno: alunoId, p_acao: acao })
   if (error) throw error; if (!data?.ok) throw new Error(data?.erro || 'falhou')
 }
+
+/* Meus alertas (18/09/2026): o que a professora quer receber no celular dela, por turma.
+   O servidor confere a cada minuto (_alertas_professora) e junta as novidades num aviso só. */
+export async function alertasDaTurma(turmaId) {
+  const { data, error } = await supabase.from('alertas_prof').select('tipo,ativo').eq('turma_id', turmaId)
+  if (error) throw error; return data || []
+}
+export async function salvarAlerta(userId, turmaId, tipo, ativo) {
+  const { error } = await supabase.from('alertas_prof').upsert({ owner_id: userId, turma_id: turmaId, tipo, ativo }, { onConflict: 'owner_id,turma_id,tipo' })
+  if (error) throw error
+}

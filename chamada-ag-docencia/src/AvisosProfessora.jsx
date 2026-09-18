@@ -8,6 +8,15 @@ import { estadoAvisos, ativarAvisosProfessora, TEXTO_ESTADO } from './lib/avisos
 
 const ABRIR_FIXO = [['home', 'Tela inicial'], ['presenca', 'Presença'], ['campo', 'Campo'], ['missoes', 'Missões']]
 const STATUS = { agendado: 'agendado', enviando: 'enviando…', enviado: 'enviado', cancelado: 'cancelado', erro: 'não chegou' }
+// Meus alertas: o que chega no celular dela, por turma (pedido dela, 18/09/2026)
+const TIPOS_ALERTA = [
+  ['carta', 'Aluno abriu uma carta sua'],
+  ['pin_missao', 'Pin feito durante uma missão aberta'],
+  ['missao_enviada', 'Missão enviada (aluno ou equipe)'],
+  ['a_conferir', 'Presença a conferir (fora do raio ou no limite do GPS)'],
+  ['abriu_app', 'Aluno abriu o app (1ª vez no dia, durante a aula)'],
+  ['auxiliar', 'Auxiliar do dia entrou'],
+]
 const fmtDH = iso => iso ? new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—'
 const primeiroNome = n => (n || '').trim().split(' ').slice(0, 2).join(' ')
 
@@ -31,6 +40,17 @@ export default function AvisosProfessora({ userId, tid, turmas, online, showToas
   const [hora, setHora] = useState('12:40')
   const [busy, setBusy] = useState(false)
   const [meuEstado, setMeuEstado] = useState(null)
+  const [alertas, setAlertas] = useState({})
+  useEffect(() => {
+    if (!online || !tid) return
+    store.alertasDaTurma(tid).then(l => setAlertas(Object.fromEntries(l.map(a => [a.tipo, a.ativo])))).catch(() => setAlertas({}))
+  }, [online, tid])
+  async function trocarAlerta(tipo) {
+    const novo = !alertas[tipo]
+    setAlertas(a => ({ ...a, [tipo]: novo }))
+    try { await store.salvarAlerta(userId, tid, tipo, novo) }
+    catch (e) { setAlertas(a => ({ ...a, [tipo]: !novo })); showToast('Erro: ' + e.message) }
+  }
 
   const carregar = useCallback(() => {
     if (!online || !tid) return
@@ -190,6 +210,15 @@ export default function AvisosProfessora({ userId, tid, turmas, online, showToas
           Nenhum celular seu está ativado — "Só meu celular (teste)" vai chegar no computador, não no telefone.
           Para receber no celular, abra o Orbe <b>nele</b> e ative por lá.
         </p>}
+      </div>
+
+      <div className="panel">
+        <h2 style={{ marginTop: 0 }}>Meus alertas · {(turma?.nome || '').split(' (')[0]}</h2>
+        <p className="note" style={{ marginTop: 0 }}>O Orbe avisa no seu celular quando acontece. Se forem várias coisas no mesmo minuto, chega um aviso só com a lista.</p>
+        {TIPOS_ALERTA.map(([k, l]) => <label key={k} className="chk-inline" style={{ display: 'flex', marginTop: 8 }}>
+          <input type="checkbox" checked={!!alertas[k]} onChange={() => trocarAlerta(k)} disabled={!online} /> {l}
+        </label>)}
+        {!meusAparelhos && <p className="note" style={{ color: 'var(--miss)' }}>Para chegar no celular, ative os avisos nele (quadro "Meu celular", acima).</p>}
       </div>
 
       <div className="panel">
