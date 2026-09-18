@@ -16,9 +16,9 @@ export const PERC = {
 }
 
 /* Altitude do celular → as duas altitudes (18/09/2026, pedido dela).
-   H (ortométrica, "cota") = h (elipsoidal) − N. No campus N ≈ −5,56 m (relatório RTK de 21/01/2023, −5,557 m).
+   H (altitude ortométrica; "cota" é outra coisa: referência arbitrária) = h (elipsoidal) − N. No campus N ≈ −5,56 m (relatório RTK de 21/01/2023, −5,557 m).
    O navegador não diz qual altitude entrega. Pelos dados do campus: Android dá a elipsoidal (mediana 6,3 m)
-   e iPhone já dá a ortométrica (mediana 11,7 m) — diferença ≈ N. Conferir com a cota do M0452. */
+   e iPhone já dá a ortométrica (mediana 11,7 m) — diferença ≈ N. Conferir com a altitude ortométrica do M0452. */
 export const N_GEOIDE = -5.56
 export const EH_IOS = typeof navigator !== 'undefined' && (/iPhone|iPad|iPod/.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1))
 export function altitudes(alt, ios = EH_IOS) {

@@ -772,7 +772,7 @@ export default function Aluno() {
           </div>
           {razaoVert && <p className="note">A incerteza <b>vertical é {razaoVert.toFixed(1)}× a horizontal</b>.</p>}
           {(() => { const al = altitudes(pos.alt); return al && <p className="note">
-            Altitude elipsoidal (h) <b>{metros(al.h, 1)} m</b> · cota ortométrica (H) <b>{metros(al.H, 1)} m</b>.
+            Altitude elipsoidal (h) <b>{metros(al.h, 1)} m</b> · altitude ortométrica (H) <b>{metros(al.H, 1)} m</b>.
             H = h − N, com N = −5,56 m no campus. O seu celular entregou a {al.veio}; a outra foi calculada.
           </p> })()}
           {vezes && <div className="perc-box">

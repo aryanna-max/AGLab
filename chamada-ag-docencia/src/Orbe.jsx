@@ -316,7 +316,7 @@ function Pins({ pos, ident, codigo, onAviso, api }) {
       {erro && <div className="flash err" style={{ textAlign: 'left' }}>{erro}</div>}
 
       {pins.length > 0 && <div className="scrollx" style={{ marginTop: 12 }}>
-        <table className="matrix"><thead><tr><th className="nm">Pin</th><th>N</th><th>E</th><th>leit.</th><th>±hz</th><th>espalh.</th><th>vs marco</th><th title="altitude elipsoidal">h</th><th title="cota ortométrica = h − N (N = −5,56 m)">H</th><th>quando</th></tr></thead>
+        <table className="matrix"><thead><tr><th className="nm">Pin</th><th>N</th><th>E</th><th>leit.</th><th>±hz</th><th>espalh.</th><th>vs marco</th><th title="altitude elipsoidal">h</th><th title="altitude ortométrica = h − N (N = −5,56 m)">H</th><th>quando</th></tr></thead>
           <tbody>{pins.map(p => {
             const m = p.marco_ref ? marcoPorNome(p.marco_ref) : null
             const errM = m ? Math.hypot(p.utm_n - m.n, p.utm_e - m.e) : null
@@ -333,7 +333,7 @@ function Pins({ pos, ident, codigo, onAviso, api }) {
               <td>{new Date(p.criado_em).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</td>
             </tr> })}</tbody></table>
       </div>}
-      <p className="note"><b>espalh.</b> = desvio-padrão das leituras da ocupação (precisão). <b>vs marco</b> = distância até a coordenada oficial (acurácia). <b>h</b> = altitude elipsoidal, <b>H</b> = cota ortométrica (H = h − N, N = −5,56 m no campus). ⚠ = marco reimplantado em obra (M0451): a coordenada oficial ainda é a de 2023, então a distância não avalia o aparelho. Reocupar o mesmo nome aparece como extra: não entra na poligonal.</p>
+      <p className="note"><b>espalh.</b> = desvio-padrão das leituras da ocupação (precisão). <b>vs marco</b> = distância até a coordenada oficial (acurácia). <b>h</b> = altitude elipsoidal, <b>H</b> = altitude ortométrica (H = h − N, N = −5,56 m no campus). ⚠ = marco reimplantado em obra (M0451): a coordenada oficial ainda é a de 2023, então a distância não avalia o aparelho. Reocupar o mesmo nome aparece como extra: não entra na poligonal.</p>
     </div>
   )
 }
