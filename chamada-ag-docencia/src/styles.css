@@ -521,3 +521,14 @@ table.matrix tr.sel-row td{background:rgba(123,79,0,.10)}
 .campo-resp{margin-bottom:8px}.campo-resp .fld{margin-top:6px}
 
 .caixas{display:flex;flex-direction:column;gap:6px;margin:4px 0 6px}
+
+.cal-cab{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;text-transform:capitalize}
+.cal{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.cal-dow{text-align:center;font-size:11px;font-weight:700;opacity:.6;padding:2px 0}.cal-dow.dia-turma{opacity:1;color:var(--accent,#2749B0)}
+.cal-d{aspect-ratio:1/1;min-height:36px;border:1px solid var(--line);border-radius:8px;background:var(--panel);display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:13px;cursor:pointer;padding:0;color:inherit}
+.cal-d.dia-turma{background:var(--chip,#eaedf1)}
+.cal-d.tem-aula{background:var(--ok-bg);color:var(--ok);font-weight:700;border-color:var(--ok)}
+.cal-d.planejada{border:2px dashed var(--ok)}
+.cal-d.sel{outline:2px solid var(--accent,#2749B0);outline-offset:1px}
+.cal-d.hoje span{text-decoration:underline}
+.cal-d small{font-size:10px;line-height:1}

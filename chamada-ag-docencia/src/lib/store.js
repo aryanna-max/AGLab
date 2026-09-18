@@ -86,7 +86,7 @@ async function resolverFotos(alunos) {
 /* ---------- carregar turmas + alunos ---------- */
 export async function loadTurmas() {
   const { data: turmas, error } = await supabase
-    .from('turmas').select('id,nome,codigo').order('nome')
+    .from('turmas').select('id,nome,codigo,dia_semana,tempos_por_aula,ch_ha').order('nome')
   if (error) throw error
   const { data: alunos, error: e2 } = await supabase
     .from('alunos').select('id,turma_id,matricula,nome,foto,foto_path,foto_data,papel').order('nome')
@@ -229,6 +229,46 @@ export async function ensureChamada(userId, turmaId, dataISO) {
     .insert({ owner_id: userId, turma_id: turmaId, data: dataISO }).select('id,confirmada').single()
   if (ins.error) throw ins.error
   return ins.data
+}
+
+/* Aulas (18/09/2026): a aula só nasce sozinha no dia da turma (turmas.dia_semana), e só hoje.
+   Em outro dia, a professora registra na aba Aulas. Antes, abrir o app em qualquer dia criava aula,
+   e a exportação contava falta nesses dias. */
+export async function chamadaDoDia(turmaId, dataISO) {
+  const { data, error } = await supabase.from('chamadas').select('id,confirmada').eq('turma_id', turmaId).eq('data', dataISO).maybeSingle()
+  if (error) throw error; return data
+}
+export function ehDiaDeAula(turma, dataISO) {
+  if (!turma || turma.dia_semana == null) return true
+  const [y, m, d] = dataISO.split('-').map(Number)
+  return new Date(y, m - 1, d).getDay() === turma.dia_semana
+}
+export async function chamadaAuto(userId, turma, dataISO) {
+  const hoje = hojeISO()
+  if (dataISO === hoje && ehDiaDeAula(turma, dataISO)) return ensureChamada(userId, turma.id, dataISO)
+  return chamadaDoDia(turma.id, dataISO)
+}
+export async function aulasDaTurma(turmaId) {
+  const { data, error } = await supabase.from('chamadas').select('id,data,conteudo,confirmada,presencas(count)').eq('turma_id', turmaId).order('data')
+  if (error) throw error
+  return (data || []).map(c => ({ id: c.id, data: c.data, conteudo: c.conteudo, confirmada: c.confirmada, presentes: c.presencas?.[0]?.count || 0 }))
+}
+export async function criarAula(userId, turmaId, dataISO, conteudo) {
+  const { data, error } = await supabase.from('chamadas').insert({ owner_id: userId, turma_id: turmaId, data: dataISO, conteudo: (conteudo || '').trim() || null }).select('id').single()
+  if (error) { if (error.code === '23505') throw new Error('Já existe aula neste dia.'); throw error }
+  return data
+}
+export async function mudarDataAula(chamadaId, novaData) {
+  const { error } = await supabase.from('chamadas').update({ data: novaData }).eq('id', chamadaId)
+  if (error) { if (error.code === '23505') throw new Error('Já existe aula neste dia.'); throw error }
+}
+export async function apagarAula(chamadaId) {
+  const { error } = await supabase.from('chamadas').delete().eq('id', chamadaId)
+  if (error) throw error
+}
+export async function atualizarTurma(turmaId, campos) {
+  const { error } = await supabase.from('turmas').update(campos).eq('id', turmaId)
+  if (error) throw error
 }
 
 export async function getPresentes(chamadaId) {

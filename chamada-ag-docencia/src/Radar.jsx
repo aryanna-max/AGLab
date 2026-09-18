@@ -66,10 +66,10 @@ export default function Radar({ userId, tid, turmas, online, showToast, ehComput
     let vivo = true
     const puxa = async () => {
       try {
-        const [v, ch] = await Promise.all([store.vivos(tid), store.ensureChamada(userId, tid, hojeISO())])
+        const [v, ch] = await Promise.all([store.vivos(tid), store.chamadaAuto(userId, turmas.find(x => x.id === tid), hojeISO())])
         if (!vivo) return
         setVivos(v)
-        const p = await store.getPresentes(ch.id); if (!vivo) return
+        const p = ch ? await store.getPresentes(ch.id) : []; if (!vivo) return
         const m = {}; p.forEach(id => m[id] = true); setPresentes(m)
         setAgora(Date.now())
       } catch (e) {}
