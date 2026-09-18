@@ -1,23 +1,23 @@
 [
  {
-  "k": "orbe_anel",
-  "nome": ""
+  "k": "orbe",
+  "nome": "Orbe"
  },
  {
-  "k": "estacao_total",
-  "nome": ""
+  "k": "vertice",
+  "nome": "Vértice"
  },
  {
-  "k": "prisma",
-  "nome": ""
+  "k": "navi",
+  "nome": "Navi"
  },
  {
-  "k": "robo_bussola",
-  "nome": ""
+  "k": "lumi",
+  "nome": "Lumi"
  },
  {
-  "k": "robo_coracao",
-  "nome": ""
+  "k": "teo",
+  "nome": "Téo"
  },
  {
   "k": "a01",
