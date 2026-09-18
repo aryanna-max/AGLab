@@ -1,25 +1,34 @@
 import React from 'react'
+import { arteAvatar, existe } from './lib/avatares'
 
 /* A cara de uma pessoa no Orbe, num lugar só.
 
-   A selfie que o aluno manda na Presença (MinhaFoto → alunos.foto_data) é o avatar dele
-   em TODO o resto do app: chamada, radar, insígnias, missões, equipes e análise. Antes
-   só a lista da chamada e o radar mostravam a foto; nas outras telas o aluno era uma
-   linha de texto, e a professora tinha que ler nome por nome.
+   Duas caras, e a regra dela (18/09/2026) diz qual vale onde:
 
-   Sem foto, valem as iniciais — nunca um buraco na lista. A foto que a professora sobe
-   pelo Storage entra pelo mesmo campo `a.foto` e vale igual. */
+   - SELFIE (`foto`): só nas telas da PROFESSORA — chamada, radar, insígnias, missões,
+     equipes, análise. É como ela reconhece o aluno. Passe `a`, a linha do aluno.
+   - AVATAR escolhido (`avatar`, a chave do catálogo): no app do ALUNO e em qualquer lugar
+     onde outro aluno enxergue — o cabeçalho dele, a coleção, a equipe, o pódio.
+
+   Sem foto e sem avatar, valem as iniciais — nunca um buraco na lista. Quem passar os dois
+   está numa tela da professora: a selfie ganha. */
 
 export const iniciais = n => {
   const p = String(n || '').trim().split(/\s+/)
   return ((p[0]?.[0] || '') + (p.length > 1 ? p[p.length - 1][0] : '')).toUpperCase() || '?'
 }
 
-/* tam: 'mini' (26 px, listas e tabelas densas) · '' (44 px, padrão) · 'big' (confirmação da chamada).
-   Aceita o aluno inteiro (a) ou nome/foto soltos — o aluno não tem "linha de aluno" na mão. */
-export default function Avatar({ a, nome, foto, tam = '' }) {
+/* tam: 'mini' (26 px, listas e tabelas densas) · '' (44 px, padrão) · 'big' (confirmação da chamada) */
+export default function Avatar({ a, nome, foto, avatar, tam = '' }) {
   const n = a ? a.nome : nome
   const f = a ? a.foto : foto
+  const av = a ? a.avatar : avatar
   const cls = tam === 'big' ? 'confirm-photo' : 'avatar' + (tam ? ' ' + tam : '')
-  return <span className={cls}>{f ? <img src={f} alt="" /> : iniciais(n)}</span>
+  return (
+    <span className={cls}>
+      {f ? <img src={f} alt="" />
+        : existe(av) ? <img src={arteAvatar(av, { tam: tam === 'mini' ? 128 : 256 })} alt="" />
+        : iniciais(n)}
+    </span>
+  )
 }

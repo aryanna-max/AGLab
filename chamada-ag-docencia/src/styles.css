@@ -83,8 +83,14 @@ ul.people li .left{display:flex;align-items:center;gap:11px;min-width:0}
 .avatar.mini{width:26px;height:26px;border-radius:8px;font-size:11px}
 .aloc .avatar.mini,.matrix .avatar.mini{margin-right:7px}
 .podio-it .avatar.mini{align-self:center;margin-bottom:4px}
-/* o aluno no cabeçalho do próprio app: a selfie dele, à direita */
+/* o aluno no cabeçalho do próprio app: o avatar escolhido, à direita */
 header.app .avatar.mini{margin-left:2px}
+.eu-avatar{background:none;border:0;padding:0;margin-left:2px;line-height:0;border-radius:9px;cursor:pointer}
+.eu-avatar:focus-visible{outline:2px solid var(--brand2);outline-offset:2px}
+/* escolha do avatar: a mesma grade das insígnias, com o escolhido em destaque */
+.av-grade .ins-it img{border-radius:14px}
+.ins-it.av-on{font-weight:800}
+.ins-it.av-on img{outline:3px solid var(--ok);outline-offset:2px}
 .tag{font-size:12px;font-weight:700;border-radius:999px;padding:3px 9px}
 .tag.P{background:var(--ok-bg);color:var(--ok)}.tag.F{background:var(--miss-bg);color:var(--miss)}
 .confirm{display:flex;align-items:center;gap:16px;margin:12px auto 2px;max-width:420px;border:2px solid var(--ok);background:var(--ok-bg);border-radius:16px;padding:14px 16px;animation:pop .18s ease-out}
