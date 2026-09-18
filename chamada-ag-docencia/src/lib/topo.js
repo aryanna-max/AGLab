@@ -23,7 +23,7 @@ export const MARCOS = [
   { nome: 'aramis', n: 9108590.226, e: 284919.799, sigma: 0.02, tipo: 'marco' },
   { nome: 'messias', n: 9108599.264, e: 284904.690, sigma: 0.02, tipo: 'marco' },
   { nome: 'sergio', n: 9108608.368, e: 284881.125, sigma: 0.02, tipo: 'marco' },
-  { nome: 'aryana', n: 9108617.181, e: 284853.860, sigma: 0.02, tipo: 'marco' },
+  { nome: 'Aryanna', n: 9108617.181, e: 284853.860, sigma: 0.02, tipo: 'marco' },
   { nome: 'M2', n: 9108586.210, e: 284839.346, sigma: 0.02, tipo: 'marco' },
   { nome: 'rejane', n: 9108562.241, e: 284911.353, sigma: 0.02, tipo: 'marco' },
   { nome: 'Bloco F (salas)', n: 9108692.6, e: 284965.3, sigma: 25, tipo: 'referencia' }
