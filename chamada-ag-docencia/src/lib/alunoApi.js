@@ -29,6 +29,40 @@ export function useHistoricoPresenca(ident, online) {
   return { dados, carregando, recarregar }
 }
 
+const K_AVISOS_ALUNO = 'agc2_avisos_aluno'
+
+/* Últimos avisos da professora (os mesmos do push), para a tela inicial:
+   quem não ativou a notificação também lê. Pedido dela em 18/09/2026. */
+export function useAvisosAluno(ident, online) {
+  const chave = ident?.alunoId || ident?.matricula || ''
+  const [dados, setDados] = useState(() => { const c = ler(K_AVISOS_ALUNO, null); return c && c.chave === chave ? c.dados : null })
+  const recarregar = useCallback(async () => {
+    if (!ident || !navigator.onLine) return
+    try {
+      const { data, error } = await supabase.rpc('meus_avisos', idArgs(ident))
+      if (!error && data?.ok) { setDados(data); gravar(K_AVISOS_ALUNO, { chave, dados: data }) }
+    } catch (e) {}
+  }, [chave])
+  useEffect(() => { recarregar() }, [recarregar, online])
+  useEffect(() => {
+    const f = () => { if (!document.hidden) recarregar() }
+    document.addEventListener('visibilitychange', f)
+    const t = setInterval(f, 60000)
+    return () => { document.removeEventListener('visibilitychange', f); clearInterval(t) }
+  }, [recarregar])
+  return { dados, recarregar }
+}
+
+export function fmtQuando(iso) {
+  if (!iso) return ''
+  const d = new Date(iso), hoje = new Date()
+  const hora = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+  if (d.toDateString() === hoje.toDateString()) return 'hoje, ' + hora
+  const ontem = new Date(hoje); ontem.setDate(hoje.getDate() - 1)
+  if (d.toDateString() === ontem.toDateString()) return 'ontem, ' + hora
+  return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) + ', ' + hora
+}
+
 export function useMissoes(ident, online) {
   const chave = ident?.alunoId || ident?.matricula || ''
   const [dados, setDados] = useState(() => { const c = ler(K_MISSOES, null); return c && c.chave === chave ? c.dados : null })

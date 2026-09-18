@@ -7,7 +7,7 @@ import Orbe from './Orbe.jsx'
 import MinhaFoto from './MinhaFoto.jsx'
 import PresencaAluno from './PresencaAluno.jsx'
 import MissoesAluno from './MissoesAluno.jsx'
-import { useHistoricoPresenca, useMissoes, useInsignias, fmtPrazo, missaoVista, resumoFaltas } from './lib/alunoApi'
+import { useHistoricoPresenca, useMissoes, useInsignias, useAvisosAluno, fmtQuando, fmtPrazo, missaoVista, resumoFaltas } from './lib/alunoApi'
 import InsigniasAluno, { Vitrine, CartaoInsignia } from './InsigniasAluno.jsx'
 import { prepararSom, tocarAviso } from './lib/som'
 import { EH_COMPUTADOR } from './lib/aparelho'
@@ -205,6 +205,7 @@ export default function Aluno() {
   useEffect(() => { codigoRef.current = codigoAula }, [codigoAula])
   const historico = useHistoricoPresenca(ident, online)
   const missoes = useMissoes(ident, online)
+  const avisosProf = useAvisosAluno(ident, online)
   const insignias = useInsignias(ident, online)
   useEffect(() => { if (tela === 'home') insignias.recarregar() }, [tela])
   useEffect(() => { prepararSom() }, [])   // destrava o som da conquista no primeiro toque
@@ -442,9 +443,9 @@ export default function Aluno() {
     if (a) { history.replaceState(null, '', location.pathname); abrirPorAviso(a) }
     if (!('serviceWorker' in navigator)) return
     const f = e => {
-      if (e.data?.tipo === 'orbe-abrir') { missoes.recarregar(); abrirPorAviso(e.data.abrir) }
+      if (e.data?.tipo === 'orbe-abrir') { missoes.recarregar(); avisosProf.recarregar(); abrirPorAviso(e.data.abrir) }
       // aviso chegou com o app aberto: o sistema não toca nada, então o Radar sai daqui
-      if (e.data?.tipo === 'orbe-aviso') tocarAviso()
+      if (e.data?.tipo === 'orbe-aviso') { avisosProf.recarregar(); tocarAviso() }
     }
     navigator.serviceWorker.addEventListener('message', f)
     return () => navigator.serviceWorker.removeEventListener('message', f)
@@ -542,6 +543,7 @@ export default function Aluno() {
     : rf ? `${rf.presencas} presença(s) · ${rf.faltasHa} h-a de falta.` : 'Marcar presença e acompanhar faltas.'
   const faltaFoto = ident && ident.temFoto === false
   const listaM = missoes.dados?.missoes || []
+  const listaAv = avisosProf.dados?.avisos || []
   const abertasM = listaM.filter(m => m.aberta)
   const nAbertas = abertasM.length
   const proxima = abertasM.slice().sort((a, b) => new Date(a.prazo_em) - new Date(b.prazo_em))[0]
@@ -565,7 +567,15 @@ export default function Aluno() {
         Medir posição não: no computador a localização vem do Wi-Fi e não vale como dado — use o celular para Presença e Campo.{' '}
         <span style={{ cursor: 'pointer', textDecoration: 'underline', fontWeight: 700 }} onClick={irParaProfessora}>Voltar para a professora</span>
       </div>}
+      <img className="home-turma" src="/orbe-turma.png" width="1120" height="606" alt="A turma do Orbe: Orbe, Vértice, Navi, Lumi e Téo" />
       <CardPresenca />
+      {listaAv.length > 0 && <div className="panel avisos-home">
+        <h2>🔔 Avisos da professora</h2>
+        {listaAv.map(v => <button key={v.id} className={'av-item' + (v.abrir && v.abrir !== 'home' ? ' clica' : '')} onClick={() => abrirPorAviso(v.abrir)}>
+          <span className="av-tit"><b>{v.titulo}</b><span className="av-em">{fmtQuando(v.em)}</span></span>
+          {v.texto && <span className="av-txt">{v.texto}</span>}
+        </button>)}
+      </div>}
       {/* sempre à vista, mesmo com zero: as bloqueadas mostram o caminho (princípio do guia) */}
       <Vitrine minhas={minhasIns} onAbrir={() => irArea('insignias')} />
       {novaIns && <CartaoInsignia chave={novaIns.chave} dado={novaIns.dado} onFechar={() => { insignias.marcarVistas(); irArea('insignias') }} />}
