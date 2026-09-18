@@ -5,8 +5,11 @@ import { salvarAvatar } from './lib/alunoApi'
 /* "Meu avatar": o aluno escolhe a cara com que aparece no app dele e para os colegas.
 
    Regra dela (18/09/2026): pode trocar, mas com limite — uma troca por semana. A primeira
-   escolha é livre. Quem manda no limite é o servidor (salvar_avatar); esta tela só mostra
-   o que já dá para saber, para o aluno não escolher à toa e levar não. */
+   escolha é livre. E, como na selfie, enquanto ele não confirma pode trocar quantas vezes
+   quiser: tocar num avatar só move a seleção desta tela, e nada sai daqui sem o botão.
+
+   Quem manda no limite é o servidor (salvar_avatar); esta tela só mostra o que já dá para
+   saber, para o aluno não escolher à toa e levar não. */
 
 export default function MeuAvatar({ ident, online, onEscolhido, onVoltar }) {
   const atual = ident?.avatar || ''
@@ -48,9 +51,11 @@ export default function MeuAvatar({ ident, online, onEscolhido, onVoltar }) {
         ))}
       </div>
 
-      {!pode && <p className="note">Você trocou de avatar há pouco. A próxima troca abre em <b>{fmtDia(proxima)}</b>.</p>}
-      {pode && atual && <p className="note">Trocar vale uma vez por semana — escolha com calma.</p>}
-      {!atual && <p className="note">A primeira escolha é livre. Depois dela, uma troca por semana.</p>}
+      {!pode && <p className="note">Você trocou de avatar há pouco. Pode olhar todos, mas a próxima troca abre em <b>{fmtDia(proxima)}</b>.</p>}
+      {pode && <p className="note">
+        Toque em quantos quiser para ver de perto: <b>nada muda até você confirmar</b>.
+        {atual ? ' Depois de confirmar, a próxima troca abre uma semana depois.' : ' A primeira escolha é livre; a partir dela, uma troca por semana.'}
+      </p>}
 
       <div className="btnrow">
         <button className="btn" onClick={salvar} disabled={busy || !escolha || escolha === atual || !pode || !online}>
