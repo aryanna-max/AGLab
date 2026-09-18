@@ -218,6 +218,12 @@ export default function Aluno() {
     const nova = (avisosProf.dados?.avisos || []).find(v => v.imagem && !vistas.includes(v.id))
     if (nova && !cartaId) setCartaId(nova.id)
   }, [avisosProf.dados])
+  // registra no servidor que ele abriu a carta (a professora quer saber quando)
+  useEffect(() => {
+    if (!cartaId || !identRef.current) return
+    if (!(avisosProf.dados?.avisos || []).some(v => v.id === cartaId)) return
+    supabase.rpc('abri_aviso', { p_matricula: identRef.current.matricula || '', p_aluno_id: identRef.current.alunoId || null, p_aviso: cartaId }).then(() => {}, () => {})
+  }, [cartaId, avisosProf.dados])
   function fecharCarta() { if (cartaId) gravar(K_CARTAS_VISTAS, [...new Set([...ler(K_CARTAS_VISTAS, []), cartaId])]); setCartaId(null) }
   const [avVistoEm, setAvVistoEm] = useState(() => ler(K_AV_VISTO, 0))
   const insignias = useInsignias(ident, online)
