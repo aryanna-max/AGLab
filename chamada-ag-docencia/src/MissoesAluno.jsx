@@ -60,9 +60,28 @@ function CardMissao({ m, agora, onAbrir }) {
   )
 }
 
+const OBS = 'Observações: '
+function juntarCampos(campos, r) {
+  const linhas = campos.map((c, i) => `${c}: ${(r.v[i] || '').trim()}`)
+  return (r.obs || '').trim() ? linhas.join('\n') + '\n' + OBS + r.obs.trim() : linhas.join('\n')
+}
+function lerCampos(campos, texto) {
+  const v = campos.map(() => ''), t = texto || ''
+  if (!campos.length || !t) return { v, obs: '' }
+  const iObs = t.indexOf('\n' + OBS)
+  const corpo = iObs >= 0 ? t.slice(0, iObs) : t, obs = iObs >= 0 ? t.slice(iObs + 1 + OBS.length) : ''
+  corpo.split('\n').forEach(l => { const i = campos.findIndex(c => l.startsWith(c + ': ')); if (i >= 0) v[i] = l.slice(campos[i].length + 2) })
+  return { v, obs }
+}
+
 function Detalhe({ m, ident, online, agora, onVoltar, recarregar }) {
   const [feitas, setFeitas] = useState(m.minha?.etapas_feitas || {})
   const [texto, setTexto] = useState(m.minha?.texto || '')
+  // campos de resposta: o texto enviado é "pergunta: resposta" por linha (+ observações), e volta aos campos ao reabrir
+  const campos = m.campos || []
+  const [resp, setResp] = useState(() => lerCampos(campos, m.minha?.texto))
+  const textoFinal = campos.length ? juntarCampos(campos, resp) : texto
+  const vazios = campos.filter((c, i) => !(resp.v[i] || '').trim()).length
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState(null)
   const pz = fmtPrazo(m.prazo_em, agora)
@@ -93,9 +112,10 @@ function Detalhe({ m, ident, online, agora, onVoltar, recarregar }) {
       const aviso = (faltam > 0 ? `Ainda faltam ${faltam} etapa(s).\n\n` : '') + 'Este envio é o oficial da equipe. Depois de enviado, é o que vale: ninguém da equipe envia de novo.\n\nConferiram juntos?'
       if (!confirm(aviso)) return
     }
+    if (!m.em_equipe && vazios > 0 && !confirm(`Faltam ${vazios} resposta(s). Enviar assim mesmo?`)) return
     setBusy(true); setMsg(null)
     try {
-      const r = await enviarMissao(ident, m.lancamento_id, texto)
+      const r = await enviarMissao(ident, m.lancamento_id, textoFinal)
       setMsg(r.fora_do_prazo ? { tipo: 'dup', t: 'Enviada fora do prazo. Ficou registrada e a professora decide.' } : { tipo: 'ok', t: m.em_equipe ? 'Envio oficial da equipe registrado.' : 'Missão enviada.' })
       recarregar()
     } catch (e) { setMsg({ tipo: 'err', t: e.message }) } finally { setBusy(false) }
@@ -144,7 +164,14 @@ function Detalhe({ m, ident, online, agora, onVoltar, recarregar }) {
         {m.minha?.nivel && <p className="nivel-grande">{NIVEL[m.minha.nivel]}</p>}
         {m.minha?.devolutiva && <div className="devolutiva"><b>Devolutiva da professora</b><p>{m.minha.devolutiva}</p></div>}
         {podeEditar && <>
-          <textarea value={texto} onChange={e => setTexto(e.target.value)} rows={4} placeholder="Resultados, observações, nomes dos pins e poligonais que você usou…" />
+          {campos.length > 0 ? <>
+            {campos.map((c, i) => <div key={i} className="campo-resp">
+              <label className="fld">{i + 1}. {c}</label>
+              <input value={resp.v[i] || ''} onChange={e => setResp(r => ({ ...r, v: campos.map((_, j) => j === i ? e.target.value : (r.v[j] || '')) }))} />
+            </div>)}
+            <label className="fld">Observações (opcional)</label>
+            <textarea value={resp.obs} onChange={e => setResp(r => ({ ...r, obs: e.target.value }))} rows={2} placeholder="Algo que aconteceu em campo, nomes dos pins que você usou…" />
+          </> : <textarea value={texto} onChange={e => setTexto(e.target.value)} rows={4} placeholder="Resultados, observações, nomes dos pins e poligonais que você usou…" />}
           <div className="btnrow">
             <button className="btn" onClick={enviar} disabled={busy || !online}>{busy ? 'Enviando…' : m.em_equipe ? (status === 'refazer' ? 'Enviar de novo pela equipe' : 'Enviar pela equipe') : status === 'enviada' || status === 'refazer' ? 'Enviar de novo' : 'Enviar missão'}</button>
           </div>

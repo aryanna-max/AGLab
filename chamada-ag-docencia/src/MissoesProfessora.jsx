@@ -12,7 +12,7 @@ const NOME_FRENTE = Object.fromEntries(FRENTES)
 const NIVEIS = [['', '—'], ['bronze', '🥉 Bronze'], ['prata', '🥈 Prata'], ['ouro', '🥇 Ouro']]
 const PONTOS = { bronze: 1, prata: 2, ouro: 3 }
 const fmtDH = iso => iso ? new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—'
-const vazio = () => ({ titulo: '', frente: 'planimetria', descricao: '', etapas: [''], entrega: '', niveis: { bronze: '', prata: '', ouro: '' }, equipe: false, funcoes: [] })
+const vazio = () => ({ titulo: '', frente: 'planimetria', descricao: '', etapas: [''], campos: [], entrega: '', niveis: { bronze: '', prata: '', ouro: '' }, equipe: false, funcoes: [] })
 const primeiroNome = n => (n || '').trim().split(' ')[0]
 const embaralhar = arr => { const a = arr.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]] } return a }
 
@@ -113,6 +113,13 @@ function EditorMissao({ userId, inicial, onFechar, showToast }) {
       <div className="btnrow" style={{ marginTop: 0 }}><button className="btn ghost mini" onClick={() => set('etapas', [...m.etapas, ''])}>+ etapa</button></div>
       <label className="fld">O que o aluno entrega</label>
       <textarea rows={2} value={m.entrega || ''} onChange={e => set('entrega', e.target.value)} placeholder="Ex.: erro de fechamento e comparação com a tolerância." />
+      <label className="fld">Campos de resposta (opcional: o aluno ganha um espaço para cada pergunta)</label>
+      {(m.campos || []).map((c, i) => <div key={i} className="row" style={{ marginBottom: 6 }}>
+        <div style={{ flex: 1 }}><input value={c} onChange={ev => set('campos', m.campos.map((x, j) => j === i ? ev.target.value : x))} placeholder={`Pergunta ${i + 1} · ex.: Erro da cota (m)`} /></div>
+        <div style={{ flex: 0 }}><button className="btn ghost mini" onClick={() => set('campos', m.campos.filter((_, j) => j !== i))}>✕</button></div>
+      </div>)}
+      <div className="btnrow" style={{ marginTop: 0 }}><button className="btn ghost mini" onClick={() => set('campos', [...(m.campos || []), ''])}>+ campo</button></div>
+      {(m.campos || []).length > 0 && <p className="note">As respostas chegam para você uma por linha, com a pergunta na frente. Sem campos, o aluno usa uma caixa de texto livre.</p>}
       <label className="fld">Níveis</label>
       {['bronze', 'prata', 'ouro'].map(k => <div key={k} className="row" style={{ marginBottom: 6, alignItems: 'center' }}>
         <div style={{ flex: 0, minWidth: 90 }}><b>{k === 'ouro' ? '🥇 Ouro' : k === 'prata' ? '🥈 Prata' : '🥉 Bronze'}</b></div>
