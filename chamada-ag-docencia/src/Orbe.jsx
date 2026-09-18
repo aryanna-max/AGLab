@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { arquivoParaJpeg } from './lib/foto'
 import { supabase } from './supabaseClient'
-import { paraUTM25S, metros } from './lib/geo'
+import { paraUTM25S, metros, altitudes } from './lib/geo'
 import { MARCOS, marcoPorNome, marcoComparavel, azimute, grausDMS, pontoCardeal, resumirOcupacao, calcularPoligonal, compararComMarcos, ordenarPorAngulo, rumo } from './lib/topo'
 
 /* As três operações de campo, no celular:
@@ -272,7 +272,7 @@ function Pins({ pos, ident, codigo, onAviso, api }) {
       const NV = { ouro: '🥇 Ouro', prata: '🥈 Prata', bronze: '🥉 Bronze' }
       onAviso && onAviso(med ? (med.vale !== 'melhor' && med.n_pins > 1 ? `Pin ${nm} salvo. Na missão vale só o primeiro: ${metros(med.erro, 1)} m · ${med.nivel ? NV[med.nivel] : 'sem medalha'}`
           : `Pin ${nm}: ${metros(med.erro, 1)} m do marco · ${med.nivel ? NV[med.nivel] : 'sem medalha'} (missão ${med.missao})`)
-        : `Pin ${nm} salvo: média de ${r.n} leituras, espalhamento ±${metros(r.desvioHz, 1)} m`)
+        : `Pin ${nm} salvo: média de ${r.n} leituras, espalhamento ±${metros(r.desvioHz, 1)} m` + (altitudes(r.alt) ? ` · h ${metros(altitudes(r.alt).h, 1)} m · H ${metros(altitudes(r.alt).H, 1)} m` : ''))
       setNome(''); setFoto(null); await carregar()
     } catch (e) { setErro(ehErroDeRede(e) ? 'Sem rede — o pin precisa de conexão para ser salvo. Tente de novo com sinal.' : 'Falhou: ' + (e.message || 'erro')) }
     finally { setSalvando(false) }
@@ -316,7 +316,7 @@ function Pins({ pos, ident, codigo, onAviso, api }) {
       {erro && <div className="flash err" style={{ textAlign: 'left' }}>{erro}</div>}
 
       {pins.length > 0 && <div className="scrollx" style={{ marginTop: 12 }}>
-        <table className="matrix"><thead><tr><th className="nm">Pin</th><th>N</th><th>E</th><th>leit.</th><th>±hz</th><th>espalh.</th><th>vs marco</th><th>quando</th></tr></thead>
+        <table className="matrix"><thead><tr><th className="nm">Pin</th><th>N</th><th>E</th><th>leit.</th><th>±hz</th><th>espalh.</th><th>vs marco</th><th title="altitude elipsoidal">h</th><th title="cota ortométrica = h − N (N = −5,56 m)">H</th><th>quando</th></tr></thead>
           <tbody>{pins.map(p => {
             const m = p.marco_ref ? marcoPorNome(p.marco_ref) : null
             const errM = m ? Math.hypot(p.utm_n - m.n, p.utm_e - m.e) : null
@@ -329,10 +329,11 @@ function Pins({ pos, ident, codigo, onAviso, api }) {
               <td>{p.acc != null ? metros(p.acc, 1) : '—'}</td>
               <td>{metros(Math.hypot(p.dn || 0, p.de || 0), 1)}</td>
               <td className={errM != null && !desloc ? (errM < 10 ? 'P' : 'F') : ''} title={desloc ? 'marco reimplantado em obra: a coordenada de 2023 não é mais o lugar do marco — esse número não mede o seu celular' : ''}>{errM != null ? metros(errM, 1) + ' m' + (desloc ? ' ⚠' : '') : '—'}</td>
+              {(() => { const al = altitudes(p.altitude_m); return <><td>{al ? metros(al.h, 1) : '—'}</td><td>{al ? metros(al.H, 1) : '—'}</td></> })()}
               <td>{new Date(p.criado_em).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</td>
             </tr> })}</tbody></table>
       </div>}
-      <p className="note"><b>espalh.</b> = desvio-padrão das leituras da ocupação (precisão). <b>vs marco</b> = distância até a coordenada oficial (acurácia). ⚠ = marco reimplantado em obra (M0451): a coordenada oficial ainda é a de 2023, então a distância não avalia o aparelho. Reocupar o mesmo nome aparece como extra: não entra na poligonal.</p>
+      <p className="note"><b>espalh.</b> = desvio-padrão das leituras da ocupação (precisão). <b>vs marco</b> = distância até a coordenada oficial (acurácia). <b>h</b> = altitude elipsoidal, <b>H</b> = cota ortométrica (H = h − N, N = −5,56 m no campus). ⚠ = marco reimplantado em obra (M0451): a coordenada oficial ainda é a de 2023, então a distância não avalia o aparelho. Reocupar o mesmo nome aparece como extra: não entra na poligonal.</p>
     </div>
   )
 }

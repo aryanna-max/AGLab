@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react'
 import { supabase } from './supabaseClient'
 import * as store from './lib/store'
 import { qrDataUrl, QR_PREFIX } from './lib/qr'
-import { PERC, M0452, paraUTM25S, distanciaUTM, grausMinSeg, metros, vezesPiorQuePerc } from './lib/geo'
+import { PERC, M0452, paraUTM25S, distanciaUTM, grausMinSeg, metros, vezesPiorQuePerc, altitudes } from './lib/geo'
 import { irParaAluno } from './Escolha.jsx'
 import Radar from './Radar.jsx'
 import MapaAlunos from './MapaAlunos.jsx'
@@ -560,10 +560,10 @@ function Posicao({ userId, online, showToast }) {
             por gravidade não se nivela com GNSS.
           </p>}
 
-          {pos.altitude_m != null && <p className="note">
-            Altitude <b>{metros(pos.altitude_m, 1)} m</b> — é <b>elipsoidal</b>, não a altitude do mar.
-            Para virar ortométrica falta a ondulação geoidal (MAPGEO2015); no campus ela é de cerca de −5,56 m.
-          </p>}
+{(() => { const al = altitudes(pos.altitude_m); return al && <p className="note">
+            Altitude elipsoidal (h) <b>{metros(al.h, 1)} m</b> · cota ortométrica (H) <b>{metros(al.H, 1)} m</b>.
+            H = h − N, com N = −5,56 m no campus. O seu celular entregou a {al.veio}; a outra foi calculada.
+          </p> })()}
 
           <div className="perc-box">
             <div className="pb-tit">Referência: {PERC.nome}</div>

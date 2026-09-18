@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { supabase } from './supabaseClient'
-import { PERC, paraUTM25S, distanciaUTM, metros, vezesPiorQuePerc } from './lib/geo'
+import { PERC, paraUTM25S, distanciaUTM, metros, vezesPiorQuePerc, altitudes } from './lib/geo'
 import { decodeFromVideo, parsePayload } from './lib/qr'
 import { gravarPerfil, irParaProfessora } from './Escolha.jsx'
 import Orbe from './Orbe.jsx'
@@ -771,6 +771,10 @@ export default function Aluno() {
             <div className="c"><div className="n">{pos.distPerc > 2000 ? metros(pos.distPerc / 1000, 1) + ' km' : metros(pos.distPerc, 0) + ' m'}</div><div className="l">até a PERC</div></div>
           </div>
           {razaoVert && <p className="note">A incerteza <b>vertical é {razaoVert.toFixed(1)}× a horizontal</b>.</p>}
+          {(() => { const al = altitudes(pos.alt); return al && <p className="note">
+            Altitude elipsoidal (h) <b>{metros(al.h, 1)} m</b> · cota ortométrica (H) <b>{metros(al.H, 1)} m</b>.
+            H = h − N, com N = −5,56 m no campus. O seu celular entregou a {al.veio}; a outra foi calculada.
+          </p> })()}
           {vezes && <div className="perc-box">
             <div className="pb-tit">A estação do IBGE, aqui no campus</div>
             <div className="pb-sub">PERC · Bloco A · incerteza de <b>1 milímetro</b></div>
