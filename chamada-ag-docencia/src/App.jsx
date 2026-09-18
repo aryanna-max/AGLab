@@ -140,11 +140,12 @@ function Main({ session }) {
         <select value={tid} onChange={e => setTid(e.target.value)}>{turmas.map(x => <option key={x.id} value={x.id}>{x.nome}</option>)}</select>
         {turma && <span className="tb-n">{turma.alunos.length} alunos</span>}
         {turma && <button className="btn mini" onClick={() => setTab('avisos')} title="Aviso no celular dos alunos, mesmo com o app fechado">🔔 Avisar turma</button>}
+        {turma && <button className="btn mini ghost" onClick={() => setTab('radar')} title="Quem está com o Orbe aberto agora, no mapa">🗺️ Mapa ao vivo</button>}
         {EH_COMPUTADOR && <span className="badge" title="Neste aparelho a localização vem do Wi-Fi/IP e não vale como dado. A sua posição oficial é a do celular.">💻 computador</span>}
       </div>}
 
       <nav className="tabs">
-        {[['chamada', 'Chamada'], ['missoes', 'Missões'], ['insignias', 'Insígnias'], ['avisos', 'Avisos'], ['analise', 'Análise'], ['radar', 'Radar'], ['conferir', 'Conferir faltantes'], ['resumo', 'Resumo / Exportar'], ['posicao', 'Minha posição'], ['turmas', 'Turmas & Fotos']].map(([k, l]) =>
+        {[['chamada', 'Chamada'], ['missoes', 'Missões'], ['insignias', 'Insígnias'], ['avisos', 'Avisos'], ['analise', 'Análise'], ['radar', '🗺️ Mapa ao vivo'], ['conferir', 'Conferir faltantes'], ['resumo', 'Resumo / Exportar'], ['posicao', 'Minha posição'], ['turmas', 'Turmas & Fotos']].map(([k, l]) =>
           <button key={k} className={tab === k ? 'active' : ''} onClick={() => setTab(k)}>{l}</button>)}
       </nav>
 
