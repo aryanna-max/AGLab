@@ -9,7 +9,7 @@ import PresencaAluno from './PresencaAluno.jsx'
 import MissoesAluno from './MissoesAluno.jsx'
 import { useHistoricoPresenca, useMissoes, useInsignias, fmtPrazo, missaoVista, resumoFaltas } from './lib/alunoApi'
 import InsigniasAluno, { Vitrine, CartaoInsignia } from './InsigniasAluno.jsx'
-import { prepararSom } from './lib/som'
+import { prepararSom, tocarAviso } from './lib/som'
 import { EH_COMPUTADOR } from './lib/aparelho'
 import { resumirOcupacao } from './lib/topo'
 import { estadoAvisos, ativarAvisosAluno, sincronizarAvisosAluno, TEXTO_ESTADO } from './lib/avisos'
@@ -419,7 +419,11 @@ export default function Aluno() {
     const a = params.get('abrir')
     if (a) { history.replaceState(null, '', location.pathname); abrirPorAviso(a) }
     if (!('serviceWorker' in navigator)) return
-    const f = e => { if (e.data?.tipo === 'orbe-abrir') { missoes.recarregar(); abrirPorAviso(e.data.abrir) } }
+    const f = e => {
+      if (e.data?.tipo === 'orbe-abrir') { missoes.recarregar(); abrirPorAviso(e.data.abrir) }
+      // aviso chegou com o app aberto: o sistema não toca nada, então o Radar sai daqui
+      if (e.data?.tipo === 'orbe-aviso') tocarAviso()
+    }
     navigator.serviceWorker.addEventListener('message', f)
     return () => navigator.serviceWorker.removeEventListener('message', f)
   }, [])

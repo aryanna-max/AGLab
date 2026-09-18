@@ -125,6 +125,15 @@ export function tocarSom(c, qual, destino = c.destination, t0 = c.currentTime + 
   }
 }
 
+/* Som do aviso da professora: o Radar, o mesmo da conquista (decisão dela, 17/09/2026).
+   Não é a escolha de som das insígnias — aviso é sempre Radar —, mas respeita o 🔇:
+   quem desligou o som na coleção não quer o celular tocando no meio da aula. */
+export const SOM_AVISO = 'radar'
+export function tocarAviso() {
+  if (!somLigado()) return
+  tocarConquista(SOM_AVISO)
+}
+
 export function tocarConquista(qual) {
   qual = qual || somEscolhido()
   if (qual === '0') return
