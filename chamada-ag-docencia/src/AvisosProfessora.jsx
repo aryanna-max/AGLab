@@ -48,7 +48,14 @@ export default function AvisosProfessora({ userId, tid, turmas, online, showToas
   }, [lancEquipe])
 
   const comAviso = useMemo(() => new Set(inscricoes.filter(i => i.aluno_id).map(i => i.aluno_id)), [inscricoes])
-  const meusAparelhos = inscricoes.filter(i => !i.aluno_id).length
+  /* Onde os SEUS avisos chegam. Sem isto a tela só dizia "1 aparelho", e um
+     aparelho ativado no computador parecia celular: "Só meu celular (teste)"
+     ia para o Chrome do PC e o celular ficava mudo, sem explicação. */
+  const meus = inscricoes.filter(i => !i.aluno_id)
+  const meusAparelhos = meus.length
+  const NOME_PLAT = { iOS: 'iPhone', Android: 'Android', outro: 'computador' }
+  const ondeChega = [...new Set(meus.map(i => NOME_PLAT[i.plataforma] || 'aparelho'))]
+  const temCelular = meus.some(i => i.plataforma === 'iOS' || i.plataforma === 'Android')
   const lancsEquipe = lancs.filter(l => l.em_equipe)
   const lancsAbertos = lancs.filter(l => !l.encerrado && new Date(l.prazo_em) > new Date())
   const equipe = equipes.find(e => e.id === equipeId)
@@ -176,7 +183,13 @@ export default function AvisosProfessora({ userId, tid, turmas, online, showToas
           ? <><p className="note">Ative para receber os seus próprios avisos de teste. Faça isso no celular, com o Orbe instalado.</p>
               <div className="btnrow"><button className="btn ghost" onClick={ativarMeu} disabled={!online}>Ativar avisos neste aparelho</button></div></>
           : <p className="note">{TEXTO_ESTADO[meuEstado] || 'Conferindo…'}</p>}
-        {meusAparelhos > 0 && <p className="note">{meusAparelhos} aparelho(s) seu(s) com avisos ativados.</p>}
+        {meusAparelhos > 0 && <p className="note">
+          Seus avisos chegam em: <b>{ondeChega.join(', ')}</b> ({meusAparelhos} aparelho{meusAparelhos > 1 ? 's' : ''}).
+        </p>}
+        {meusAparelhos > 0 && !temCelular && <p className="note" style={{ color: 'var(--miss)' }}>
+          Nenhum celular seu está ativado — "Só meu celular (teste)" vai chegar no computador, não no telefone.
+          Para receber no celular, abra o Orbe <b>nele</b> e ative por lá.
+        </p>}
       </div>
 
       <div className="panel">
