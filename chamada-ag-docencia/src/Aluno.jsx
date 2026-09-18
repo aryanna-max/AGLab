@@ -362,7 +362,7 @@ export default function Aluno() {
         if (data.presenca) fixarPresenca(data, item.codigo, false)
         else if (data.motivo === 'fora_da_janela') fixarPresenca(data, item.codigo, true)
         else if (data.motivo === 'a_conferir') setAConferir(true)
-        else if (data.motivo === 'sem_sessao') { setErro('Não achei aula aberta agora para a sua turma. Se a professora mostrar um QR, leia o QR.'); setTela('ler-aula') }
+        else if (data.motivo === 'sem_sessao') setErro('Não achei aula aberta agora para a sua turma. Confira o horário ou fale com a professora.')
       } else { setAviso('Leitura enviada — ' + (rotulo === 'outro' && descricao ? descricao : nomeLocal(rotulo))); setTimeout(() => setAviso(''), 2500) }
     } catch (e) {
       if (ehErroDeRede(e)) {
@@ -376,13 +376,12 @@ export default function Aluno() {
   /* Presença na sala (regra dela, 18/09/2026: "pra eles é na sala"): com aula da turma aberta
      agora, marca sem QR — o servidor confere se a posição está perto da referência do dia e,
      se não estiver, deixa "a conferir" para a professora. O aluno não vê distância nem raio.
-     Sem aula aberta conhecida, cai no leitor de QR de sempre. */
+     O QR nunca abre sozinho (pedido dela, 18/09): é o botão "Ler QR da aula", opcional. */
   function irChamada() {
     setErro(''); setAConferir(false)
     const h = historico.dados?.hoje
-    if (!h?.aberta_agora) { setTela('ler-aula'); return }
     setCodigoAula(''); codigoRef.current = ''
-    setAula({ turma: identRef.current?.turma || '', local: h.local || null, janela_aberta: true })
+    setAula({ turma: identRef.current?.turma || '', local: h?.local || null, janela_aberta: true })
     setModo('aula'); modoRef.current = 'aula'; autoRef.current = false
     setTela('chamada-ok'); ligarGPS()
   }
@@ -483,7 +482,7 @@ export default function Aluno() {
 
   if (tela === 'presenca') return (
     <div className="wrap"><Cabecalho titulo="Presença" />
-      <PresencaAluno historico={historico} presencaHoje={presenca} online={online} onMarcar={irChamada}
+      <PresencaAluno historico={historico} presencaHoje={presenca} online={online} onMarcar={irChamada} onLerQR={() => { setErro(''); setTela('ler-aula') }}
         foto={ident && <MinhaFoto ident={ident} online={online} pedir={ident.temFoto === false} jaEnviada={ident.temSelfie}
           onTrocarAvatar={() => irArea('avatar')}
           onEnviada={() => { insignias.recarregar(); const i = { ...ident, temFoto: true, temSelfie: true }; gravar(K_IDENT, i); setIdent(i) }} />} />

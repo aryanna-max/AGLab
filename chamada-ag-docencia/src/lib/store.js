@@ -309,17 +309,21 @@ function hojeISO() {
 }
 
 // A sessão nasce amarrada à chamada de hoje: o registro do aluno vira presença.
-export async function abrirSessao(userId, turmaId, codigo, titulo, tempo, janelaInicio, janelaFim, local) {
+/* ref: a posição do celular da professora na hora de abrir (regra dela, 18/09/2026) — centro do
+   raio da presença "na sala" sem QR. Sem ref (computador, GPS negado), o servidor usa o M0452. */
+export const RAIO_PRESENCA_M = 50
+export async function abrirSessao(userId, turmaId, codigo, titulo, tempo, janelaInicio, janelaFim, local, ref) {
   const ch = await ensureChamada(userId, turmaId, hojeISO())
   // upload da fila do aluno é aceito até 7 dias depois da aula; presença só dentro da janela
   const expira = new Date(new Date(janelaFim).getTime() + 7 * 24 * 3600 * 1000).toISOString()
   // O código é único no banco e cada turma tem um dia de aula por semana: o mesmo código
   // (F61GPS) serve toda semana. Se já existe, a sessão é REABERTA para a aula de hoje.
   const linha = { owner_id: userId, turma_id: turmaId, codigo: codigo.toUpperCase(), titulo, tempo: tempo || null, aberta: true,
-                  chamada_id: ch.id, janela_inicio: janelaInicio, janela_fim: janelaFim, expira_em: expira, local: local || 'sala' }
+                  chamada_id: ch.id, janela_inicio: janelaInicio, janela_fim: janelaFim, expira_em: expira, local: local || 'sala',
+                  ref_lat: ref ? ref.lat : null, ref_lon: ref ? ref.lon : null, raio_m: RAIO_PRESENCA_M }
   const { data, error } = await supabase.from('sessoes_coleta')
     .upsert(linha, { onConflict: 'codigo' })
-    .select('id,codigo,aberta,criada_em,expira_em,tempo,chamada_id,janela_inicio,janela_fim,local').single()
+    .select('id,codigo,aberta,criada_em,expira_em,tempo,chamada_id,janela_inicio,janela_fim,local,ref_lat,ref_lon,raio_m').single()
   if (error) throw error
   return data
 }
@@ -335,9 +339,17 @@ export async function salvarConteudo(chamadaId, texto) {
   if (error) throw error
 }
 
+export async function definirReferencia(sessaoId, ref) {
+  const { data, error } = await supabase.from('sessoes_coleta')
+    .update({ ref_lat: ref.lat, ref_lon: ref.lon, raio_m: RAIO_PRESENCA_M }).eq('id', sessaoId)
+    .select('id,codigo,aberta,criada_em,expira_em,tempo,chamada_id,janela_inicio,janela_fim,local,ref_lat,ref_lon,raio_m').single()
+  if (error) throw error
+  return data
+}
+
 export async function sessoesAbertas(turmaId) {
   const { data, error } = await supabase.from('sessoes_coleta')
-    .select('id,codigo,titulo,aberta,criada_em,expira_em,tempo,chamada_id,janela_inicio,janela_fim,local')
+    .select('id,codigo,titulo,aberta,criada_em,expira_em,tempo,chamada_id,janela_inicio,janela_fim,local,ref_lat,ref_lon,raio_m')
     .eq('turma_id', turmaId).order('criada_em', { ascending: false }).limit(5)
   if (error) throw error
   return data

@@ -661,6 +661,25 @@ function ColetaTurma({ userId, tid, turmas, online, showToast }) {
     return () => { vivo = false; clearInterval(it) }
   }, [sessao, online])
 
+  /* Regra dela (18/09/2026): o centro do raio da presença "na sala" é o celular dela onde a sessão
+     foi aberta. No computador a posição é do Wi-Fi/IP e não vale — fica o M0452 (servidor). */
+  function posicaoParaReferencia() {
+    if (EH_COMPUTADOR || !navigator.geolocation) return Promise.resolve(null)
+    return new Promise(res => navigator.geolocation.getCurrentPosition(
+      p => res({ lat: p.coords.latitude, lon: p.coords.longitude, acc: p.coords.accuracy }),
+      () => res(null), { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 }))
+  }
+  async function refazerReferencia() {
+    if (!sessao) return
+    setBusy(true)
+    try {
+      const ref = await posicaoParaReferencia()
+      if (!ref) { showToast(EH_COMPUTADOR ? 'No computador a posição não vale: faça isso pelo celular' : 'Não consegui a sua posição'); return }
+      setSessao(await store.definirReferencia(sessao.id, ref))
+      showToast(`Referência da presença: sua posição agora (±${Math.round(ref.acc)} m)`)
+    } catch (e) { showToast('Erro: ' + e.message) } finally { setBusy(false) }
+  }
+
   async function abrir() {
     if (!tid) { showToast('Selecione a turma'); return }
     if (!codigo.trim()) { showToast('Defina um código'); return }
@@ -670,8 +689,9 @@ function ColetaTurma({ userId, tid, turmas, online, showToast }) {
       const hoje = todayISO()
       const ini = new Date(hoje + 'T' + hIni + ':00'), fim = new Date(hoje + 'T' + hFim + ':00')
       if (!(fim > ini)) { showToast('A janela precisa terminar depois de começar'); setBusy(false); return }
-      setSessao(await store.abrirSessao(userId, tid, codigo.trim(), t?.nome || null, tempo, ini.toISOString(), fim.toISOString(), local))
-      showToast('Aula aberta — o mesmo código serve toda semana')
+      const ref = await posicaoParaReferencia()
+      setSessao(await store.abrirSessao(userId, tid, codigo.trim(), t?.nome || null, tempo, ini.toISOString(), fim.toISOString(), local, ref))
+      showToast(ref ? `Aula aberta — referência da presença: sua posição (±${Math.round(ref.acc)} m)` : 'Aula aberta — referência da presença: marco M0452')
     } catch (e) {
       showToast('Erro: ' + e.message)
     } finally { setBusy(false) }
@@ -787,7 +807,14 @@ function ColetaTurma({ userId, tid, turmas, online, showToast }) {
         {registrosForaJanela.length > 0 && <p className="note" style={{ color: 'var(--miss)' }}>
           <b>{registrosForaJanela.length}</b> registro(s) chegaram fora da janela e <b>não</b> marcaram presença. Quem decide é você, na aba Chamada.
         </p>}
-        <div className="btnrow"><button className="btn ghost" onClick={fechar}>Encerrar sessão</button></div>
+        <p className="note" style={{ marginTop: 10 }}>
+          Presença na sala (sem QR): a até <b>{sessao.raio_m || 50} m</b> de {sessao.ref_lat != null ? <b>onde você abriu a sessão</b> : <b>o marco M0452</b>}.
+          {' '}Só você vê isso — para o aluno é "na sala". Fora do raio fica <b>a conferir</b>.
+        </p>
+        <div className="btnrow">
+          <button className="btn ghost" onClick={refazerReferencia} disabled={busy}>📍 Usar minha posição agora</button>
+          <button className="btn ghost" onClick={fechar}>Encerrar sessão</button>
+        </div>
       </>}
 
       {suspeitos.length > 0 && <div className="flash dup" style={{ textAlign: 'left', marginTop: 14 }}>
