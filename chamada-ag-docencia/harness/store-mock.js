@@ -42,7 +42,7 @@ const especificos = {
     { id: 'i3', aluno_id: T2 + '-a1', chave: 'primeiro_pin', dado: 'Pin "A" em 12/09', origem: 'automatica', concedida_em: agora },
     { id: 'i4', aluno_id: T2 + '-a2', chave: 'olho', dado: 'Percebeu que o M0451 saiu do lugar', origem: 'professora', concedida_em: agora }],
   conferirInsignias: async () => 3, concederInsignia: async () => null, removerInsignia: async () => null,
-  inscricoesAtivas: async () => [{ aluno_id: T2 + '-a0' }, { aluno_id: T2 + '-a3' }, { aluno_id: null }],
+  inscricoesAtivas: async () => [{ aluno_id: T2 + '-a0', plataforma: 'iOS' }, { aluno_id: T2 + '-a3', plataforma: 'Android' }, { aluno_id: null, plataforma: 'outro' }],
   avisosDaTurma: async () => [{ id: 'av1', titulo: 'Missão nova: Caderneta', texto: 'Prazo 17:40', rotulo_alvo: 'Saneamento Integrado — F61RC', status: 'enviado', enviado_em: agora, agendado_para: agora, aparelhos: 12, aceitos: 12, sem_aviso: [T2 + '-a1'] }, { id: 'av2', titulo: 'Levem trena', texto: '', rotulo_alvo: 'F61RC', status: 'agendado', agendado_para: agora, sem_aviso: [] }],
   janelaDeHoje: async () => ({ codigo: 'F61GPS', janela_fim: new Date(Date.now()+3600000).toISOString() }),
   listarLeituras: async () => [], salvarLeitura: async () => ({}), listarMarcos: async () => [{ id: 'm1', nome: 'TESTE', utm_n: 9108700, utm_e: 284950, sigma: 0.02, tipo: 'marco', nota: 'mock' }], marcosPublicos: async () => [],
