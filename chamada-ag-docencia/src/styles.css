@@ -317,6 +317,20 @@ tr.reocup td{opacity:.75;font-style:italic}
 .ir-n{font-size:18px;font-weight:800;fill:#c0392b}.ir-card{font-size:11px;font-weight:600;fill:var(--muted)}
 .ir-ponta{fill:var(--brand2)}.ir-haste{fill:var(--brand2)}.ir-box.chegou .ir-ponta,.ir-box.chegou .ir-haste{fill:var(--ok)}
 .ir-centro{fill:var(--panel);stroke:var(--brand2);stroke-width:2}
+/* bússola como agulha secundária; a seta do azimute é a principal (pedido dela, 18/09) */
+.ir-agulha{stroke:var(--muted);stroke-width:2;stroke-linecap:round;opacity:.75}
+.ir-agulha-pt{fill:var(--muted);opacity:.75}
+.ir-az{font-size:14px;color:var(--muted);margin:0 0 6px}.ir-az b{color:var(--ink,#1a1c1f)}
+/* a instrução é o destaque da tela: grande, colorida por faixa */
+.ir-instr{display:flex;align-items:center;justify-content:center;gap:10px;font-size:26px;font-weight:800;line-height:1.15;
+  padding:12px 10px;border-radius:12px;margin:0 0 8px;background:var(--panel);border:2px solid var(--brand2);color:var(--brand2)}
+.ir-instr b{font-size:30px}
+.ir-instr-ic{font-size:34px;line-height:1}
+.ir-instr.f0,.ir-instr.fok{background:var(--ok-bg);border-color:var(--ok);color:var(--ok)}
+.ir-instr.f1{border-color:#d4a017;color:#9a6b00}
+.ir-instr.f2,.ir-instr.f3{border-color:#c0392b;color:#c0392b}
+.ir-box.alinhado{border-color:var(--ok)}
+.ir-box.alinhado .ir-ponta,.ir-box.alinhado .ir-haste{fill:var(--ok)}
 
 .ana-poli.sel{stroke-width:3;stroke-dasharray:none;fill:rgba(123,79,0,.18)}
 .ana-poli-v{fill:#7B4F00;stroke:#fff;stroke-width:1.5}.ana-poli-vn{font-size:10px;font-weight:800;fill:#fff}

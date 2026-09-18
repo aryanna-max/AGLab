@@ -63,16 +63,27 @@ function IrAte({ pos }) {
       // suaviza a bússola: média móvel do seno e do cosseno (média de ângulo direto erra em 359°→1°)
       // no Android chegam dois eventos: o "absolute" (referido ao norte) e o comum, que pode ser relativo
       // à posição inicial do aparelho. Misturar os dois faz a seta pular; com o absoluto disponível, o comum é ignorado.
-      const suav = { s: null, c: null, temAbs: false }
+      /* Bússola instável (queixa dela, 18/09/2026). Três filtros:
+         - suavização por TEMPO (τ ≈ 0,8 s), não por evento: celular que manda 60 eventos/s não treme mais que o que manda 10;
+         - zona morta de 3°: abaixo disso a agulha nem se mexe;
+         - no máximo 5 atualizações de tela por segundo. */
+      const suav = { s: null, c: null, temAbs: false, t: 0, ultimo: null, tela: 0 }
+      const TAU = 0.8, ZONA = 3, INTERVALO = 200
       const h = ev => {
         if (ev.type === 'deviceorientationabsolute') suav.temAbs = true
         else if (ev.webkitCompassHeading == null && (suav.temAbs || ev.absolute === false)) return
         const a = ev.webkitCompassHeading != null ? ev.webkitCompassHeading : (ev.alpha != null ? 360 - ev.alpha : null)
         if (a == null) return
-        const r = a * Math.PI / 180, k = 0.08
+        const agora = performance.now(), r = a * Math.PI / 180
+        const k = suav.s == null ? 1 : 1 - Math.exp(-Math.min(0.5, (agora - suav.t) / 1000) / TAU)
+        suav.t = agora
         suav.s = suav.s == null ? Math.sin(r) : suav.s + k * (Math.sin(r) - suav.s)
         suav.c = suav.c == null ? Math.cos(r) : suav.c + k * (Math.cos(r) - suav.c)
-        setRumoAparelho(((Math.atan2(suav.s, suav.c) * 180 / Math.PI) + 360) % 360)
+        if (agora - suav.tela < INTERVALO) return
+        const rumo = ((Math.atan2(suav.s, suav.c) * 180 / Math.PI) + 360) % 360
+        if (suav.ultimo != null && Math.abs(((rumo - suav.ultimo + 540) % 360) - 180) < ZONA) return
+        suav.ultimo = rumo; suav.tela = agora
+        setRumoAparelho(rumo)
       }
       window.addEventListener('deviceorientationabsolute', h, true); window.addEventListener('deviceorientation', h, true)
       setBussola('on')
@@ -93,7 +104,33 @@ function IrAte({ pos }) {
   let dN = null, dE = null, dist = null, az = null
   if (alvo && pos) { dN = alvo.n - pos.utmN; dE = alvo.e - pos.utmE; dist = Math.hypot(dN, dE); az = azimute(dN, dE) }
   const chegou = dist != null && pos && dist <= Math.max(8, pos.acc || 0)
-  const setaRot = az != null ? (rumoAparelho != null ? az - rumoAparelho : az) : 0
+  /* Pedido dela (18/09/2026): a bússola do celular é instável e as setas confundiam. O mostrador
+     agora fica PARADO, norte para cima, e a seta grossa é o AZIMUTE até o alvo — vem do GPS, não
+     treme com o aparelho. A bússola vira só uma agulha fina ("seu celular"): gire o corpo até a
+     agulha encostar na seta. Alinhado (±15°), a seta fica verde. */
+  const setaRot = az != null ? az : 0
+  const desvio = az != null && rumoAparelho != null ? ((az - rumoAparelho + 540) % 360) - 180 : null
+  /* A instrução é o destaque (pedido dela, 18/09): em faixas, com folga de 6° para trocar de
+     faixa — a bússola tremendo não faz o texto piscar. 0 frente · 1 um pouco · 2 vire · 3 meia-volta */
+  const faixaRef = useRef(null)
+  let faixa = null
+  if (desvio != null) {
+    const ad = Math.abs(desvio), lim = [15, 50, 135], ant = faixaRef.current
+    faixa = ad <= lim[0] ? 0 : ad <= lim[1] ? 1 : ad <= lim[2] ? 2 : 3
+    if (ant != null && ant !== faixa) {
+      const borda = lim[Math.min(ant, faixa)]
+      if (Math.abs(ad - borda) < 6) faixa = ant   // ainda perto da borda: mantém a anterior
+    }
+    faixaRef.current = faixa
+  }
+  const alinhado = faixa === 0
+  const lado = desvio > 0 ? 'direita' : 'esquerda'
+  const instrucao = chegou ? { ic: '✓', tx: 'Você chegou' }
+    : faixa == null ? { ic: '🧭', tx: <>Caminhe para <b>{Math.round(az)}°</b> · {pontoCardeal(az)}</> }
+    : faixa === 0 ? { ic: '⬆', tx: 'Siga em frente' }
+    : faixa === 1 ? { ic: desvio > 0 ? '↗' : '↖', tx: `Vire um pouco à ${lado}` }
+    : faixa === 2 ? { ic: desvio > 0 ? '➡' : '⬅', tx: `Vire à ${lado}` }
+    : { ic: '↩', tx: 'Dê meia-volta' }
 
   return (
     <div>
@@ -117,31 +154,35 @@ function IrAte({ pos }) {
 
       {!pos && <div className="spin">Esperando a sua posição…</div>}
       {alvo && pos && <>
-        <div className={'ir-box' + (chegou ? ' chegou' : '')}>
+        <div className={'ir-box' + (chegou ? ' chegou' : alinhado ? ' alinhado' : '')}>
+          <div className={'ir-instr f' + (chegou ? 'ok' : faixa == null ? 'az' : faixa)}>
+            <span className="ir-instr-ic">{instrucao.ic}</span><span>{instrucao.tx}</span>
+          </div>
+          {!chegou && faixa != null && <div className="ir-az">rumo do alvo: <b>{Math.round(az)}°</b> · {pontoCardeal(az)}</div>}
           <svg viewBox="0 0 160 160" className="ir-mostrador" aria-label="direção até o alvo">
             <circle cx="80" cy="80" r="74" className="ir-anel" />
-            <g style={{ transform: `rotate(${rumoAparelho != null ? -rumoAparelho : 0}deg)`, transformOrigin: '80px 80px', transition: 'transform .25s ease-out' }}>
-              {Array.from({ length: 36 }, (_, i) => <line key={i} x1="80" y1="8" x2="80" y2={i % 9 === 0 ? 20 : 13} transform={`rotate(${i * 10} 80 80)`} className={'ir-tick' + (i % 9 === 0 ? ' forte' : '')} />)}
-              <text x="80" y="34" textAnchor="middle" className="ir-n">N</text>
-              <text x="132" y="84" textAnchor="middle" className="ir-card">E</text><text x="80" y="140" textAnchor="middle" className="ir-card">S</text><text x="28" y="84" textAnchor="middle" className="ir-card">O</text>
+            {Array.from({ length: 36 }, (_, i) => <line key={i} x1="80" y1="8" x2="80" y2={i % 9 === 0 ? 20 : 13} transform={`rotate(${i * 10} 80 80)`} className={'ir-tick' + (i % 9 === 0 ? ' forte' : '')} />)}
+            <text x="80" y="34" textAnchor="middle" className="ir-n">N</text>
+            <text x="132" y="84" textAnchor="middle" className="ir-card">E</text><text x="80" y="140" textAnchor="middle" className="ir-card">S</text><text x="28" y="84" textAnchor="middle" className="ir-card">O</text>
+            {/* agulha fina da bússola do celular: referência secundária, pode tremer */}
+            {rumoAparelho != null && <g style={{ transform: `rotate(${rumoAparelho}deg)`, transformOrigin: '80px 80px', transition: 'transform .4s ease-out' }}>
+              <line x1="80" y1="80" x2="80" y2="16" className="ir-agulha" />
+              <circle cx="80" cy="16" r="4" className="ir-agulha-pt" />
+            </g>}
+            {/* seta principal: o azimute até o alvo, calculado pelo GPS */}
+            <g style={{ transform: `rotate(${setaRot}deg)`, transformOrigin: '80px 80px', transition: 'transform .6s ease-out' }}>
+              <polygon points="80,18 100,70 80,58 60,70" className="ir-ponta" />
+              <rect x="74" y="58" width="12" height="52" rx="4" className="ir-haste" />
             </g>
-            <g style={{ transform: `rotate(${setaRot}deg)`, transformOrigin: '80px 80px', transition: 'transform .25s ease-out' }}>
-              <polygon points="80,26 96,74 80,64 64,74" className="ir-ponta" />
-              <rect x="76" y="64" width="8" height="46" rx="3" className="ir-haste" />
-            </g>
-            <circle cx="80" cy="80" r="5" className="ir-centro" />
+            <circle cx="80" cy="80" r="6" className="ir-centro" />
           </svg>
           <div className="ir-dist">{dist > 2000 ? metros(dist / 1000, 2) + ' km' : metros(dist, 0) + ' m'}</div>
-          <div className="ir-sub">{chegou ? '✓ Você chegou — dentro da precisão do celular'
-            : rumoAparelho != null ? (() => { const d = ((az - rumoAparelho + 540) % 360) - 180; return Math.abs(d) < 8 ? '⬆ Siga em frente' : `${d > 0 ? '↻ vire à direita' : '↺ vire à esquerda'} ${Math.round(Math.abs(d))}°` })()
-            : `azimute ${grausDMS(az)} · ${pontoCardeal(az)}`}</div>
-          {rumoAparelho != null && !chegou && <div className="ir-sub">azimute {grausDMS(az)} · rumo {rumo(az)}</div>}
-          {rumoAparelho == null && !chegou && <div className="ir-sub">rumo {rumo(az)}</div>}
+          {!chegou && <div className="ir-sub">azimute {grausDMS(az)} · rumo {rumo(az)}</div>}
           <div className="ir-sub">ΔN {dN >= 0 ? '+' : ''}{metros(dN, 1)} m · ΔE {dE >= 0 ? '+' : ''}{metros(dE, 1)} m</div>
         </div>
         <p className="note">
-          {bussola === 'on' ? 'Com a bússola ligada, o mostrador gira: segure o celular deitado na horizontal e siga a seta. Seta instável? Faça um 8 no ar com o celular, afaste-se de metal e ande alguns passos. A distância vem do GPS: se ela cai, você está no caminho.' : bussola === 'negada' ? 'Sem bússola: o N fica para cima e a seta mostra o azimute — oriente-se pelo sol ou pela sombra.' :
-            <>Sem bússola o N fica para cima e a seta mostra o azimute. <span style={{ textDecoration: 'underline', cursor: 'pointer', fontWeight: 700 }} onClick={ligarBussola}>Ligar bússola</span> para o mostrador girar com o aparelho.</>}
+          {bussola === 'on' ? <>A <b>seta grossa</b> é o caminho, calculado pelo GPS. A <b>agulha fina</b> é para onde o seu celular aponta — ela treme perto de metal e concreto; use só para se virar. Celular deitado na horizontal. Se a distância cai, você está no caminho.</> : bussola === 'negada' ? 'Sem bússola: o N fica para cima e a seta mostra o azimute — oriente-se pelo sol, pela sombra ou por um ponto conhecido.' :
+            <>O N fica para cima e a seta mostra o azimute. <span style={{ textDecoration: 'underline', cursor: 'pointer', fontWeight: 700 }} onClick={ligarBussola}>Ligar bússola</span> para ver também a agulha do celular.</>}
           {alvo.sigma != null && <> Alvo conhecido a ±{alvo.sigma < 1 ? metros(alvo.sigma * 100, 0) + ' cm' : metros(alvo.sigma, 0) + ' m'}.</>}
         </p>
       </>}
