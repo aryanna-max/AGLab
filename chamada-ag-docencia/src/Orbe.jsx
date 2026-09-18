@@ -290,6 +290,12 @@ function Pins({ pos, ident, codigo, onAviso, api }) {
           <div><label className="fld">Nome do pin</label><input value={nome} onChange={ev => setNome(ev.target.value)} placeholder={proximoNome() + ' — ou o nome de um marco, ex. M0452'} maxLength={40} /></div>
           <div><label className="fld">&nbsp;</label><button className="btn" onClick={comecar} disabled={!pos || salvando}>{salvando ? 'Salvando…' : '📍 Ocupar e marcar'}</button></div>
         </div>
+        {(() => {   // o pin da missão vale pelo lugar: avisa antes, quando está perto de um marco mas ainda longe dele
+          if (!pos || pos.utmN == null) return null
+          const perto = MARCOS.filter(m => m.tipo !== 'referencia').map(m => ({ m, d: Math.hypot(pos.utmN - m.n, pos.utmE - m.e) })).sort((a, b) => a.d - b.d)[0]
+          if (!perto || perto.d <= 10 || perto.d > 30) return null
+          return <div className="flash dup" style={{ textAlign: 'left' }}>Você está a <b>{metros(perto.d, 0)} m do marco {perto.m.nome}</b>. Se vai ocupar o marco, procure-o no chão antes de marcar: na missão, vale o primeiro pin perto dele.</div>
+        })()}
         <div className="foto-ponto">
           {foto ? <img src={foto} alt="" onClick={() => fotoRef.current && fotoRef.current.click()} /> : null}
           <button className="btn ghost mini" disabled={fotoBusy} onClick={() => fotoRef.current && fotoRef.current.click()}>{fotoBusy ? 'Processando…' : foto ? '📷 Trocar foto do ponto' : '📷 Foto do ponto (opcional)'}</button>

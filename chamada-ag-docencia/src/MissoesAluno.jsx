@@ -61,8 +61,9 @@ function CardMissao({ m, agora, onAbrir }) {
 }
 
 const OBS = 'Observações: '
+const rotulo = c => typeof c === 'string' ? c : (c?.rotulo || '')
 function juntarCampos(campos, r) {
-  const linhas = campos.map((c, i) => `${c}: ${(r.v[i] || '').trim()}`)
+  const linhas = campos.map((c, i) => `${rotulo(c)}: ${String(r.v[i] || '').trim().replace(/\n+/g, ' ')}`)
   return (r.obs || '').trim() ? linhas.join('\n') + '\n' + OBS + r.obs.trim() : linhas.join('\n')
 }
 function lerCampos(campos, texto) {
@@ -70,7 +71,7 @@ function lerCampos(campos, texto) {
   if (!campos.length || !t) return { v, obs: '' }
   const iObs = t.indexOf('\n' + OBS)
   const corpo = iObs >= 0 ? t.slice(0, iObs) : t, obs = iObs >= 0 ? t.slice(iObs + 1 + OBS.length) : ''
-  corpo.split('\n').forEach(l => { const i = campos.findIndex(c => l.startsWith(c + ': ')); if (i >= 0) v[i] = l.slice(campos[i].length + 2) })
+  corpo.split('\n').forEach(l => { const i = campos.findIndex(c => l.startsWith(rotulo(c) + ': ')); if (i >= 0) v[i] = l.slice(rotulo(campos[i]).length + 2) })
   return { v, obs }
 }
 
@@ -96,7 +97,8 @@ function Detalhe({ m, ident, online, agora, onVoltar, recarregar }) {
   const setTexto = t => { setTextoRaw(t); guardar(t); setSalvoEm(null) }
   const setResp = f => setRespRaw(r => { const n = typeof f === 'function' ? f(r) : f; guardar(juntarCampos(campos, n)); setSalvoEm(null); return n })
   const textoFinal = campos.length ? juntarCampos(campos, resp) : texto
-  const vazios = campos.filter((c, i) => !(resp.v[i] || '').trim()).length
+  const vazios = campos.filter((c, i) => !String(resp.v[i] || '').trim()).length
+  const setV = (i, val) => setResp(r => ({ ...r, v: campos.map((_, j) => j === i ? val : (r.v[j] || '')) }))
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState(null)
   const pz = fmtPrazo(m.prazo_em, agora)
@@ -188,8 +190,12 @@ function Detalhe({ m, ident, online, agora, onVoltar, recarregar }) {
         {podeEditar && <>
           {campos.length > 0 ? <>
             {campos.map((c, i) => <div key={i} className="campo-resp">
-              <label className="fld">{i + 1}. {c}</label>
-              <input value={resp.v[i] || ''} onChange={e => setResp(r => ({ ...r, v: campos.map((_, j) => j === i ? e.target.value : (r.v[j] || '')) }))} />
+              <label className="fld">{i + 1}. {rotulo(c)}</label>
+              {c?.tipo === 'caixas' ? (() => { const marcadas = String(resp.v[i] || '').split(', ').filter(Boolean)
+                return <div className="caixas">{(c.opcoes || []).map(o => <label key={o} className="chk-inline"><input type="checkbox" checked={marcadas.includes(o)}
+                  onChange={e => setV(i, (e.target.checked ? [...marcadas, o] : marcadas.filter(x => x !== o)).sort((a, b) => c.opcoes.indexOf(a) - c.opcoes.indexOf(b)).join(', '))} /> {o}</label>)}</div> })()
+                : c?.tipo === 'texto' ? <textarea rows={3} value={resp.v[i] || ''} onChange={e => setV(i, e.target.value)} />
+                : <input value={resp.v[i] || ''} onChange={e => setV(i, e.target.value)} />}
             </div>)}
             <label className="fld">Observações (opcional)</label>
             <textarea value={resp.obs} onChange={e => setResp(r => ({ ...r, obs: e.target.value }))} rows={2} placeholder="Algo que aconteceu em campo, nomes dos pins que você usou…" />
@@ -221,10 +227,10 @@ function MedalhaAuto({ m }) {
   return (
     <div className="panel">
       <h2 style={{ marginTop: 0 }}>Medalha automática</h2>
-      <p className="hint">Faça o pin com o nome <b>{md.marco}</b> em cima do marco. O app mede a distância do pin até o marco e dá a medalha na hora. {md.vale === 'melhor' ? <>Pode tentar de novo: vale o seu <b>melhor pin</b> até o prazo.</> : <>Só vale o <b>primeiro pin</b> {md.marco}: capriche antes de marcar.</>}</p>
+      <p className="hint">Faça um pin em cima do marco <b>{md.marco}</b> (o nome do pin não importa: vale o lugar). O app mede a distância do pin até o marco e dá a medalha na hora. {md.vale === 'melhor' ? <>Pode tentar de novo: vale o seu <b>melhor pin</b> até o prazo.</> : <>Só vale o <b>primeiro pin</b> perto do marco: capriche antes de marcar.</>}</p>
       <p className="note">🥇 até {fmt(lim.ouro)} m · 🥈 até {fmt(lim.prata)} m · 🥉 até {fmt(lim.bronze)} m</p>
       {a ? <div className="devolutiva"><b>Seu {a.vale === 'melhor' ? 'melhor' : 'primeiro'} pin ficou a {fmt(a.erro)} m do marco</b>
-          <p>{(m.minha?.nivel || a.nivel) ? NIVEL[m.minha?.nivel || a.nivel] : `Ainda sem medalha: precisa ficar a até ${fmt(lim.bronze)} m.`}{a.n_pins > 1 && a.vale === 'melhor' ? ` · ${a.n_pins} tentativas` : ''}</p></div>
+          <p>{a.espalhamento != null && <>Espalhamento da ocupação: <b>{fmt(a.espalhamento)} m</b>{a.pin_nome ? ` · pin ${a.pin_nome}` : ''}<br /></>}{(m.minha?.nivel || a.nivel) ? NIVEL[m.minha?.nivel || a.nivel] : `Ainda sem medalha: precisa ficar a até ${fmt(lim.bronze)} m.`}{a.n_pins > 1 && a.vale === 'melhor' ? ` · ${a.n_pins} tentativas` : ''}</p></div>
         : <p className="note">Nenhum pin {md.marco} ainda.</p>}
     </div>
   )

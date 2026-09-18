@@ -115,7 +115,7 @@ function EditorMissao({ userId, inicial, onFechar, showToast }) {
       <textarea rows={2} value={m.entrega || ''} onChange={e => set('entrega', e.target.value)} placeholder="Ex.: erro de fechamento e comparação com a tolerância." />
       <label className="fld">Campos de resposta (opcional: o aluno ganha um espaço para cada pergunta)</label>
       {(m.campos || []).map((c, i) => <div key={i} className="row" style={{ marginBottom: 6 }}>
-        <div style={{ flex: 1 }}><input value={c} onChange={ev => set('campos', m.campos.map((x, j) => j === i ? ev.target.value : x))} placeholder={`Pergunta ${i + 1} · ex.: Erro da cota (m)`} /></div>
+        <div style={{ flex: 1 }}><input value={typeof c === 'string' ? c : c.rotulo} onChange={ev => set('campos', m.campos.map((x, j) => j === i ? (typeof x === 'string' ? ev.target.value : { ...x, rotulo: ev.target.value }) : x))} placeholder={`Pergunta ${i + 1} · ex.: Erro da cota (m)`} /></div>
         <div style={{ flex: 0 }}><button className="btn ghost mini" onClick={() => set('campos', m.campos.filter((_, j) => j !== i))}>✕</button></div>
       </div>)}
       <div className="btnrow" style={{ marginTop: 0 }}><button className="btn ghost mini" onClick={() => set('campos', [...(m.campos || []), ''])}>+ campo</button></div>
