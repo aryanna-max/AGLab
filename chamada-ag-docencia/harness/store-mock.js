@@ -1,6 +1,12 @@
 // Mock do store para renderizar a tela da professora sem login.
 const T1 = 'turma-edif', T2 = 'turma-f61'
-const alunos = (tid, n) => Array.from({ length: n }, (_, i) => ({ id: tid + '-a' + i, turma_id: tid, nome: 'Aluno ' + (i + 1) + ' Sobrenome', matricula: '2023' + i }))
+// selfie de mentira: a foto do aluno é o avatar em todas as telas, e sem uma foto aqui
+// o harness só exercita as iniciais. Dois em cada três alunos "mandaram a selfie".
+const CORES = ['#1f4e79', '#12804A', '#B01B1B', '#6B4FA0', '#B8860B', '#0E8C9E']
+const caraFalsa = i => 'data:image/svg+xml;utf8,' + encodeURIComponent(
+  `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><rect width="64" height="64" fill="${CORES[i % CORES.length]}"/>` +
+  `<circle cx="32" cy="25" r="11" fill="#fff" opacity=".9"/><ellipse cx="32" cy="56" rx="19" ry="14" fill="#fff" opacity=".9"/></svg>`)
+const alunos = (tid, n) => Array.from({ length: n }, (_, i) => ({ id: tid + '-a' + i, turma_id: tid, nome: 'Aluno ' + (i + 1) + ' Sobrenome', matricula: '2023' + i, foto: i % 3 === 2 ? null : caraFalsa(i) }))
 const turmas = [
   { id: T1, nome: 'Edificações — A32RC (2026.2)', codigo: 'edif_a32rc_2026_2', alunos: alunos(T1, 33) },
   { id: T2, nome: 'Saneamento Integrado — F61RC (2026.2)', codigo: 'san_integ_f61rc_2026_2', alunos: alunos(T2, 19) },
@@ -58,6 +64,7 @@ const especificos = {
       acuracia_m: 5 + i, modo: i === 3 ? 'referencia' : 'gps', visto_em: new Date().toISOString(),
     }))
   },
+  melhorLeituraDe: async () => ({ lat: -8.05882828659363, lon: -34.9513732181457, acuracia_m: 3.52937, criado_em: '2026-09-11T19:24:54Z', capturado_em: '2026-09-11T19:24:54Z' }),
   minhaUltimaLeitura: async () => ({ lat: -8.0587, lon: -34.9512, acuracia_m: 8, rotulo: 'sala', criado_em: agora, capturado_em: agora }),
   leiturasDaTurma: async () => leit, pinsDaTurma: async () => pins, poligonaisDaTurma: async () => polis, sessoesDaTurma: async () => [sess],
   resumoTurma: async () => ({ chamadas: [{ id: 'c1', data: '2026-09-11' }], presencas: [] }), turmasDoSeedFaltando: async () => [],
@@ -109,6 +116,7 @@ export const marcosPublicos = especificos['marcosPublicos'] || (async () => null
 export const acessoAuxiliarHoje = especificos['acessoAuxiliarHoje'] || (async () => null)
 export const liberarAuxiliar = especificos['liberarAuxiliar'] || (async () => null)
 export const revogarAuxiliar = especificos['revogarAuxiliar'] || (async () => null)
+export const melhorLeituraDe = especificos['melhorLeituraDe'] || (async () => null)
 export const minhaUltimaLeitura = especificos['minhaUltimaLeitura'] || (async () => null)
 export const outboxCount = especificos['outboxCount'] || (async () => null)
 export const pinsDaTurma = especificos['pinsDaTurma'] || (async () => null)

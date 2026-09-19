@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { arquivoParaJpeg } from './lib/foto'
 import { supabase } from './supabaseClient'
-import { paraUTM25S, metros } from './lib/geo'
+import { paraUTM25S, metros, altitudes } from './lib/geo'
 import { MARCOS, marcoPorNome, marcoComparavel, azimute, grausDMS, pontoCardeal, resumirOcupacao, calcularPoligonal, compararComMarcos, ordenarPorAngulo, rumo } from './lib/topo'
 
 /* As três operações de campo, no celular:
@@ -46,6 +46,17 @@ export default function Orbe({ pos, ident, codigo, onAviso, api }) {
   )
 }
 
+/* Declinação magnética no campus IFPE Recife (−8,0588 / −34,9512): −21,03° (21° W), NOAA WMM-2025,
+   calculada para 18/09/2026; variação anual +0,12°/ano. Rever a cada ano ou quando sair o WMM seguinte. */
+const DECLINACAO_CAMPUS = -21.03
+/* Convergência meridiana no fuso UTM 25 S (meridiano central −33°): γ = atan(tan Δλ · sen φ).
+   No campus dá ≈ +0,27° — pequena, mas entra para a conta fechar. */
+function convergenciaMeridiana(lat, lon) {
+  if (lat == null || lon == null) return 0
+  const r = Math.PI / 180
+  return Math.atan(Math.tan((lon + 33) * r) * Math.sin(lat * r)) / r
+}
+
 /* ================= 🎯 IR ATÉ (locar) ================= */
 function IrAte({ pos }) {
   const [alvoNome, setAlvoNome] = useState(MARCOS[1].nome)
@@ -63,16 +74,27 @@ function IrAte({ pos }) {
       // suaviza a bússola: média móvel do seno e do cosseno (média de ângulo direto erra em 359°→1°)
       // no Android chegam dois eventos: o "absolute" (referido ao norte) e o comum, que pode ser relativo
       // à posição inicial do aparelho. Misturar os dois faz a seta pular; com o absoluto disponível, o comum é ignorado.
-      const suav = { s: null, c: null, temAbs: false }
+      /* Bússola instável (queixa dela, 18/09/2026). Três filtros:
+         - suavização por TEMPO (τ ≈ 0,8 s), não por evento: celular que manda 60 eventos/s não treme mais que o que manda 10;
+         - zona morta de 3°: abaixo disso a agulha nem se mexe;
+         - no máximo 5 atualizações de tela por segundo. */
+      const suav = { s: null, c: null, temAbs: false, t: 0, ultimo: null, tela: 0 }
+      const TAU = 0.8, ZONA = 3, INTERVALO = 200
       const h = ev => {
         if (ev.type === 'deviceorientationabsolute') suav.temAbs = true
         else if (ev.webkitCompassHeading == null && (suav.temAbs || ev.absolute === false)) return
         const a = ev.webkitCompassHeading != null ? ev.webkitCompassHeading : (ev.alpha != null ? 360 - ev.alpha : null)
         if (a == null) return
-        const r = a * Math.PI / 180, k = 0.08
+        const agora = performance.now(), r = a * Math.PI / 180
+        const k = suav.s == null ? 1 : 1 - Math.exp(-Math.min(0.5, (agora - suav.t) / 1000) / TAU)
+        suav.t = agora
         suav.s = suav.s == null ? Math.sin(r) : suav.s + k * (Math.sin(r) - suav.s)
         suav.c = suav.c == null ? Math.cos(r) : suav.c + k * (Math.cos(r) - suav.c)
-        setRumoAparelho(((Math.atan2(suav.s, suav.c) * 180 / Math.PI) + 360) % 360)
+        if (agora - suav.tela < INTERVALO) return
+        const rumo = ((Math.atan2(suav.s, suav.c) * 180 / Math.PI) + 360) % 360
+        if (suav.ultimo != null && Math.abs(((rumo - suav.ultimo + 540) % 360) - 180) < ZONA) return
+        suav.ultimo = rumo; suav.tela = agora
+        setRumoAparelho(rumo)
       }
       window.addEventListener('deviceorientationabsolute', h, true); window.addEventListener('deviceorientation', h, true)
       setBussola('on')
@@ -93,7 +115,38 @@ function IrAte({ pos }) {
   let dN = null, dE = null, dist = null, az = null
   if (alvo && pos) { dN = alvo.n - pos.utmN; dE = alvo.e - pos.utmE; dist = Math.hypot(dN, dE); az = azimute(dN, dE) }
   const chegou = dist != null && pos && dist <= Math.max(8, pos.acc || 0)
-  const setaRot = az != null ? (rumoAparelho != null ? az - rumoAparelho : az) : 0
+  /* Pedido dela (18/09/2026): a bússola do celular é instável e as setas confundiam. O mostrador
+     agora fica PARADO, norte para cima, e a seta grossa é o AZIMUTE até o alvo — vem do GPS, não
+     treme com o aparelho. A bússola vira só uma agulha fina ("seu celular"): gire o corpo até a
+     agulha encostar na seta. Alinhado (±15°), a seta fica verde. */
+  const setaRot = az != null ? az : 0
+  /* A bússola do celular aponta para o NORTE MAGNÉTICO; o azimute do app é de QUADRÍCULA (UTM 25 S,
+     calculado de ΔN e ΔE). Sem correção, "alinhado" levava o aluno uns 21° para o lado (achado 18/09/2026).
+     Norte verdadeiro = magnético + declinação; quadrícula = verdadeiro − convergência meridiana. */
+  const rumoQuadricula = rumoAparelho != null && pos
+    ? (rumoAparelho + DECLINACAO_CAMPUS - convergenciaMeridiana(pos.lat, pos.lon) + 720) % 360 : null
+  const desvio = az != null && rumoQuadricula != null ? ((az - rumoQuadricula + 540) % 360) - 180 : null
+  /* A instrução é o destaque (pedido dela, 18/09): em faixas, com folga de 6° para trocar de
+     faixa — a bússola tremendo não faz o texto piscar. 0 frente · 1 um pouco · 2 vire · 3 meia-volta */
+  const faixaRef = useRef(null)
+  let faixa = null
+  if (desvio != null) {
+    const ad = Math.abs(desvio), lim = [15, 50, 135], ant = faixaRef.current
+    faixa = ad <= lim[0] ? 0 : ad <= lim[1] ? 1 : ad <= lim[2] ? 2 : 3
+    if (ant != null && ant !== faixa) {
+      const borda = lim[Math.min(ant, faixa)]
+      if (Math.abs(ad - borda) < 6) faixa = ant   // ainda perto da borda: mantém a anterior
+    }
+    faixaRef.current = faixa
+  }
+  const alinhado = faixa === 0
+  const lado = desvio > 0 ? 'direita' : 'esquerda'
+  const instrucao = chegou ? { ic: '✓', tx: 'Você chegou' }
+    : faixa == null ? { ic: '🧭', tx: <>Caminhe para <b>{Math.round(az)}°</b> · {pontoCardeal(az)}</> }
+    : faixa === 0 ? { ic: '⬆', tx: 'Siga em frente' }
+    : faixa === 1 ? { ic: desvio > 0 ? '↗' : '↖', tx: `Vire um pouco à ${lado}` }
+    : faixa === 2 ? { ic: desvio > 0 ? '➡' : '⬅', tx: `Vire à ${lado}` }
+    : { ic: '↩', tx: 'Dê meia-volta' }
 
   return (
     <div>
@@ -117,31 +170,37 @@ function IrAte({ pos }) {
 
       {!pos && <div className="spin">Esperando a sua posição…</div>}
       {alvo && pos && <>
-        <div className={'ir-box' + (chegou ? ' chegou' : '')}>
+        <div className={'ir-box' + (chegou ? ' chegou' : alinhado ? ' alinhado' : '')}>
+          <div className={'ir-instr f' + (chegou ? 'ok' : faixa == null ? 'az' : faixa)}>
+            <span className="ir-instr-ic">{instrucao.ic}</span><span>{instrucao.tx}</span>
+          </div>
+          {!chegou && faixa != null && <div className="ir-az">rumo do alvo: <b>{Math.round(az)}°</b> · {pontoCardeal(az)}</div>}
           <svg viewBox="0 0 160 160" className="ir-mostrador" aria-label="direção até o alvo">
             <circle cx="80" cy="80" r="74" className="ir-anel" />
-            <g style={{ transform: `rotate(${rumoAparelho != null ? -rumoAparelho : 0}deg)`, transformOrigin: '80px 80px', transition: 'transform .25s ease-out' }}>
-              {Array.from({ length: 36 }, (_, i) => <line key={i} x1="80" y1="8" x2="80" y2={i % 9 === 0 ? 20 : 13} transform={`rotate(${i * 10} 80 80)`} className={'ir-tick' + (i % 9 === 0 ? ' forte' : '')} />)}
-              <text x="80" y="34" textAnchor="middle" className="ir-n">N</text>
-              <text x="132" y="84" textAnchor="middle" className="ir-card">E</text><text x="80" y="140" textAnchor="middle" className="ir-card">S</text><text x="28" y="84" textAnchor="middle" className="ir-card">O</text>
+            {Array.from({ length: 36 }, (_, i) => <line key={i} x1="80" y1="8" x2="80" y2={i % 9 === 0 ? 20 : 13} transform={`rotate(${i * 10} 80 80)`} className={'ir-tick' + (i % 9 === 0 ? ' forte' : '')} />)}
+            <text x="80" y="34" textAnchor="middle" className="ir-n">N</text>
+            <text x="132" y="84" textAnchor="middle" className="ir-card">E</text><text x="80" y="140" textAnchor="middle" className="ir-card">S</text><text x="28" y="84" textAnchor="middle" className="ir-card">O</text>
+            {/* agulha fina da bússola do celular: referência secundária, pode tremer */}
+            {rumoQuadricula != null && <g style={{ transform: `rotate(${rumoQuadricula}deg)`, transformOrigin: '80px 80px', transition: 'transform .4s ease-out' }}>
+              <line x1="80" y1="80" x2="80" y2="16" className="ir-agulha" />
+              <circle cx="80" cy="16" r="4" className="ir-agulha-pt" />
+            </g>}
+            {/* seta principal: o azimute até o alvo, calculado pelo GPS */}
+            <g style={{ transform: `rotate(${setaRot}deg)`, transformOrigin: '80px 80px', transition: 'transform .6s ease-out' }}>
+              <polygon points="80,18 100,70 80,58 60,70" className="ir-ponta" />
+              <rect x="74" y="58" width="12" height="52" rx="4" className="ir-haste" />
             </g>
-            <g style={{ transform: `rotate(${setaRot}deg)`, transformOrigin: '80px 80px', transition: 'transform .25s ease-out' }}>
-              <polygon points="80,26 96,74 80,64 64,74" className="ir-ponta" />
-              <rect x="76" y="64" width="8" height="46" rx="3" className="ir-haste" />
-            </g>
-            <circle cx="80" cy="80" r="5" className="ir-centro" />
+            <circle cx="80" cy="80" r="6" className="ir-centro" />
           </svg>
           <div className="ir-dist">{dist > 2000 ? metros(dist / 1000, 2) + ' km' : metros(dist, 0) + ' m'}</div>
-          <div className="ir-sub">{chegou ? '✓ Você chegou — dentro da precisão do celular'
-            : rumoAparelho != null ? (() => { const d = ((az - rumoAparelho + 540) % 360) - 180; return Math.abs(d) < 8 ? '⬆ Siga em frente' : `${d > 0 ? '↻ vire à direita' : '↺ vire à esquerda'} ${Math.round(Math.abs(d))}°` })()
-            : `azimute ${grausDMS(az)} · ${pontoCardeal(az)}`}</div>
-          {rumoAparelho != null && !chegou && <div className="ir-sub">azimute {grausDMS(az)} · rumo {rumo(az)}</div>}
-          {rumoAparelho == null && !chegou && <div className="ir-sub">rumo {rumo(az)}</div>}
-          <div className="ir-sub">ΔN {dN >= 0 ? '+' : ''}{metros(dN, 1)} m · ΔE {dE >= 0 ? '+' : ''}{metros(dE, 1)} m</div>
+          {!chegou && <div className="ir-sub">azimute {grausDMS(az)} · rumo {rumo(az)}</div>}
+          {/* sem bússola também se chega: duas pernas pelos pontos cardeais (pergunta dela, 18/09) */}
+          {!chegou && <div className="ir-pernas">ou ande <b>{metros(Math.abs(dN), 0)} m para o {dN >= 0 ? 'Norte' : 'Sul'}</b> e <b>{metros(Math.abs(dE), 0)} m para o {dE >= 0 ? 'Leste' : 'Oeste'}</b></div>}
+          <div className="ir-sub">ΔN {dN >= 0 ? '+' : ''}{metros(dN, 1)} m · ΔE {dE >= 0 ? '+' : ''}{metros(dE, 1)} m · azimute de quadrícula (UTM)</div>
         </div>
         <p className="note">
-          {bussola === 'on' ? 'Com a bússola ligada, o mostrador gira: segure o celular deitado na horizontal e siga a seta. Seta instável? Faça um 8 no ar com o celular, afaste-se de metal e ande alguns passos. A distância vem do GPS: se ela cai, você está no caminho.' : bussola === 'negada' ? 'Sem bússola: o N fica para cima e a seta mostra o azimute — oriente-se pelo sol ou pela sombra.' :
-            <>Sem bússola o N fica para cima e a seta mostra o azimute. <span style={{ textDecoration: 'underline', cursor: 'pointer', fontWeight: 700 }} onClick={ligarBussola}>Ligar bússola</span> para o mostrador girar com o aparelho.</>}
+          {bussola === 'on' ? <>A <b>seta grossa</b> é o caminho, calculado pelo GPS. A <b>agulha fina</b> é para onde o seu celular aponta — ela treme perto de metal e concreto; use só para se virar. Celular deitado na horizontal. Se a distância cai, você está no caminho. A agulha já vem corrigida da <b>declinação magnética</b> de Recife (21° W): a bússola aponta para o norte magnético, o mapa usa o norte da quadrícula.</> : bussola === 'negada' ? 'Sem bússola: o N fica para cima e a seta mostra o azimute — oriente-se pelo sol, pela sombra ou por um ponto conhecido.' :
+            <>O N fica para cima e a seta mostra o azimute. <span style={{ textDecoration: 'underline', cursor: 'pointer', fontWeight: 700 }} onClick={ligarBussola}>Ligar bússola</span> para ver também a agulha do celular.</>}
           {alvo.sigma != null && <> Alvo conhecido a ±{alvo.sigma < 1 ? metros(alvo.sigma * 100, 0) + ' cm' : metros(alvo.sigma, 0) + ' m'}.</>}
         </p>
       </>}
@@ -213,7 +272,7 @@ function Pins({ pos, ident, codigo, onAviso, api }) {
       const NV = { ouro: '🥇 Ouro', prata: '🥈 Prata', bronze: '🥉 Bronze' }
       onAviso && onAviso(med ? (med.vale !== 'melhor' && med.n_pins > 1 ? `Pin ${nm} salvo. Na missão vale só o primeiro: ${metros(med.erro, 1)} m · ${med.nivel ? NV[med.nivel] : 'sem medalha'}`
           : `Pin ${nm}: ${metros(med.erro, 1)} m do marco · ${med.nivel ? NV[med.nivel] : 'sem medalha'} (missão ${med.missao})`)
-        : `Pin ${nm} salvo: média de ${r.n} leituras, espalhamento ±${metros(r.desvioHz, 1)} m`)
+        : `Pin ${nm} salvo: média de ${r.n} leituras, espalhamento ±${metros(r.desvioHz, 1)} m` + (altitudes(r.alt) ? ` · h ${metros(altitudes(r.alt).h, 1)} m · H ${metros(altitudes(r.alt).H, 1)} m` : ''))
       setNome(''); setFoto(null); await carregar()
     } catch (e) { setErro(ehErroDeRede(e) ? 'Sem rede — o pin precisa de conexão para ser salvo. Tente de novo com sinal.' : 'Falhou: ' + (e.message || 'erro')) }
     finally { setSalvando(false) }
@@ -231,6 +290,12 @@ function Pins({ pos, ident, codigo, onAviso, api }) {
           <div><label className="fld">Nome do pin</label><input value={nome} onChange={ev => setNome(ev.target.value)} placeholder={proximoNome() + ' — ou o nome de um marco, ex. M0452'} maxLength={40} /></div>
           <div><label className="fld">&nbsp;</label><button className="btn" onClick={comecar} disabled={!pos || salvando}>{salvando ? 'Salvando…' : '📍 Ocupar e marcar'}</button></div>
         </div>
+        {(() => {   // o pin da missão vale pelo lugar: avisa antes, quando está perto de um marco mas ainda longe dele
+          if (!pos || pos.utmN == null) return null
+          const perto = MARCOS.filter(m => m.tipo !== 'referencia').map(m => ({ m, d: Math.hypot(pos.utmN - m.n, pos.utmE - m.e) })).sort((a, b) => a.d - b.d)[0]
+          if (!perto || perto.d <= 10 || perto.d > 30) return null
+          return <div className="flash dup" style={{ textAlign: 'left' }}>Você está a <b>{metros(perto.d, 0)} m do marco {perto.m.nome}</b>. Se vai ocupar o marco, procure-o no chão antes de marcar: na missão, vale o primeiro pin perto dele.</div>
+        })()}
         <div className="foto-ponto">
           {foto ? <img src={foto} alt="" onClick={() => fotoRef.current && fotoRef.current.click()} /> : null}
           <button className="btn ghost mini" disabled={fotoBusy} onClick={() => fotoRef.current && fotoRef.current.click()}>{fotoBusy ? 'Processando…' : foto ? '📷 Trocar foto do ponto' : '📷 Foto do ponto (opcional)'}</button>
@@ -257,7 +322,7 @@ function Pins({ pos, ident, codigo, onAviso, api }) {
       {erro && <div className="flash err" style={{ textAlign: 'left' }}>{erro}</div>}
 
       {pins.length > 0 && <div className="scrollx" style={{ marginTop: 12 }}>
-        <table className="matrix"><thead><tr><th className="nm">Pin</th><th>N</th><th>E</th><th>leit.</th><th>±hz</th><th>espalh.</th><th>vs marco</th><th>quando</th></tr></thead>
+        <table className="matrix"><thead><tr><th className="nm">Pin</th><th>N</th><th>E</th><th>leit.</th><th>±hz</th><th>espalh.</th><th>vs marco</th><th title="altitude elipsoidal">h</th><th title="altitude ortométrica = h − N (N = −5,56 m)">H</th><th>quando</th></tr></thead>
           <tbody>{pins.map(p => {
             const m = p.marco_ref ? marcoPorNome(p.marco_ref) : null
             const errM = m ? Math.hypot(p.utm_n - m.n, p.utm_e - m.e) : null
@@ -270,10 +335,11 @@ function Pins({ pos, ident, codigo, onAviso, api }) {
               <td>{p.acc != null ? metros(p.acc, 1) : '—'}</td>
               <td>{metros(Math.hypot(p.dn || 0, p.de || 0), 1)}</td>
               <td className={errM != null && !desloc ? (errM < 10 ? 'P' : 'F') : ''} title={desloc ? 'marco reimplantado em obra: a coordenada de 2023 não é mais o lugar do marco — esse número não mede o seu celular' : ''}>{errM != null ? metros(errM, 1) + ' m' + (desloc ? ' ⚠' : '') : '—'}</td>
+              {(() => { const al = altitudes(p.altitude_m); return <><td>{al ? metros(al.h, 1) : '—'}</td><td>{al ? metros(al.H, 1) : '—'}</td></> })()}
               <td>{new Date(p.criado_em).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</td>
             </tr> })}</tbody></table>
       </div>}
-      <p className="note"><b>espalh.</b> = desvio-padrão das leituras da ocupação (precisão). <b>vs marco</b> = distância até a coordenada oficial (acurácia). ⚠ = marco reimplantado em obra (M0451): a coordenada oficial ainda é a de 2023, então a distância não avalia o aparelho. Reocupar o mesmo nome aparece como extra: não entra na poligonal.</p>
+      <p className="note"><b>espalh.</b> = desvio-padrão das leituras da ocupação (precisão). <b>vs marco</b> = distância até a coordenada oficial (acurácia). <b>h</b> = altitude elipsoidal, <b>H</b> = altitude ortométrica (H = h − N, N = −5,56 m no campus). ⚠ = marco reimplantado em obra (M0451): a coordenada oficial ainda é a de 2023, então a distância não avalia o aparelho. Reocupar o mesmo nome aparece como extra: não entra na poligonal.</p>
     </div>
   )
 }

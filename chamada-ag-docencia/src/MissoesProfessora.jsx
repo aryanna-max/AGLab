@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import * as store from './lib/store'
 import { FRENTES, CARDAPIO_SUGERIDO } from './lib/cardapioMissoes'
+import Avatar from './Avatar.jsx'
 
 /* Missões — lado da professora.
    Cardápio: biblioteca dela, sem turma. Lançar: escolhe a missão, qualquer turma, prazo
@@ -11,7 +12,7 @@ const NOME_FRENTE = Object.fromEntries(FRENTES)
 const NIVEIS = [['', '—'], ['bronze', '🥉 Bronze'], ['prata', '🥈 Prata'], ['ouro', '🥇 Ouro']]
 const PONTOS = { bronze: 1, prata: 2, ouro: 3 }
 const fmtDH = iso => iso ? new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—'
-const vazio = () => ({ titulo: '', frente: 'planimetria', descricao: '', etapas: [''], entrega: '', niveis: { bronze: '', prata: '', ouro: '' }, equipe: false, funcoes: [] })
+const vazio = () => ({ titulo: '', frente: 'planimetria', descricao: '', etapas: [''], campos: [], entrega: '', niveis: { bronze: '', prata: '', ouro: '' }, equipe: false, funcoes: [] })
 const primeiroNome = n => (n || '').trim().split(' ')[0]
 const embaralhar = arr => { const a = arr.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]] } return a }
 
@@ -31,7 +32,7 @@ export default function MissoesProfessora({ userId, tid, turmas, online, showToa
       {!online && <p className="note" style={{ color: 'var(--miss)' }}>Offline — as missões precisam de internet.</p>}
       {aba === 'cardapio'
         ? <Cardapio userId={userId} missoes={missoes} turmas={turmas} tid={tid} recarregar={carregar} showToast={showToast} onLancou={() => setAba('entregas')} />
-        : <Lancadas userId={userId} tid={tid} turma={turma} online={online} showToast={showToast} irCardapio={() => setAba('cardapio')} />}
+        : <Lancadas userId={userId} tid={tid} turma={turma} turmas={turmas} online={online} showToast={showToast} irCardapio={() => setAba('cardapio')} />}
     </>
   )
 }
@@ -112,6 +113,13 @@ function EditorMissao({ userId, inicial, onFechar, showToast }) {
       <div className="btnrow" style={{ marginTop: 0 }}><button className="btn ghost mini" onClick={() => set('etapas', [...m.etapas, ''])}>+ etapa</button></div>
       <label className="fld">O que o aluno entrega</label>
       <textarea rows={2} value={m.entrega || ''} onChange={e => set('entrega', e.target.value)} placeholder="Ex.: erro de fechamento e comparação com a tolerância." />
+      <label className="fld">Campos de resposta (opcional: o aluno ganha um espaço para cada pergunta)</label>
+      {(m.campos || []).map((c, i) => <div key={i} className="row" style={{ marginBottom: 6 }}>
+        <div style={{ flex: 1 }}><input value={typeof c === 'string' ? c : c.rotulo} onChange={ev => set('campos', m.campos.map((x, j) => j === i ? (typeof x === 'string' ? ev.target.value : { ...x, rotulo: ev.target.value }) : x))} placeholder={`Pergunta ${i + 1} · ex.: Erro da cota (m)`} /></div>
+        <div style={{ flex: 0 }}><button className="btn ghost mini" onClick={() => set('campos', m.campos.filter((_, j) => j !== i))}>✕</button></div>
+      </div>)}
+      <div className="btnrow" style={{ marginTop: 0 }}><button className="btn ghost mini" onClick={() => set('campos', [...(m.campos || []), ''])}>+ campo</button></div>
+      {(m.campos || []).length > 0 && <p className="note">As respostas chegam para você uma por linha, com a pergunta na frente. Sem campos, o aluno usa uma caixa de texto livre.</p>}
       <label className="fld">Níveis</label>
       {['bronze', 'prata', 'ouro'].map(k => <div key={k} className="row" style={{ marginBottom: 6, alignItems: 'center' }}>
         <div style={{ flex: 0, minWidth: 90 }}><b>{k === 'ouro' ? '🥇 Ouro' : k === 'prata' ? '🥈 Prata' : '🥉 Bronze'}</b></div>
@@ -192,7 +200,7 @@ function Lancar({ userId, missao, turmas, tid, showToast, onFechar }) {
 }
 
 /* ================= LANÇADAS + ENTREGAS + RANKING ================= */
-function Lancadas({ userId, tid, turma, online, showToast, irCardapio }) {
+function Lancadas({ userId, tid, turma, turmas, online, showToast, irCardapio }) {
   const [lancs, setLancs] = useState([])
   const [entregas, setEntregas] = useState([])
   const [aberto, setAberto] = useState(null)
@@ -203,11 +211,22 @@ function Lancadas({ userId, tid, turma, online, showToast, irCardapio }) {
   useEffect(() => { carregar(); setAberto(null) }, [carregar])
   useEffect(() => { const it = setInterval(carregar, 20000); return () => clearInterval(it) }, [carregar])
 
+  // ranking: esta turma ou todas (o geral é só para a professora; o aluno vê só a turma dele)
+  const [geral, setGeralRaw] = useState(() => { try { return localStorage.getItem('orbe_rank_geral') === '1' } catch (e) { return false } })
+  const setGeral = v => { setGeralRaw(v); try { localStorage.setItem('orbe_rank_geral', v ? '1' : '0') } catch (e) {} }
+  const [entregasGeral, setEntregasGeral] = useState([])
+  useEffect(() => {
+    if (!online || !geral) return
+    let vale = true
+    Promise.all(turmas.map(t => store.entregasDaTurma(t.id))).then(ds => { if (vale) setEntregasGeral(ds.flat()) }).catch(e => showToast('Erro: ' + e.message))
+    return () => { vale = false }
+  }, [geral, turmas, online, showToast, entregas])
   const ranking = useMemo(() => {
     const pts = {}
-    entregas.forEach(e => { if (e.missao_lancamentos?.mostrar_ranking && e.nivel) pts[e.aluno_id] = (pts[e.aluno_id] || 0) + (PONTOS[e.nivel] || 0) })
-    return (turma?.alunos || []).map(a => ({ a, pts: pts[a.id] || 0 })).filter(x => x.pts > 0).sort((x, y) => y.pts - x.pts)
-  }, [entregas, turma])
+    ;(geral ? entregasGeral : entregas).forEach(e => { if (e.missao_lancamentos?.mostrar_ranking && e.nivel) pts[e.aluno_id] = (pts[e.aluno_id] || 0) + (PONTOS[e.nivel] || 0) })
+    const doRanking = geral ? turmas.flatMap(t => (t.alunos || []).map(a => ({ ...a, sigla: (t.nome || '').split(' (')[0].split(' — ').pop() }))) : (turma?.alunos || [])
+    return doRanking.map(a => ({ a, pts: pts[a.id] || 0 })).filter(x => x.pts > 0).sort((x, y) => y.pts - x.pts)
+  }, [entregas, entregasGeral, geral, turma, turmas])
 
   if (!turma) return null
   const lanc = lancs.find(l => l.id === aberto)
@@ -231,10 +250,15 @@ function Lancadas({ userId, tid, turma, online, showToast, irCardapio }) {
       </div>
 
       <div className="panel">
-        <h2 style={{ marginTop: 0 }}>Ranking do semestre</h2>
+        <h2 style={{ marginTop: 0 }}>Ranking do semestre · {geral ? 'todas as turmas' : turma.nome.split(' (')[0]}</h2>
+        <div className="btnrow">
+          <button className={'btn mini' + (geral ? ' ghost' : '')} onClick={() => setGeral(false)}>Esta turma</button>
+          <button className={'btn mini' + (geral ? '' : ' ghost')} onClick={() => setGeral(true)}>Todas as turmas</button>
+        </div>
+        {geral && <p className="note">O geral é só para você. O aluno continua vendo só a turma dele.</p>}
         {ranking.length === 0 ? <p className="empty">Ninguém pontuou ainda. Ouro vale 3, prata 2, bronze 1.</p> : <>
-          <div className="podio-row">{ranking.slice(0, 3).map((x, i) => <div key={x.a.id} className={'podio-it p' + i}><span className="pd-pos">{i + 1}º</span><span className="pd-nome">{x.a.nome.split(' ')[0]}</span><span className="pd-pts">{x.pts} pts</span></div>)}</div>
-          <ul className="people" style={{ marginTop: 10 }}>{ranking.map((x, i) => <li key={x.a.id}><span className="left"><span className="who"><span>{i + 1}º · {x.a.nome}</span></span></span><span className="tag P">{x.pts} pts</span></li>)}</ul>
+          <div className="podio-row">{ranking.slice(0, 3).map((x, i) => <div key={x.a.id} className={'podio-it p' + i}><span className="pd-pos">{i + 1}º</span><Avatar a={x.a} tam="mini" /><span className="pd-nome">{x.a.nome.split(' ')[0]}</span><span className="pd-pts">{x.pts} pts</span></div>)}</div>
+          <ul className="people" style={{ marginTop: 10 }}>{ranking.map((x, i) => <li key={x.a.id}><span className="left"><Avatar a={x.a} tam="mini" /><span className="who"><span>{i + 1}º · {x.a.nome}</span>{x.a.sigla && <span className="m">{x.a.sigla}</span>}</span></span><span className="tag P">{x.pts} pts</span></li>)}</ul>
           <p className="note">Projete só o pódio. A lista completa é para você.</p>
         </>}
       </div>
@@ -268,8 +292,8 @@ function Entregas({ userId, lanc, turma, entregas, showToast, onVoltar, recarreg
           const nFeitas = Object.keys(e?.etapas_feitas || {}).length
           return <li key={a.id} className="entrega-li">
             <div className="ent-cab">
-              <span className="who"><span>{a.nome}</span>
-                <span className="m">{e?.enviada_em ? `enviada ${fmtDH(e.enviada_em)}` : e ? 'em andamento' : 'não abriu'}{etapas.length ? ` · ${nFeitas}/${etapas.length} etapas` : ''}{e?.medalha_auto ? ` · ${e.medalha_auto.vale === 'melhor' ? 'melhor' : '1º'} pin a ${Number(e.medalha_auto.erro).toLocaleString('pt-BR')} m do marco (${e.medalha_auto.n_pins} pin${e.medalha_auto.n_pins > 1 ? 's' : ''})` : ''}{e?.fora_do_prazo ? ' · ' : ''}{e?.fora_do_prazo && <b style={{ color: 'var(--miss)' }}>fora do prazo</b>}</span></span>
+              <span className="left"><Avatar a={a} tam="mini" /><span className="who"><span>{a.nome}</span>
+                <span className="m">{e?.enviada_em ? `enviada ${fmtDH(e.enviada_em)}` : e ? 'em andamento' : 'não abriu'}{etapas.length ? ` · ${nFeitas}/${etapas.length} etapas` : ''}{e?.medalha_auto ? ` · ${e.medalha_auto.vale === 'melhor' ? 'melhor' : '1º'} pin a ${Number(e.medalha_auto.erro).toLocaleString('pt-BR')} m do marco (${e.medalha_auto.n_pins} pin${e.medalha_auto.n_pins > 1 ? 's' : ''})` : ''}{e?.fora_do_prazo ? ' · ' : ''}{e?.fora_do_prazo && <b style={{ color: 'var(--miss)' }}>fora do prazo</b>}</span></span></span>
               <span className={'tag ' + (e?.status === 'aceita' ? 'P' : e?.status === 'refazer' ? 'F' : '')}>{e?.status || '—'}</span>
             </div>
             {e?.texto && <p className="ent-texto">{e.texto}</p>}
@@ -310,6 +334,7 @@ function EntregasEquipe({ userId, lanc, turma, entregas, showToast, onVoltar, re
   const [rascunho, setRascunho] = useState({})
   const [ajuste, setAjuste] = useState(null)
   const nome = useMemo(() => Object.fromEntries(turma.alunos.map(a => [a.id, a.nome])), [turma])
+  const alunoPorId = useMemo(() => Object.fromEntries(turma.alunos.map(a => [a.id, a])), [turma])
   const porAluno = useMemo(() => { const m = {}; entregas.forEach(e => { m[e.aluno_id] = e }); return m }, [entregas])
   const carregarEquipes = useCallback(() => store.equipesDoLancamento(lanc.id).then(eqs => { setEquipes(eqs); return eqs }).catch(e => { showToast('Erro: ' + e.message); return null }), [lanc.id, showToast])
   useEffect(() => { carregarEquipes().then(eqs => { if (eqs && !eqs.length) setFormando(true) }) }, [carregarEquipes])
@@ -354,7 +379,7 @@ function EntregasEquipe({ userId, lanc, turma, entregas, showToast, onVoltar, re
               <span className={'tag ' + (e?.status === 'aceita' ? 'P' : e?.status === 'refazer' ? 'F' : '')}>{e?.status || '—'}</span>
             </div>
             <ul className="eq-membros" style={{ margin: '6px 0' }}>
-              {eq.membros.map(m => <li key={m.aluno_id}><span>{e?.enviada_em && m.aluno_id === e.enviada_por ? '📱 ' : ''}{nome[m.aluno_id] || '?'}</span><span className="fn">{[e?.enviada_em && m.aluno_id === e.enviada_por ? 'enviou' : '', misto ? porAluno[m.aluno_id]?.nivel : ''].filter(Boolean).join(' · ')}</span></li>)}
+              {eq.membros.map(m => <li key={m.aluno_id}><Avatar a={alunoPorId[m.aluno_id] || { nome: nome[m.aluno_id] }} tam="mini" /><span style={{ flex: 1, minWidth: 0 }}>{e?.enviada_em && m.aluno_id === e.enviada_por ? '📱 ' : ''}{nome[m.aluno_id] || '?'}</span><span className="fn">{[e?.enviada_em && m.aluno_id === e.enviada_por ? 'enviou' : '', misto ? porAluno[m.aluno_id]?.nivel : ''].filter(Boolean).join(' · ')}</span></li>)}
             </ul>
             {e?.texto && <p className="ent-texto">{e.texto}</p>}
             <div className="row ent-acoes">
@@ -435,12 +460,12 @@ function FormarEquipes({ userId, lanc, turma, equipes, showToast, onFechar }) {
               <button className="btn ghost mini" title="Remover a equipe (os membros ficam sem equipe)" onClick={() => removerEquipe(i)}>✕</button>
             </div>
             {ms.length === 0 ? <p className="note" style={{ margin: 0 }}>vazia</p> :
-              <ul className="eq-membros">{ms.map(a => <li key={a.id}><span>{a.nome}</span><span className="fn">{presentes?.has(a.id) ? 'presente' : ''}</span></li>)}</ul>}
+              <ul className="eq-membros">{ms.map(a => <li key={a.id}><Avatar a={a} tam="mini" /><span style={{ flex: 1, minWidth: 0 }}>{a.nome}</span><span className="fn">{presentes?.has(a.id) ? 'presente' : ''}</span></li>)}</ul>}
           </div> })}
       </div>
       <h3 style={{ margin: '12px 0 4px' }}>Alunos{sem.length ? ` · ${sem.length} sem equipe` : ''}</h3>
       <div className="scrollx"><table className="aloc"><tbody>
-        {alunos.map(a => <tr key={a.id} className={presentes?.has(a.id) ? 'pres' : ''}><td>{a.nome}</td><td style={{ width: 170 }}>
+        {alunos.map(a => <tr key={a.id} className={presentes?.has(a.id) ? 'pres' : ''}><td><Avatar a={a} tam="mini" />{a.nome}</td><td style={{ width: 170 }}>
           <select value={grupo[a.id] ?? ''} onChange={e => { const v = e.target.value; setGrupo(g => { const n = { ...g }; if (v === '') delete n[a.id]; else n[a.id] = Number(v); return n }) }}>
             <option value="">— sem equipe —</option>
             {nomes.map((nm, i) => <option key={i} value={i}>{nm || `Equipe ${i + 1}`}</option>)}

@@ -29,6 +29,40 @@ export function useHistoricoPresenca(ident, online) {
   return { dados, carregando, recarregar }
 }
 
+const K_AVISOS_ALUNO = 'agc2_avisos_aluno'
+
+/* Últimos avisos da professora (os mesmos do push), para a tela inicial:
+   quem não ativou a notificação também lê. Pedido dela em 18/09/2026. */
+export function useAvisosAluno(ident, online) {
+  const chave = ident?.alunoId || ident?.matricula || ''
+  const [dados, setDados] = useState(() => { const c = ler(K_AVISOS_ALUNO, null); return c && c.chave === chave ? c.dados : null })
+  const recarregar = useCallback(async () => {
+    if (!ident || !navigator.onLine) return
+    try {
+      const { data, error } = await supabase.rpc('meus_avisos', idArgs(ident))
+      if (!error && data?.ok) { setDados(data); gravar(K_AVISOS_ALUNO, { chave, dados: data }) }
+    } catch (e) {}
+  }, [chave])
+  useEffect(() => { recarregar() }, [recarregar, online])
+  useEffect(() => {
+    const f = () => { if (!document.hidden) recarregar() }
+    document.addEventListener('visibilitychange', f)
+    const t = setInterval(f, 60000)
+    return () => { document.removeEventListener('visibilitychange', f); clearInterval(t) }
+  }, [recarregar])
+  return { dados, recarregar }
+}
+
+export function fmtQuando(iso) {
+  if (!iso) return ''
+  const d = new Date(iso), hoje = new Date()
+  const hora = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+  if (d.toDateString() === hoje.toDateString()) return 'hoje, ' + hora
+  const ontem = new Date(hoje); ontem.setDate(hoje.getDate() - 1)
+  if (d.toDateString() === ontem.toDateString()) return 'ontem, ' + hora
+  return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) + ', ' + hora
+}
+
 export function useMissoes(ident, online) {
   const chave = ident?.alunoId || ident?.matricula || ''
   const [dados, setDados] = useState(() => { const c = ler(K_MISSOES, null); return c && c.chave === chave ? c.dados : null })
@@ -78,6 +112,15 @@ export function useInsignias(ident, online) {
   return { dados, recarregar, marcarVistas }
 }
 
+/* Avatar escolhido. O limite de uma troca por semana é decidido no servidor: se ele
+   recusar, o erro traz o avatar que continua valendo e a data da próxima troca. */
+export async function salvarAvatar(ident, chave) {
+  const { data, error } = await supabase.rpc('salvar_avatar', { ...idArgs(ident), p_avatar: chave })
+  if (error) throw error
+  if (!data?.ok) { const e = new Error(data?.erro || 'Não consegui salvar o avatar.'); e.avatar = data?.avatar; e.avatar_em = data?.avatar_em; e.limite = !!data?.limite; throw e }
+  return data
+}
+
 export async function marcarEtapa(ident, lancamentoId, etapa, feita) {
   const { data, error } = await supabase.rpc('marcar_etapa_missao', { ...idArgs(ident), p_lancamento_id: lancamentoId, p_etapa: etapa, p_feita: feita })
   if (error) throw error
@@ -85,6 +128,13 @@ export async function marcarEtapa(ident, lancamentoId, etapa, feita) {
   return data
 }
 
+// respostas salvas sem enviar (a professora só vê o que foi enviado)
+export async function salvarRascunho(ident, lancamentoId, texto) {
+  const { data, error } = await supabase.rpc('salvar_rascunho_missao', { ...idArgs(ident), p_lancamento_id: lancamentoId, p_texto: texto })
+  if (error) throw error
+  if (!data?.ok) throw new Error(data?.erro || 'Não consegui salvar.')
+  return data
+}
 export async function enviarMissao(ident, lancamentoId, texto) {
   const { data, error } = await supabase.rpc('enviar_missao', { ...idArgs(ident), p_lancamento_id: lancamentoId, p_texto: texto })
   if (error) throw error
