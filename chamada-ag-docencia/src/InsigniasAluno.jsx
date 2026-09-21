@@ -1,21 +1,23 @@
 import React, { useEffect, useState } from 'react'
 import { tocarConquista, somEscolhido, definirSom, SONS } from './lib/som'
-import { INSIGNIAS, CATEGORIAS, TOTAL, POR_CHAVE, arte } from './lib/insignias'
+import { CATEGORIAS, POR_CHAVE, arte, visiveisParaAluno, totalParaAluno } from './lib/insignias'
 
 /* Coleção do aluno: o que ele já sabe fazer.
    Bloqueadas aparecem em cinza com a regra à vista — a coleção mostra o caminho.
+   Exceção: as de surpresa só aparecem depois de ganhas, e nunca com a regra (ver insignias.js).
    Não somam pontos no ranking: insígnia é reconhecimento, não placar. */
 
 const fmt = iso => iso ? new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) : ''
 
 export function Vitrine({ minhas, onAbrir }) {
   const ultimas = minhas.slice(-5).reverse()
+  const total = totalParaAluno(new Set(minhas.map(i => i.chave)))
   return (
     <button className="vitrine" onClick={onAbrir}>
-      <span className="vt-top"><b>Minhas insígnias</b><span className="vt-n">{minhas.length} de {TOTAL} ›</span></span>
+      <span className="vt-top"><b>Minhas insígnias</b><span className="vt-n">{minhas.length} de {total} ›</span></span>
       <span className="vt-fila">
         {ultimas.map(i => <img key={i.chave} src={arte(i.chave)} alt={POR_CHAVE[i.chave]?.nome || ''} />)}
-        {ultimas.length === 0 && <span className="note" style={{ margin: 0 }}>Nenhuma ainda. Toque para ver as {TOTAL} e o que falta para cada uma.</span>}
+        {ultimas.length === 0 && <span className="note" style={{ margin: 0 }}>Nenhuma ainda. Toque para ver as {total} e o que falta para cada uma.</span>}
       </span>
     </button>
   )
@@ -41,13 +43,15 @@ export function CartaoInsignia({ chave, dado, onFechar }) {
 export default function InsigniasAluno({ insignias }) {
   const lista = insignias.dados?.insignias || []
   const porChave = Object.fromEntries(lista.map(i => [i.chave, i]))
+  const ganhas = new Set(lista.map(i => i.chave))
+  const visiveis = visiveisParaAluno(ganhas)
   const [aberta, setAberta] = useState(null)
   const [som, setSom] = useState(somEscolhido)
 
   return (
     <>
       <div className="panel">
-        <h2 style={{ marginTop: 0 }}>{lista.length} de {TOTAL}</h2>
+        <h2 style={{ marginTop: 0 }}>{lista.length} de {visiveis.length}</h2>
         <p className="hint">Insígnia é reconhecimento do que você já sabe fazer. Não vale ponto no ranking das missões.</p>
         <label className="fld">🔔 Som ao ganhar uma insígnia</label>
         <div className="btnrow" style={{ marginTop: 0 }}>
@@ -56,7 +60,8 @@ export default function InsigniasAluno({ insignias }) {
         </div>
       </div>
       {CATEGORIAS.map(([cat, nome, cor]) => {
-        const doGrupo = INSIGNIAS.filter(i => i.cat === cat)
+        const doGrupo = visiveis.filter(i => i.cat === cat)
+        if (doGrupo.length === 0) return null
         return (
           <div className="panel" key={cat}>
             <h2 style={{ marginTop: 0, color: cor }}>{nome}</h2>

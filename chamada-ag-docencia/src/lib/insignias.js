@@ -35,10 +35,17 @@ export const INSIGNIAS = [
   { k: 'parceiro', cat: 'especiais', nome: 'Parceiro de campo', regra: 'Segurou a equipe numa prática difícil. A professora concede.', daProfessora: true },
 ]
 
+/* Insígnia de surpresa (surpresa: true): some da coleção do aluno enquanto ele não ganha,
+   e a regra nunca fica à vista. Ela vale justamente por ter sido feita sem ninguém pedir —
+   e uma regra escrita na tela já seria o pedido. A professora continua vendo todas. */
+
 export const POR_CHAVE = Object.fromEntries(INSIGNIAS.map(i => [i.k, i]))
 export const NOME_CAT = Object.fromEntries(CATEGORIAS.map(([k, n]) => [k, n]))
 export const COR_CAT = Object.fromEntries(CATEGORIAS.map(([k, , c]) => [k, c]))
 export const TOTAL = INSIGNIAS.length
+// o que o aluno pode ver: as de surpresa só entram depois de ganhas (inclusive na conta "X de N")
+export const visiveisParaAluno = ganhas => INSIGNIAS.filter(i => !i.surpresa || ganhas.has(i.k))
+export const totalParaAluno = ganhas => visiveisParaAluno(ganhas).length
 // arte: joias hexagonais (15/09/2026). Equipe em campo e Envio oficial ainda usam o rascunho.
 export const arte = (k, { tam = 128, bloqueada = false } = {}) =>
   `/insignias/${k}${bloqueada ? '-bloqueada-128' : '-' + (tam > 128 ? 256 : 128)}.png`
