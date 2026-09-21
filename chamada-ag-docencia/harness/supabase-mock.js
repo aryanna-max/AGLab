@@ -21,6 +21,7 @@ const RPC = {
     { chave: 'primeiro_pin', dado: 'Pin "M0452" em 12/09', origem: 'automatica', em: iso(agora - 3 * 86400000), nova: false },
     { chave: 'parado', dado: 'Espalhamento de 0,42 m numa ocupação', origem: 'automatica', em: iso(agora - 3 * 86400000), nova: false },
     { chave: 'na_mosca', dado: 'Pin a 2,4 m do M0452', origem: 'automatica', em: iso(agora - 60000), nova: true },
+    { chave: 'primeira_foto', dado: 'Pin "M0452" com foto em 19/09', origem: 'automatica', em: iso(agora - 2 * 86400000), nova: false },
     { chave: 'olho', dado: 'Percebeu que o M0451 saiu do lugar', origem: 'professora', em: iso(agora - 86400000), nova: false }] },
 }
 export const supabase = {
