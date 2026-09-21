@@ -18,7 +18,7 @@ export const INSIGNIAS = [
   { k: 'presente', cat: 'passos', nome: 'Presente', regra: 'Marque a primeira presença pelo app, dentro da janela da aula.' },
   { k: 'rosto', cat: 'passos', nome: 'Rosto no radar', regra: 'Envie a sua selfie no app.' },
   { k: 'primeiro_pin', cat: 'passos', nome: 'Primeiro pin', regra: 'Faça a primeira ocupação de 20 segundos.' },
-  { k: 'primeira_foto', cat: 'passos', nome: 'Primeira foto', regra: 'O primeiro pin seu com foto do ponto.', surpresa: true },
+  { k: 'primeira_foto', cat: 'passos', nome: 'Primeira foto', regra: 'O primeiro pin seu com foto do ponto.', semAviso: true },
   { k: 'parado', cat: 'metodo', nome: 'Parado de verdade', regra: 'Uma ocupação com 10 leituras ou mais e espalhamento abaixo de 1 m.' },
   { k: 'tres_amb', cat: 'metodo', nome: 'Três ambientes', regra: 'Meça dentro da sala, no corredor e no pátio no mesmo dia.' },
   { k: 'no_marco', cat: 'plani', nome: 'No marco', regra: 'Um pin a menos de 5 m de um marco oficial.' },
@@ -34,22 +34,26 @@ export const INSIGNIAS = [
   { k: 'envio_oficial', cat: 'missoes', nome: 'Envio oficial', regra: 'Faça o envio oficial de uma missão em equipe que foi aceita. Uma vez por aluno.' },
   { k: 'olho', cat: 'especiais', nome: 'Olho de topógrafo', regra: 'Percebeu algo que ninguém tinha visto. A professora concede.', daProfessora: true },
   { k: 'parceiro', cat: 'especiais', nome: 'Parceiro de campo', regra: 'Segurou a equipe numa prática difícil. A professora concede.', daProfessora: true },
-  { k: 'bandeira', cat: 'especiais', nome: 'Bandeira fincada', regra: 'O primeiro pin com foto do ponto da turma inteira. Uma vez por turma.', surpresa: true },
+  { k: 'pioneiro_primeira_foto', cat: 'especiais', nome: 'Pioneiro da primeira foto', regra: 'Primeiro da turma a fotografar um ponto. Uma vez por turma.', semAviso: true },
 ]
 
-/* Insígnia de surpresa (surpresa: true): some da coleção do aluno enquanto ele não ganha,
-   e a regra nunca fica à vista. Ela vale justamente por ter sido feita sem ninguém pedir —
-   e uma regra escrita na tela já seria o pedido. A professora continua vendo todas. */
+/* Insígnia sem alarde (semAviso: true): aparece na coleção como qualquer outra, com a regra
+   à vista, mas ao ser ganha não abre o cartão "Nova insígnia" nem toca o som. O aluno a
+   descobre na coleção. Ela premia ter feito sem ninguém mandar — comemorar na hora
+   transformaria a próxima vez numa tarefa esperando o parabéns. */
 
 export const POR_CHAVE = Object.fromEntries(INSIGNIAS.map(i => [i.k, i]))
 export const NOME_CAT = Object.fromEntries(CATEGORIAS.map(([k, n]) => [k, n]))
 export const COR_CAT = Object.fromEntries(CATEGORIAS.map(([k, , c]) => [k, c]))
 export const TOTAL = INSIGNIAS.length
-// o que o aluno pode ver: as de surpresa só entram depois de ganhas (inclusive na conta "X de N")
-export const visiveisParaAluno = ganhas => INSIGNIAS.filter(i => !i.surpresa || ganhas.has(i.k))
-export const totalParaAluno = ganhas => visiveisParaAluno(ganhas).length
+// o servidor concede chaves que o catálogo ainda não conhece (as pioneiro_* das outras bases).
+// A conta do aluno só pode contar o que ele consegue ver na grade, senão o número não fecha.
+export const conhecidas = lista => lista.filter(i => POR_CHAVE[i.chave])
+export const semAlarde = chave => !!POR_CHAVE[chave]?.semAviso
 // arte: joias hexagonais (15/09/2026). Equipe em campo e Envio oficial ainda usam o rascunho.
-// Primeira foto e Bandeira fincada entraram em 21/09/2026; a bloqueada delas saiu de
-// scripts/bloquear-insignia.py, com a mesma receita das antigas.
+// Primeira foto e Pioneiro da primeira foto entraram em 21/09/2026; a bloqueada delas saiu
+// de scripts/bloquear-insignia.py, com a mesma receita das antigas.
+// O servidor já concede pioneiro_<base> para 18 outras bases (_bases_pioneiro), sem arte nem
+// entrada aqui: elas não aparecem na grade. Falta a arte de cada uma.
 export const arte = (k, { tam = 128, bloqueada = false } = {}) =>
   `/insignias/${k}${bloqueada ? '-bloqueada-128' : '-' + (tam > 128 ? 256 : 128)}.png`

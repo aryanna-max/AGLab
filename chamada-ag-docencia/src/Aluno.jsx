@@ -9,6 +9,7 @@ import PresencaAluno from './PresencaAluno.jsx'
 import MissoesAluno from './MissoesAluno.jsx'
 import { useHistoricoPresenca, useMissoes, useInsignias, fmtPrazo, missaoVista, resumoFaltas } from './lib/alunoApi'
 import InsigniasAluno, { Vitrine, CartaoInsignia } from './InsigniasAluno.jsx'
+import { POR_CHAVE, semAlarde } from './lib/insignias'
 import { prepararSom, tocarAviso } from './lib/som'
 import { EH_COMPUTADOR } from './lib/aparelho'
 import { resumirOcupacao } from './lib/topo'
@@ -518,7 +519,12 @@ export default function Aluno() {
   const novaM = abertasM.find(m => !missaoVista(m.lancamento_id))
   const urgM = abertasM.find(m => fmtPrazo(m.prazo_em).urgente && (m.minha?.status !== 'enviada' && m.minha?.status !== 'aceita'))
   const minhasIns = insignias.dados?.insignias || []
-  const novaIns = minhasIns.find(i => i.nova)
+  // o cartão só abre para insígnia que o catálogo conhece e que não é sem alarde.
+  // As outras (as sem alarde e as pioneiro_* ainda sem arte) ficariam "novas" para sempre,
+  // porque nada as marcaria como vistas — então marcamos calado.
+  const novaIns = minhasIns.find(i => i.nova && POR_CHAVE[i.chave] && !semAlarde(i.chave))
+  const caladas = minhasIns.some(i => i.nova && (!POR_CHAVE[i.chave] || semAlarde(i.chave)))
+  useEffect(() => { if (caladas && !novaIns) insignias.marcarVistas() }, [caladas, !!novaIns])
   const alerta = novaM ? { titulo: `Nova missão: ${novaM.titulo}`, sub: fmtPrazo(novaM.prazo_em).texto, urgente: false }
     : urgM ? { titulo: `Prazo acabando: ${urgM.titulo}`, sub: fmtPrazo(urgM.prazo_em).texto, urgente: true } : null
 
