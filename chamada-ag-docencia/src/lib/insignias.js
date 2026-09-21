@@ -18,6 +18,7 @@ export const INSIGNIAS = [
   { k: 'presente', cat: 'passos', nome: 'Presente', regra: 'Marque a primeira presença pelo app, dentro da janela da aula.' },
   { k: 'rosto', cat: 'passos', nome: 'Rosto no radar', regra: 'Envie a sua selfie no app.' },
   { k: 'primeiro_pin', cat: 'passos', nome: 'Primeiro pin', regra: 'Faça a primeira ocupação de 20 segundos.' },
+  { k: 'primeira_foto', cat: 'passos', nome: 'Primeira foto', regra: 'O primeiro pin seu com foto do ponto.', surpresa: true },
   { k: 'parado', cat: 'metodo', nome: 'Parado de verdade', regra: 'Uma ocupação com 10 leituras ou mais e espalhamento abaixo de 1 m.' },
   { k: 'tres_amb', cat: 'metodo', nome: 'Três ambientes', regra: 'Meça dentro da sala, no corredor e no pátio no mesmo dia.' },
   { k: 'no_marco', cat: 'plani', nome: 'No marco', regra: 'Um pin a menos de 5 m de um marco oficial.' },
@@ -33,6 +34,7 @@ export const INSIGNIAS = [
   { k: 'envio_oficial', cat: 'missoes', nome: 'Envio oficial', regra: 'Faça o envio oficial de uma missão em equipe que foi aceita. Uma vez por aluno.' },
   { k: 'olho', cat: 'especiais', nome: 'Olho de topógrafo', regra: 'Percebeu algo que ninguém tinha visto. A professora concede.', daProfessora: true },
   { k: 'parceiro', cat: 'especiais', nome: 'Parceiro de campo', regra: 'Segurou a equipe numa prática difícil. A professora concede.', daProfessora: true },
+  { k: 'bandeira', cat: 'especiais', nome: 'Bandeira fincada', regra: 'O primeiro pin com foto do ponto da turma inteira. Uma vez por turma.', surpresa: true },
 ]
 
 /* Insígnia de surpresa (surpresa: true): some da coleção do aluno enquanto ele não ganha,
@@ -47,5 +49,7 @@ export const TOTAL = INSIGNIAS.length
 export const visiveisParaAluno = ganhas => INSIGNIAS.filter(i => !i.surpresa || ganhas.has(i.k))
 export const totalParaAluno = ganhas => visiveisParaAluno(ganhas).length
 // arte: joias hexagonais (15/09/2026). Equipe em campo e Envio oficial ainda usam o rascunho.
+// Primeira foto e Bandeira fincada entraram em 21/09/2026; a bloqueada delas saiu de
+// scripts/bloquear-insignia.py, com a mesma receita das antigas.
 export const arte = (k, { tam = 128, bloqueada = false } = {}) =>
   `/insignias/${k}${bloqueada ? '-bloqueada-128' : '-' + (tam > 128 ? 256 : 128)}.png`
