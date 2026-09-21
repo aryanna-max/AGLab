@@ -1,6 +1,6 @@
 /* Reduz uma imagem (arquivo da câmera ou da galeria) a um JPEG pequeno em data URL.
    - selfie do aluno: 160 px, quadrada (recorte central) → ~10 KB
-   - foto do ponto no pin: 640 px no lado maior → ~70–110 KB
+   - foto do ponto no pin: 800 px no lado maior → ~120–160 KB (é prova para o relatório do aluno)
    Usa createImageBitmap com orientação EXIF quando o navegador tem; senão <img>. */
 
 export async function arquivoParaJpeg(file, { lado = 640, quadrado = false, qualidade = 0.72 } = {}) {

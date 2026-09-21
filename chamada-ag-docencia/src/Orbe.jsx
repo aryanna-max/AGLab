@@ -304,7 +304,7 @@ function Pins({ pos, ident, codigo, onAviso, api }) {
             const f = ev.target.files && ev.target.files[0]; ev.target.value = ''
             if (!f) return
             setFotoBusy(true)
-            try { setFoto(await arquivoParaJpeg(f, { lado: 640, qualidade: 0.72 })) } catch (e) { setErro('Não consegui ler a foto.') } finally { setFotoBusy(false) }
+            try { setFoto(await arquivoParaJpeg(f, { lado: 800, qualidade: 0.72 })) } catch (e) { setErro('Não consegui ler a foto.') } finally { setFotoBusy(false) }
           }} />
         </div>
         <p className="note">A foto do ponto vai junto com o pin e entra no relatório da professora. Se o nome for o de um marco conhecido (M0451, M0452, M0455…), o app compara com a coordenada oficial.</p>
