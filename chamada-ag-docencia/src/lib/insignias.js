@@ -18,6 +18,7 @@ export const INSIGNIAS = [
   { k: 'presente', cat: 'passos', nome: 'Presente', regra: 'Marque a primeira presença pelo app, dentro da janela da aula.' },
   { k: 'rosto', cat: 'passos', nome: 'Rosto no radar', regra: 'Envie a sua selfie no app.' },
   { k: 'primeiro_pin', cat: 'passos', nome: 'Primeiro pin', regra: 'Faça a primeira ocupação de 20 segundos.' },
+  { k: 'primeira_foto', cat: 'passos', nome: 'Primeira foto', regra: 'O primeiro pin seu com foto do ponto.', semAviso: true },
   { k: 'parado', cat: 'metodo', nome: 'Parado de verdade', regra: 'Uma ocupação com 10 leituras ou mais e espalhamento abaixo de 1 m.' },
   { k: 'tres_amb', cat: 'metodo', nome: 'Três ambientes', regra: 'Meça dentro da sala, no corredor e no pátio no mesmo dia.' },
   { k: 'no_marco', cat: 'plani', nome: 'No marco', regra: 'Um pin a menos de 5 m de um marco oficial.' },
@@ -40,16 +41,22 @@ export const INSIGNIAS = [
    Automática (servidor, _conferir_pioneiros a cada 5 min); ela pode passar ao próximo.
    Não entram na contagem "x de N". Na coleção aparecem todas; as que ele não tem, em monocromático. */
 const FUNCOES_SEM_BASE = { avatar: 'Avatar', avisos: 'Avisos', missao: 'Missão enviada' }
-export const BASES_PIONEIRO = ['no_ar', 'presente', 'rosto', 'avatar', 'avisos', 'primeiro_pin', 'parado', 'tres_amb', 'no_marco',
+export const BASES_PIONEIRO = ['no_ar', 'presente', 'rosto', 'avatar', 'avisos', 'primeiro_pin', 'primeira_foto', 'parado', 'tres_amb', 'no_marco',
   'na_mosca', 'poligonal', 'cadastrador', 'caderneta', 'missao', 'equipe', 'envio_oficial', 'primeiro_ouro', 'tres_frentes']
 const nomeFuncao = b => FUNCOES_SEM_BASE[b] || INSIGNIAS.find(i => i.k === b)?.nome || b
 export const PIONEIRAS = BASES_PIONEIRO.map(b => ({
   k: 'pioneiro_' + b, base: b, cat: 'especiais', pioneiro: true, nome: 'Pioneiro · ' + nomeFuncao(b),
   regra: 'Primeiro da turma a estrear: ' + nomeFuncao(b) + '.',
+  semAviso: !!INSIGNIAS.find(i => i.k === b)?.semAviso,   // base calada, Pioneiro dela também
 }))
 export const ehPioneira = k => (k || '').startsWith('pioneiro_')
 
 export const POR_CHAVE = Object.fromEntries([...INSIGNIAS, ...PIONEIRAS].map(i => [i.k, i]))
+/* Insígnia sem alarde (semAviso): aparece na coleção como qualquer outra, com a regra à vista,
+   mas ao ser ganha não abre o cartão "Nova insígnia" nem toca o som — o aluno a descobre na
+   coleção. É para o que se faz sem ninguém mandar: comemorar na hora transformaria a próxima
+   vez numa tarefa esperando o parabéns. */
+export const semAlarde = k => !!POR_CHAVE[k]?.semAviso
 export const NOME_CAT = Object.fromEntries(CATEGORIAS.map(([k, n]) => [k, n]))
 export const COR_CAT = Object.fromEntries(CATEGORIAS.map(([k, , c]) => [k, c]))
 export const TOTAL = INSIGNIAS.length

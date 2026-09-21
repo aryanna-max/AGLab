@@ -9,6 +9,7 @@ import PresencaAluno from './PresencaAluno.jsx'
 import MissoesAluno from './MissoesAluno.jsx'
 import { useHistoricoPresenca, useMissoes, useInsignias, useAvisosAluno, fmtQuando, fmtPrazo, missaoVista, resumoFaltas } from './lib/alunoApi'
 import InsigniasAluno, { Vitrine, CartaoInsignia } from './InsigniasAluno.jsx'
+import { POR_CHAVE, semAlarde } from './lib/insignias'
 import { prepararSom, tocarAviso } from './lib/som'
 import { EH_COMPUTADOR } from './lib/aparelho'
 import { resumirOcupacao } from './lib/topo'
@@ -509,6 +510,14 @@ export default function Aluno() {
     </div>
   )
 
+  /* Cartão de "Nova insígnia": não abre para insígnia sem alarde, nem para chave que o catálogo
+     não conhece. Essas ficariam "novas" para sempre, porque nada as marcaria como vistas —
+     então marcamos calado. Fica acima dos returns por tela: é hook, e a ordem tem que ser fixa. */
+  const minhasIns = insignias.dados?.insignias || []
+  const novaIns = minhasIns.find(i => i.nova && POR_CHAVE[i.chave] && !semAlarde(i.chave))
+  const caladas = minhasIns.some(i => i.nova && (!POR_CHAVE[i.chave] || semAlarde(i.chave)))
+  useEffect(() => { if (caladas && !novaIns) insignias.marcarVistas() }, [caladas, !!novaIns])
+
   if (tela === 'presenca') return (
     <div className="wrap"><Cabecalho titulo="Presença" />
       <PresencaAluno historico={historico} presencaHoje={presenca} online={online} onMarcar={irChamada} onLerQR={() => { setErro(''); setTela('ler-aula') }}
@@ -614,8 +623,6 @@ export default function Aluno() {
   const nAbertas = abertasM.length
   const proxima = abertasM.slice().sort((a, b) => new Date(a.prazo_em) - new Date(b.prazo_em))[0]
   const subMissoes = proxima ? `${nAbertas} aberta(s) · ${fmtPrazo(proxima.prazo_em).texto}` : 'O que a professora lançou para a turma.'
-  const minhasIns = insignias.dados?.insignias || []
-  const novaIns = minhasIns.find(i => i.nova)
 
   /* Destaque da missão aberta (opção A, escolhida por ela em 18/09/2026): cartão dourado no topo com a
      missão de prazo mais próximo que ele ainda não enviou; vermelho com menos de 1 h; some quando envia. */
