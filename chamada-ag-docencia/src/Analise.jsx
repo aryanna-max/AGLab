@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import * as store from './lib/store'
 import { PERC, paraUTM25S, deUTM25S, metros } from './lib/geo'
 import { MARCOS, marcoPorNome, marcoComparavel, calcularPoligonal, ordenarPorAngulo, grausDMS, rumo } from './lib/topo'
+import Avatar from './Avatar.jsx'
 
 /* Análise — a mesa de trabalho da professora, pensada para o computador.
    Tudo o que os alunos da turma mandaram: leituras (chamada e ambientes),
@@ -376,7 +377,7 @@ export default function Analise({ tid, turmas, online, showToast }) {
             const ps = pins.filter(p => p.aluno_id === id); const esp = ps.map(p => Math.hypot(p.desvio_n_m || 0, p.desvio_e_m || 0))
             const porAmb = k => { const m = mediana(ls.filter(l => (l.rotulo || 'outro') === k).map(l => l.acuracia_m)); return m != null ? '± ' + metros(m, 1) : '—' }
             const plat = [...new Set(ls.map(l => l.extra?.plataforma).filter(Boolean))].join('/') || '—'
-            return <tr key={id}><td className="nm"><i className="dot" style={{ background: hsl(alunosIdx[id] ?? 0, t.alunos.length) }} />{a?.nome}</td>
+            return <tr key={id}><td className="nm"><i className="dot" style={{ background: hsl(alunosIdx[id] ?? 0, t.alunos.length) }} /><Avatar a={a || {}} tam="mini" />{a?.nome}</td>
               <td>{ls.length}</td><td>{ls.filter(ehChamada).length}</td><td>{accs.length ? '± ' + metros(mediana(accs), 1) + ' m' : '—'}</td>
               <td className="P">{accs.length ? '± ' + metros(Math.min(...accs), 1) : '—'}</td><td className="F">{accs.length ? '± ' + metros(Math.max(...accs), 0) : '—'}</td>
               <td>{porAmb('sala')}</td><td>{porAmb('corredor')}</td><td>{porAmb('patio')}</td>

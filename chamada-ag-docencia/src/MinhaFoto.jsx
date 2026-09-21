@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { supabase } from './supabaseClient'
 import { arquivoParaJpeg } from './lib/foto'
+import { gravarSelfie, useSelfieGuardada } from './lib/selfie'
+import Avatar from './Avatar.jsx'
 
 /* Selfie do próprio aluno. Fica pequena (160 px) e vai por salvar_selfie para a linha
    dele em `alunos` — a professora vê na lista e no radar sem fazer nada.
@@ -9,21 +11,17 @@ import { arquivoParaJpeg } from './lib/foto'
    enviada, não troca mais. Só a professora libera uma nova (Turmas & Fotos). O servidor
    também recusa uma segunda selfie. Sem rede: fica "a enviar" e ainda pode ser trocada. */
 
-const K = 'agc2_selfie'   // {alunoId, src, enviada, em}
-const ler = () => { try { return JSON.parse(localStorage.getItem(K) || 'null') } catch (e) { return null } }
-const gravar = v => { try { v ? localStorage.setItem(K, JSON.stringify(v)) : localStorage.removeItem(K) } catch (e) {} }
-
-export default function MinhaFoto({ ident, online, pedir, jaEnviada, onEnviada }) {
-  const [sel, setSel] = useState(ler)
+export default function MinhaFoto({ ident, online, pedir, jaEnviada, onEnviada, onTrocarAvatar }) {
+  // a selfie mora em lib/selfie: esta tela grava lá, e o resto do app lê de lá como avatar
+  const minha = useSelfieGuardada(ident)
   const [rascunho, setRascunho] = useState(null)      // foto escolhida, ainda não enviada
   const [busy, setBusy] = useState(false)
   const [erro, setErro] = useState('')
   const fileRef = useRef(null)
-  const minha = sel && ident && sel.alunoId === ident.alunoId ? sel : null
   // o servidor manda (jaEnviada true/false); sem essa informação, vale o que o celular lembra
   const travada = jaEnviada === true || (jaEnviada === undefined && !!(minha && minha.enviada))
   // a professora liberou uma nova selfie: esquece a antiga guardada no celular
-  useEffect(() => { if (jaEnviada === false && minha && minha.enviada) { gravar(null); setSel(null) } }, [jaEnviada, minha && minha.enviada])
+  useEffect(() => { if (jaEnviada === false && minha && minha.enviada) gravarSelfie(null) }, [jaEnviada, minha && minha.enviada])
   const pendente = minha && !minha.enviada ? minha : null
 
   async function enviar(src) {
@@ -36,8 +34,8 @@ export default function MinhaFoto({ ident, online, pedir, jaEnviada, onEnviada }
   // ficou pendente sem rede → envia quando a rede volta
   useEffect(() => {
     if (!online || !pendente || jaEnviada === true) return
-    enviar(pendente.src).then(() => { const v = { ...pendente, enviada: true }; gravar(v); setSel(v) })
-      .catch(e => { if (e.travada) { gravar(null); setSel(null); setErro(e.message) } })
+    enviar(pendente.src).then(() => gravarSelfie({ ...pendente, enviada: true }))
+      .catch(e => { if (e.travada) { gravarSelfie(null); setErro(e.message) } })
   }, [online, pendente && pendente.em, ident && ident.alunoId, jaEnviada])
 
   async function escolheu(e) {
@@ -57,10 +55,10 @@ export default function MinhaFoto({ ident, online, pedir, jaEnviada, onEnviada }
     try {
       if (online) { await enviar(rascunho); v.enviada = true }
       else setErro('Sem rede agora. A foto fica no celular e é enviada quando a conexão voltar — até lá, ainda dá para trocar.')
-      gravar(v); setSel(v); setRascunho(null)
+      gravarSelfie(v); setRascunho(null)
     } catch (er) {
       if (er.travada) { setRascunho(null); setErro(er.message) }
-      else { gravar(v); setSel(v); setRascunho(null); setErro('Não consegui enviar agora. Tento de novo quando houver rede — até lá, ainda dá para trocar.') }
+      else { gravarSelfie(v); setRascunho(null); setErro('Não consegui enviar agora. Tento de novo quando houver rede — até lá, ainda dá para trocar.') }
     } finally { setBusy(false) }
   }
 
@@ -69,10 +67,17 @@ export default function MinhaFoto({ ident, online, pedir, jaEnviada, onEnviada }
   return (
     <div className={'panel' + (pedir && !mostrar && !travada ? ' selfie-pedir' : '')}>
       <div className="selfie-row">
-        <div className="selfie-prev">{mostrar ? <img src={mostrar} alt="" /> : <span>{(ident.nome || '?')[0]}</span>}</div>
+        <div className="selfie-col">
+          <div className="selfie-prev">{mostrar ? <img src={mostrar} alt="" /> : <span>{(ident.nome || '?')[0]}</span>}</div>
+          <button className="selfie-av" onClick={onTrocarAvatar} disabled={!onTrocarAvatar}>
+            <Avatar nome={ident.nome} avatar={ident.avatar} />
+            <span>{ident.avatar ? 'meu avatar' : 'escolher avatar'}</span>
+          </button>
+        </div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <h2 style={{ marginTop: 0 }}>Minha foto</h2>
-          <p className="hint">É como a professora vê você na lista e no radar.</p>
+          <p className="hint">A <b>foto</b> é só para a professora — é como ela vê você na lista e no radar.
+            O <b>avatar</b>, abaixo dela, é a sua cara para a turma: no app e nas missões em equipe.</p>
           {travada ? <>
             <div className="btnrow" style={{ alignItems: 'center' }}><span className="badge on">enviada</span></div>
             <p className="note">A selfie já foi enviada e não pode ser trocada. Se precisar, fale com a professora.</p>

@@ -86,10 +86,10 @@ async function resolverFotos(alunos) {
 /* ---------- carregar turmas + alunos ---------- */
 export async function loadTurmas() {
   const { data: turmas, error } = await supabase
-    .from('turmas').select('id,nome,codigo').order('nome')
+    .from('turmas').select('id,nome,codigo,dia_semana,tempos_por_aula,ch_ha,horario,teste').order('nome')
   if (error) throw error
   const { data: alunos, error: e2 } = await supabase
-    .from('alunos').select('id,turma_id,matricula,nome,foto,foto_path,foto_data').order('nome')
+    .from('alunos').select('id,turma_id,matricula,nome,foto,foto_path,foto_data,papel').order('nome')
   if (e2) throw e2
 
   await resolverFotos(alunos)
@@ -97,8 +97,10 @@ export async function loadTurmas() {
   alunos.forEach(a => { if (!a.foto && a.foto_data) a.foto = a.foto_data })
 
   const byT = {}
-  turmas.forEach(t => { byT[t.id] = { ...t, alunos: [] } })
-  alunos.forEach(a => { if (byT[a.turma_id]) byT[a.turma_id].alunos.push(a) })
+  turmas.forEach(t => { byT[t.id] = { ...t, alunos: [], auxiliares: [] } })
+  // papel 'auxiliar' (ex.: Edilene, professora formadora): fica na turma só para a caderneta do dia,
+  // fora da chamada, das contagens e das listas de alunos (decisão dela, 18/09/2026)
+  alunos.forEach(a => { if (byT[a.turma_id]) byT[a.turma_id][a.papel === 'auxiliar' ? 'auxiliares' : 'alunos'].push(a) })
   const list = Object.values(byT)
   setCachedTurmas(list)
   return list
@@ -229,6 +231,46 @@ export async function ensureChamada(userId, turmaId, dataISO) {
   return ins.data
 }
 
+/* Aulas (18/09/2026): a aula só nasce sozinha no dia da turma (turmas.dia_semana), e só hoje.
+   Em outro dia, a professora registra na aba Aulas. Antes, abrir o app em qualquer dia criava aula,
+   e a exportação contava falta nesses dias. */
+export async function chamadaDoDia(turmaId, dataISO) {
+  const { data, error } = await supabase.from('chamadas').select('id,confirmada').eq('turma_id', turmaId).eq('data', dataISO).maybeSingle()
+  if (error) throw error; return data
+}
+export function ehDiaDeAula(turma, dataISO) {
+  if (!turma || turma.dia_semana == null) return true
+  const [y, m, d] = dataISO.split('-').map(Number)
+  return new Date(y, m - 1, d).getDay() === turma.dia_semana
+}
+export async function chamadaAuto(userId, turma, dataISO) {
+  const hoje = hojeISO()
+  if (dataISO === hoje && ehDiaDeAula(turma, dataISO)) return ensureChamada(userId, turma.id, dataISO)
+  return chamadaDoDia(turma.id, dataISO)
+}
+export async function aulasDaTurma(turmaId) {
+  const { data, error } = await supabase.from('chamadas').select('id,data,conteudo,confirmada,presencas(count)').eq('turma_id', turmaId).order('data')
+  if (error) throw error
+  return (data || []).map(c => ({ id: c.id, data: c.data, conteudo: c.conteudo, confirmada: c.confirmada, presentes: c.presencas?.[0]?.count || 0 }))
+}
+export async function criarAula(userId, turmaId, dataISO, conteudo) {
+  const { data, error } = await supabase.from('chamadas').insert({ owner_id: userId, turma_id: turmaId, data: dataISO, conteudo: (conteudo || '').trim() || null }).select('id').single()
+  if (error) { if (error.code === '23505') throw new Error('Já existe aula neste dia.'); throw error }
+  return data
+}
+export async function mudarDataAula(chamadaId, novaData) {
+  const { error } = await supabase.from('chamadas').update({ data: novaData }).eq('id', chamadaId)
+  if (error) { if (error.code === '23505') throw new Error('Já existe aula neste dia.'); throw error }
+}
+export async function apagarAula(chamadaId) {
+  const { error } = await supabase.from('chamadas').delete().eq('id', chamadaId)
+  if (error) throw error
+}
+export async function atualizarTurma(turmaId, campos) {
+  const { error } = await supabase.from('turmas').update(campos).eq('id', turmaId)
+  if (error) throw error
+}
+
 export async function getPresentes(chamadaId) {
   const { data, error } = await supabase.from('presencas').select('aluno_id').eq('chamada_id', chamadaId)
   if (error) throw error
@@ -309,17 +351,21 @@ function hojeISO() {
 }
 
 // A sessão nasce amarrada à chamada de hoje: o registro do aluno vira presença.
-export async function abrirSessao(userId, turmaId, codigo, titulo, tempo, janelaInicio, janelaFim, local) {
+/* ref: a posição do celular da professora na hora de abrir (regra dela, 18/09/2026) — centro do
+   raio da presença "na sala" sem QR. Sem ref (computador, GPS negado), o servidor usa o M0452. */
+export const RAIO_PRESENCA_M = 50
+export async function abrirSessao(userId, turmaId, codigo, titulo, tempo, janelaInicio, janelaFim, local, ref) {
   const ch = await ensureChamada(userId, turmaId, hojeISO())
   // upload da fila do aluno é aceito até 7 dias depois da aula; presença só dentro da janela
   const expira = new Date(new Date(janelaFim).getTime() + 7 * 24 * 3600 * 1000).toISOString()
   // O código é único no banco e cada turma tem um dia de aula por semana: o mesmo código
   // (F61GPS) serve toda semana. Se já existe, a sessão é REABERTA para a aula de hoje.
   const linha = { owner_id: userId, turma_id: turmaId, codigo: codigo.toUpperCase(), titulo, tempo: tempo || null, aberta: true,
-                  chamada_id: ch.id, janela_inicio: janelaInicio, janela_fim: janelaFim, expira_em: expira, local: local || 'sala' }
+                  chamada_id: ch.id, janela_inicio: janelaInicio, janela_fim: janelaFim, expira_em: expira, local: local || 'sala',
+                  ref_lat: ref ? ref.lat : null, ref_lon: ref ? ref.lon : null, raio_m: RAIO_PRESENCA_M }
   const { data, error } = await supabase.from('sessoes_coleta')
     .upsert(linha, { onConflict: 'codigo' })
-    .select('id,codigo,aberta,criada_em,expira_em,tempo,chamada_id,janela_inicio,janela_fim,local').single()
+    .select('id,codigo,aberta,criada_em,expira_em,tempo,chamada_id,janela_inicio,janela_fim,local,ref_lat,ref_lon,raio_m').single()
   if (error) throw error
   return data
 }
@@ -335,9 +381,17 @@ export async function salvarConteudo(chamadaId, texto) {
   if (error) throw error
 }
 
+export async function definirReferencia(sessaoId, ref) {
+  const { data, error } = await supabase.from('sessoes_coleta')
+    .update({ ref_lat: ref.lat, ref_lon: ref.lon, raio_m: RAIO_PRESENCA_M }).eq('id', sessaoId)
+    .select('id,codigo,aberta,criada_em,expira_em,tempo,chamada_id,janela_inicio,janela_fim,local,ref_lat,ref_lon,raio_m').single()
+  if (error) throw error
+  return data
+}
+
 export async function sessoesAbertas(turmaId) {
   const { data, error } = await supabase.from('sessoes_coleta')
-    .select('id,codigo,titulo,aberta,criada_em,expira_em,tempo,chamada_id,janela_inicio,janela_fim,local')
+    .select('id,codigo,titulo,aberta,criada_em,expira_em,tempo,chamada_id,janela_inicio,janela_fim,local,ref_lat,ref_lon,raio_m')
     .eq('turma_id', turmaId).order('criada_em', { ascending: false }).limit(5)
   if (error) throw error
   return data
@@ -350,15 +404,25 @@ export async function fecharSessao(id) {
 
 /* Leituras da sessão, já com o nome do aluno — a professora enxerga tudo
    pelo RLS dela; o aluno nunca lê esta tabela. */
-export async function leiturasDaSessao(sessaoId) {
-  const { data, error } = await supabase.from('leituras_gps')
-    .select('id,rotulo,acuracia_m,alt_acuracia_m,altitude_m,dist_perc_m,criado_em,capturado_em,presenca_marcada,extra,aluno_id,alunos(nome,matricula)')
-    .eq('sessao_id', sessaoId).order('criado_em', { ascending: false })
+// desde: a sessão reaberta numa semana nova carrega as leituras da anterior — a tela do dia pede só as de hoje
+export async function leiturasDaSessao(sessaoId, desde) {
+  let q = supabase.from('leituras_gps')
+    .select('id,rotulo,lat,lon,acuracia_m,alt_acuracia_m,altitude_m,dist_perc_m,criado_em,capturado_em,presenca_marcada,extra,aluno_id,alunos(nome,matricula)')
+    .eq('sessao_id', sessaoId)
+  if (desde) q = q.gte('criado_em', desde)
+  const { data, error } = await q.order('criado_em', { ascending: false })
   if (error) throw error
   return data
 }
 
 /* ---------- radar: batimentos dos alunos da turma ---------- */
+/* referência da presença de hoje (aula aberta com posição), para o Mapa */
+export async function referenciaDeHoje(turmaId) {
+  const { data, error } = await supabase.from('sessoes_coleta').select('ref_lat,ref_lon,raio_m,janela_inicio')
+    .eq('turma_id', turmaId).eq('aberta', true).order('janela_inicio', { ascending: false }).limit(1)
+  if (error) throw error
+  const s = data && data[0]; return s && s.ref_lat != null ? { lat: s.ref_lat, lon: s.ref_lon, raio: s.raio_m || 50 } : null
+}
 export async function vivos(turmaId) {
   const { data, error } = await supabase.from('presenca_viva')
     .select('aluno_id,lat,lon,acuracia_m,modo,visto_em,alunos!inner(turma_id)')
@@ -416,6 +480,18 @@ export async function minhaUltimaLeitura() {
   return data && data[0] ? data[0] : null
 }
 
+/* A leitura de melhor acurácia informada de uma pessoa da turma (ex.: a auxiliar).
+   Serve de centro fixo do radar quando a professora prefere um ponto medido com calma
+   a uma posição ao vivo que oscila. */
+export async function melhorLeituraDe(alunoId) {
+  const { data, error } = await supabase.from('leituras_gps')
+    .select('lat,lon,acuracia_m,criado_em,capturado_em')
+    .eq('aluno_id', alunoId).not('acuracia_m', 'is', null)
+    .order('acuracia_m', { ascending: true }).limit(1)
+  if (error) throw error
+  return data && data[0] ? data[0] : null
+}
+
 /* ---------- a professora usa o Orbe (Ir até, pins, poligonais) com a conta dela ----------
    Mesma interface que a RPC do aluno (apiAluno em Orbe.jsx), mas direto nas tabelas via RLS,
    com aluno_id nulo. As chaves p_* são as da RPC, para o Orbe não saber quem está usando. */
@@ -465,14 +541,15 @@ export async function listarMissoes() {
 export async function salvarMissao(userId, m) {
   const linha = { owner_id: userId, titulo: m.titulo.trim(), frente: m.frente || 'geral', descricao: m.descricao || null,
     etapas: (m.etapas || []).map(e => String(e).trim()).filter(Boolean), entrega: m.entrega || null, niveis: m.niveis || {}, arquivada: !!m.arquivada,
-    equipe: !!m.equipe, funcoes: (m.funcoes || []).map(f => String(f).trim()).filter(Boolean) }
+    equipe: !!m.equipe, funcoes: (m.funcoes || []).map(f => String(f).trim()).filter(Boolean),
+    campos: (m.campos || []).map(c => typeof c === 'string' ? c.trim() : c).filter(c => typeof c === 'string' ? c : c?.rotulo) }
   const q = m.id ? supabase.from('missoes').update(linha).eq('id', m.id) : supabase.from('missoes').insert(linha)
   const { data, error } = await q.select('*').single()
   if (error) throw error; return data
 }
 export async function apagarMissao(id) { const { error } = await supabase.from('missoes').delete().eq('id', id); if (error) throw error }
 export async function importarCardapio(userId, lista) {
-  const linhas = lista.map(m => ({ owner_id: userId, titulo: m.titulo, frente: m.frente, descricao: m.descricao, etapas: m.etapas, entrega: m.entrega, niveis: m.niveis, equipe: !!m.equipe, funcoes: m.funcoes || [] }))
+  const linhas = lista.map(m => ({ owner_id: userId, titulo: m.titulo, frente: m.frente, descricao: m.descricao, etapas: m.etapas, entrega: m.entrega, niveis: m.niveis, equipe: !!m.equipe, funcoes: m.funcoes || [], campos: m.campos || [] }))
   const { error } = await supabase.from('missoes').insert(linhas)
   if (error) throw error
 }
@@ -559,6 +636,11 @@ export async function insigniasDaTurma(turmaId) {
     .eq('alunos.turma_id', turmaId).order('concedida_em', { ascending: false })
   if (error) throw error; return data || []
 }
+// raridade de cada insígnia entre os alunos das turmas reais dela
+export async function raridadeInsignias() {
+  const { data, error } = await supabase.rpc('raridade_insignias')
+  if (error) throw error; return data
+}
 // confere as regras automáticas da turma inteira (vale retroativo)
 export async function conferirInsignias(turmaId) {
   const { data, error } = await supabase.rpc('conferir_insignias_turma', { p_turma: turmaId })
@@ -583,7 +665,7 @@ export async function inscricoesAtivas() {
   if (error) throw error; return data || []
 }
 export async function avisosDaTurma(turmaId) {
-  const { data, error } = await supabase.from('avisos').select('*').or(`turma_id.eq.${turmaId},turma_id.is.null`)
+  const { data, error } = await supabase.from('avisos').select('*').eq('origem', 'professora').or(`turma_id.eq.${turmaId},turma_id.is.null`)
     .order('agendado_para', { ascending: false }).limit(30)
   if (error) throw error; return data || []
 }
@@ -643,5 +725,26 @@ export async function liberarAuxiliar(turmaId, alunoId) {
 
 export async function revogarAuxiliar(turmaId) {
   const { error } = await supabase.rpc('revogar_auxiliar', { p_turma_id: turmaId })
+  if (error) throw error
+}
+
+/* Pioneiros (18/09/2026): automáticos no servidor; ela só vê e pode passar ao próximo */
+export async function pioneirosDaTurma(turmaId) {
+  const { data, error } = await supabase.rpc('pioneiros_da_turma', { p_turma: turmaId })
+  if (error) throw error; if (!data?.ok) throw new Error(data?.erro || 'falhou'); return data.pioneiros || []
+}
+export async function decidirPioneiro(turmaId, base, alunoId, acao) {
+  const { data, error } = await supabase.rpc('decidir_pioneiro', { p_turma: turmaId, p_base: base, p_aluno: alunoId, p_acao: acao })
+  if (error) throw error; if (!data?.ok) throw new Error(data?.erro || 'falhou')
+}
+
+/* Meus alertas (18/09/2026): o que a professora quer receber no celular dela, por turma.
+   O servidor confere a cada minuto (_alertas_professora) e junta as novidades num aviso só. */
+export async function alertasDaTurma(turmaId) {
+  const { data, error } = await supabase.from('alertas_prof').select('tipo,ativo').eq('turma_id', turmaId)
+  if (error) throw error; return data || []
+}
+export async function salvarAlerta(userId, turmaId, tipo, ativo) {
+  const { error } = await supabase.from('alertas_prof').upsert({ owner_id: userId, turma_id: turmaId, tipo, ativo }, { onConflict: 'owner_id,turma_id,tipo' })
   if (error) throw error
 }

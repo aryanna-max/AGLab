@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
-import { fmtPrazo, marcarEtapa, enviarMissao, marcarVista, missaoVista } from './lib/alunoApi'
+import { fmtPrazo, marcarEtapa, enviarMissao, salvarRascunho, marcarVista, missaoVista } from './lib/alunoApi'
+import Avatar from './Avatar.jsx'
 
 /* Missões do aluno: as que a professora lançou para a turma dele, com prazo,
    etapas (gravadas na hora), entrega, nível alcançado, devolutiva e ranking. */
@@ -27,7 +28,7 @@ export default function MissoesAluno({ ident, online, missoes, abrirId }) {
     <>
       {sem && sem.podio && sem.podio.length > 0 && <div className="panel podio">
         <h2 style={{ marginTop: 0 }}>Ranking do semestre</h2>
-        <div className="podio-row">{sem.podio.map((p, i) => <div key={i} className={'podio-it p' + i}><span className="pd-pos">{i + 1}º</span><span className="pd-nome">{p.nome}</span><span className="pd-pts">{p.pontos} pts</span></div>)}</div>
+        <div className="podio-row">{sem.podio.map((p, i) => <div key={i} className={'podio-it p' + i}><span className="pd-pos">{i + 1}º</span><Avatar nome={p.nome} avatar={p.avatar} tam="mini" /><span className="pd-nome">{p.nome}</span><span className="pd-pts">{p.pontos} pts</span></div>)}</div>
         <p className="note">{sem.meus_pontos > 0 ? <>Você tem <b>{sem.meus_pontos} pts</b> · {sem.minha_posicao}º de {sem.total}.</> : 'Complete uma missão para entrar no ranking.'} Ouro vale 3, prata 2, bronze 1.</p>
       </div>}
 
@@ -59,9 +60,45 @@ function CardMissao({ m, agora, onAbrir }) {
   )
 }
 
+const OBS = 'Observações: '
+const rotulo = c => typeof c === 'string' ? c : (c?.rotulo || '')
+function juntarCampos(campos, r) {
+  const linhas = campos.map((c, i) => `${rotulo(c)}: ${String(r.v[i] || '').trim().replace(/\n+/g, ' ')}`)
+  return (r.obs || '').trim() ? linhas.join('\n') + '\n' + OBS + r.obs.trim() : linhas.join('\n')
+}
+function lerCampos(campos, texto) {
+  const v = campos.map(() => ''), t = texto || ''
+  if (!campos.length || !t) return { v, obs: '' }
+  const iObs = t.indexOf('\n' + OBS)
+  const corpo = iObs >= 0 ? t.slice(0, iObs) : t, obs = iObs >= 0 ? t.slice(iObs + 1 + OBS.length) : ''
+  corpo.split('\n').forEach(l => { const i = campos.findIndex(c => l.startsWith(rotulo(c) + ': ')); if (i >= 0) v[i] = l.slice(rotulo(campos[i]).length + 2) })
+  return { v, obs }
+}
+
 function Detalhe({ m, ident, online, agora, onVoltar, recarregar }) {
   const [feitas, setFeitas] = useState(m.minha?.etapas_feitas || {})
-  const [texto, setTexto] = useState(m.minha?.texto || '')
+  // rascunho no celular: a missão se faz por etapas, às vezes em dias diferentes; o que ele digitou não se perde até enviar
+  const kRasc = 'orbe_rasc_' + m.lancamento_id
+  // o que abre nos campos: o mais recente entre o rascunho deste celular e o salvo no servidor; se não houver, o que foi enviado
+  const campos = m.campos || []
+  const inicial = (() => {
+    let local = null; try { local = JSON.parse(localStorage.getItem(kRasc) || 'null') } catch (e) {}
+    const srv = m.minha?.rascunho != null && m.minha?.rascunho_em ? { texto: m.minha.rascunho, em: m.minha.rascunho_em } : null
+    const enviadoDepois = t => m.minha?.enviada_em && (!t || m.minha.enviada_em > t)
+    const cand = [local && !enviadoDepois(local.em) ? local : null, srv && !enviadoDepois(srv.em) ? srv : null].filter(Boolean)
+      .sort((a, b) => (b.em || '').localeCompare(a.em || ''))[0]
+    return cand ? cand.texto : (m.minha?.texto || '')
+  })()
+  const [texto, setTextoRaw] = useState(campos.length ? '' : inicial)
+  // campos de resposta: o texto é "pergunta: resposta" por linha (+ observações), e volta aos campos ao reabrir
+  const [resp, setRespRaw] = useState(() => lerCampos(campos, inicial))
+  const [salvoEm, setSalvoEm] = useState(null)
+  const guardar = t => { try { localStorage.setItem(kRasc, JSON.stringify({ texto: t, em: new Date().toISOString() })) } catch (e) {} }
+  const setTexto = t => { setTextoRaw(t); guardar(t); setSalvoEm(null) }
+  const setResp = f => setRespRaw(r => { const n = typeof f === 'function' ? f(r) : f; guardar(juntarCampos(campos, n)); setSalvoEm(null); return n })
+  const textoFinal = campos.length ? juntarCampos(campos, resp) : texto
+  const vazios = campos.filter((c, i) => !String(resp.v[i] || '').trim()).length
+  const setV = (i, val) => setResp(r => ({ ...r, v: campos.map((_, j) => j === i ? val : (r.v[j] || '')) }))
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState(null)
   const pz = fmtPrazo(m.prazo_em, agora)
@@ -86,15 +123,23 @@ function Detalhe({ m, ident, online, agora, onVoltar, recarregar }) {
     try { const r = await marcarEtapa(ident, m.lancamento_id, i, agoraFeita); setFeitas(r.etapas_feitas || {}) }
     catch (e) { setMsg({ tipo: 'err', t: e.message }); setFeitas(f => { const n = { ...f }; if (agoraFeita) delete n[i]; else n[i] = true; return n }) }
   }
+  async function salvar() {
+    if (!online) { setMsg({ tipo: 'err', t: 'Sem rede: as respostas ficaram guardadas neste celular. Salve de novo quando tiver sinal.' }); return }
+    setBusy(true); setMsg(null)
+    try { await salvarRascunho(ident, m.lancamento_id, textoFinal); setSalvoEm(new Date()) }
+    catch (e) { setMsg({ tipo: 'err', t: e.message }) } finally { setBusy(false) }
+  }
   async function enviar() {
     if (m.em_equipe) {
       const faltam = etapas.length - Object.keys(feitas).length
       const aviso = (faltam > 0 ? `Ainda faltam ${faltam} etapa(s).\n\n` : '') + 'Este envio é o oficial da equipe. Depois de enviado, é o que vale: ninguém da equipe envia de novo.\n\nConferiram juntos?'
       if (!confirm(aviso)) return
     }
+    if (!m.em_equipe && vazios > 0 && !confirm(`Faltam ${vazios} resposta(s). Enviar assim mesmo?`)) return
     setBusy(true); setMsg(null)
     try {
-      const r = await enviarMissao(ident, m.lancamento_id, texto)
+      const r = await enviarMissao(ident, m.lancamento_id, textoFinal)
+      try { localStorage.removeItem(kRasc) } catch (e) {}
       setMsg(r.fora_do_prazo ? { tipo: 'dup', t: 'Enviada fora do prazo. Ficou registrada e a professora decide.' } : { tipo: 'ok', t: m.em_equipe ? 'Envio oficial da equipe registrado.' : 'Missão enviada.' })
       recarregar()
     } catch (e) { setMsg({ tipo: 'err', t: e.message }) } finally { setBusy(false) }
@@ -143,10 +188,24 @@ function Detalhe({ m, ident, online, agora, onVoltar, recarregar }) {
         {m.minha?.nivel && <p className="nivel-grande">{NIVEL[m.minha.nivel]}</p>}
         {m.minha?.devolutiva && <div className="devolutiva"><b>Devolutiva da professora</b><p>{m.minha.devolutiva}</p></div>}
         {podeEditar && <>
-          <textarea value={texto} onChange={e => setTexto(e.target.value)} rows={4} placeholder="Resultados, observações, nomes dos pins e poligonais que você usou…" />
+          {campos.length > 0 ? <>
+            {campos.map((c, i) => <div key={i} className="campo-resp">
+              <label className="fld">{i + 1}. {rotulo(c)}</label>
+              {c?.tipo === 'caixas' ? (() => { const marcadas = String(resp.v[i] || '').split(', ').filter(Boolean)
+                return <div className="caixas">{(c.opcoes || []).map(o => <label key={o} className="chk-inline"><input type="checkbox" checked={marcadas.includes(o)}
+                  onChange={e => setV(i, (e.target.checked ? [...marcadas, o] : marcadas.filter(x => x !== o)).sort((a, b) => c.opcoes.indexOf(a) - c.opcoes.indexOf(b)).join(', '))} /> {o}</label>)}</div> })()
+                : c?.tipo === 'texto' ? <textarea rows={3} value={resp.v[i] || ''} onChange={e => setV(i, e.target.value)} />
+                : <input value={resp.v[i] || ''} onChange={e => setV(i, e.target.value)} />}
+            </div>)}
+            <label className="fld">Observações (opcional)</label>
+            <textarea value={resp.obs} onChange={e => setResp(r => ({ ...r, obs: e.target.value }))} rows={2} placeholder="Algo que aconteceu em campo, nomes dos pins que você usou…" />
+            <p className="note">💾 <b>Salvar</b> guarda as respostas para continuar depois, até em outro celular. A professora só vê quando você toca em <b>Enviar</b>.</p>
+          </> : <textarea value={texto} onChange={e => setTexto(e.target.value)} rows={4} placeholder="Resultados, observações, nomes dos pins e poligonais que você usou…" />}
           <div className="btnrow">
+            <button className="btn ghost" onClick={salvar} disabled={busy || !online}>💾 Salvar</button>
             <button className="btn" onClick={enviar} disabled={busy || !online}>{busy ? 'Enviando…' : m.em_equipe ? (status === 'refazer' ? 'Enviar de novo pela equipe' : 'Enviar pela equipe') : status === 'enviada' || status === 'refazer' ? 'Enviar de novo' : 'Enviar missão'}</button>
           </div>
+          {salvoEm && <p className="note">✓ Salvo às {salvoEm.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}. Ainda não foi enviado.</p>}
           {pz.vencido && <p className="note">O prazo passou. Ainda dá para enviar: fica marcado como fora do prazo e a professora decide.</p>}
         </>}
         {msg && <div className={'flash ' + msg.tipo} style={{ textAlign: 'left' }}>{msg.t}</div>}
@@ -168,10 +227,10 @@ function MedalhaAuto({ m }) {
   return (
     <div className="panel">
       <h2 style={{ marginTop: 0 }}>Medalha automática</h2>
-      <p className="hint">Faça o pin com o nome <b>{md.marco}</b> em cima do marco. O app mede a distância do pin até o marco e dá a medalha na hora. {md.vale === 'melhor' ? <>Pode tentar de novo: vale o seu <b>melhor pin</b> até o prazo.</> : <>Só vale o <b>primeiro pin</b> {md.marco}: capriche antes de marcar.</>}</p>
+      <p className="hint">Faça um pin em cima do marco <b>{md.marco}</b> (o nome do pin não importa: vale o lugar). O app mede a distância do pin até o marco e dá a medalha na hora. {md.vale === 'melhor' ? <>Pode tentar de novo: vale o seu <b>melhor pin</b> até o prazo.</> : <>Só vale o <b>primeiro pin</b> perto do marco: capriche antes de marcar.</>}</p>
       <p className="note">🥇 até {fmt(lim.ouro)} m · 🥈 até {fmt(lim.prata)} m · 🥉 até {fmt(lim.bronze)} m</p>
       {a ? <div className="devolutiva"><b>Seu {a.vale === 'melhor' ? 'melhor' : 'primeiro'} pin ficou a {fmt(a.erro)} m do marco</b>
-          <p>{(m.minha?.nivel || a.nivel) ? NIVEL[m.minha?.nivel || a.nivel] : `Ainda sem medalha: precisa ficar a até ${fmt(lim.bronze)} m.`}{a.n_pins > 1 && a.vale === 'melhor' ? ` · ${a.n_pins} tentativas` : ''}</p></div>
+          <p>{a.espalhamento != null && <>Espalhamento da ocupação: <b>{fmt(a.espalhamento)} m</b>{a.pin_nome ? ` · pin ${a.pin_nome}` : ''}<br /></>}{(m.minha?.nivel || a.nivel) ? NIVEL[m.minha?.nivel || a.nivel] : `Ainda sem medalha: precisa ficar a até ${fmt(lim.bronze)} m.`}{a.n_pins > 1 && a.vale === 'melhor' ? ` · ${a.n_pins} tentativas` : ''}</p></div>
         : <p className="note">Nenhum pin {md.marco} ainda.</p>}
     </div>
   )
@@ -185,7 +244,7 @@ function Equipe({ m }) {
       <h2 style={{ marginTop: 0 }}>{eq.nome}</h2>
       <ul className="eq-membros">
         {(eq.membros || []).map((x, i) => { const enviou = m.minha?.enviada_em && (x.eu ? m.minha.enviada_por_mim : !m.minha.enviada_por_mim && x.nome === m.minha.enviada_por)
-          return <li key={i} className={x.eu ? 'eu' : ''}><span>{enviou ? '📱 ' : ''}{x.nome}{x.eu ? ' (você)' : ''}</span>{enviou && <span className="fn">enviou</span>}</li> })}
+          return <li key={i} className={x.eu ? 'eu' : ''}><Avatar nome={x.nome} avatar={x.avatar} tam="mini" /><span style={{ flex: 1, minWidth: 0 }}>{enviou ? '📱 ' : ''}{x.nome}{x.eu ? ' (você)' : ''}</span>{enviou && <span className="fn">enviou</span>}</li> })}
       </ul>
       <p className="note">Sem funções definidas: dividam a atividade entre vocês. Todos os celulares registram; só um envia a missão.</p>
     </div>

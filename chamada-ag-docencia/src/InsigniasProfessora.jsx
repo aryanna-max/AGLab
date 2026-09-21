@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import * as store from './lib/store'
-import { INSIGNIAS, CATEGORIAS, POR_CHAVE, TOTAL, arte } from './lib/insignias'
+import { INSIGNIAS, CATEGORIAS, POR_CHAVE, TOTAL, arte, ehPioneira, raridade, ehRara, NIVEIS_RAR } from './lib/insignias'
+import Avatar from './Avatar.jsx'
 
 /* Insígnias — lado da professora.
    As automáticas saem das regras conferidas no servidor (presenças, pins, poligonais,
@@ -19,31 +20,81 @@ export default function InsigniasProfessora({ userId, tid, turmas, online, showT
   const [aberto, setAberto] = useState(null)      // aluno com o painel de conceder aberto
   const [dado, setDado] = useState('')
 
+  const [pioneiros, setPioneiros] = useState([])
+  const [geral, setGeralRaw] = useState(() => { try { return localStorage.getItem('orbe_ins_geral') === '1' } catch (e) { return false } })
+  const setGeral = v => { setGeralRaw(v); try { localStorage.setItem('orbe_ins_geral', v ? '1' : '0') } catch (e) {} }
+  const [listaGeral, setListaGeral] = useState([])
+  const [rar, setRar] = useState(null)
+  const [entregas, setEntregas] = useState([])
+  const [ordem, setOrdem] = useState('missoes')
   const carregar = useCallback(() => {
     if (!online || !tid) return
-    store.insigniasDaTurma(tid).then(setLista).catch(e => showToast('Erro: ' + e.message))
+    let vale = true   // resposta atrasada de outra turma não sobrescreve a atual
+    setLista([]); setPioneiros([])
+    store.insigniasDaTurma(tid).then(d => { if (vale) setLista(d) }).catch(e => showToast('Erro: ' + e.message))
+    store.pioneirosDaTurma(tid).then(d => { if (vale) setPioneiros(d) }).catch(() => { if (vale) setPioneiros([]) })
+    return () => { vale = false }
   }, [tid, online, showToast])
-  useEffect(() => { carregar(); setAberto(null) }, [carregar])
+  useEffect(() => {
+    if (!online) return
+    let vale = true
+    store.raridadeInsignias().then(d => { if (vale) setRar(d) }).catch(() => {})
+    Promise.all((geral ? turmas : turmas.filter(t => t.id === tid)).map(t => store.entregasDaTurma(t.id)))
+      .then(ds => { if (vale) setEntregas(ds.flat()) }).catch(() => { if (vale) setEntregas([]) })
+    return () => { vale = false }
+  }, [online, geral, turmas, tid, lista])
+  useEffect(() => {
+    if (!online || !geral) return
+    let vale = true
+    Promise.all(turmas.map(t => store.insigniasDaTurma(t.id).then(d => d.map(i => ({ ...i, turma_id: t.id })))))
+      .then(ds => { if (vale) setListaGeral(ds.flat()) }).catch(e => showToast('Erro: ' + e.message))
+    return () => { vale = false }
+  }, [geral, turmas, online, showToast, lista])
+  async function passarAdiante(p) {
+    const nome = POR_CHAVE['pioneiro_' + p.base]?.nome
+    if (!confirm(`Tirar "${nome}" de ${p.confirmado.nome} e passar ao próximo da turma?`)) return
+    try { await store.decidirPioneiro(tid, p.base, p.confirmado.aluno_id, 'desfazer'); showToast('Passou ao próximo'); carregar() }
+    catch (e) { showToast('Erro: ' + e.message) }
+  }
+  useEffect(() => { setAberto(null); return carregar() }, [carregar])
 
   const porAluno = useMemo(() => {
     const m = {}
     lista.forEach(i => { (m[i.aluno_id] = m[i.aluno_id] || []).push(i) })
     return m
   }, [lista])
+  const curto = t => (t?.nome || '').split(' (')[0].split(' — ').pop()
+  const visao = geral ? listaGeral : lista
+  const todosAlunos = useMemo(() => {
+    const m = {}
+    turmas.forEach(t => (t.alunos || []).forEach(a => { m[a.id] = { nome: a.nome, turma: curto(t) } }))
+    return m
+  }, [turmas])
   const quantos = useMemo(() => {
     const m = {}
-    lista.forEach(i => { m[i.chave] = (m[i.chave] || 0) + 1 })
+    visao.forEach(i => { if (!ehPioneira(i.chave)) m[i.chave] = (m[i.chave] || 0) + 1 })
     return m
-  }, [lista])
+  }, [visao])
+  // quadro de engajamento: colunas separadas, nada somado (insígnia não vira ponto)
+  const quadro = useMemo(() => {
+    const ids = geral ? Object.keys(todosAlunos) : alunos.map(a => a.id)
+    const lin = Object.fromEntries(ids.map(id => [id, { id, ...todosAlunos[id], pts: 0, ins: 0, raras: 0 }]))
+    const PONTOS = { bronze: 1, prata: 2, ouro: 3 }
+    entregas.forEach(e => { const l = lin[e.aluno_id]; if (l && e.nivel && e.missao_lancamentos?.mostrar_ranking) l.pts += PONTOS[e.nivel] || 0 })
+    visao.forEach(i => { const l = lin[i.aluno_id]; if (!l) return; if (!ehPioneira(i.chave)) l.ins++; if (ehRara(i.chave, rar)) l.raras++ })
+    const k = { missoes: 'pts', insignias: 'ins', raras: 'raras' }[ordem]
+    return Object.values(lin).filter(l => l.nome).sort((a, b) => ordem === 'nome' ? a.nome.localeCompare(b.nome) : b[k] - a[k] || a.nome.localeCompare(b.nome))
+  }, [geral, todosAlunos, alunos, entregas, visao, rar, ordem])
+  const zerados = quadro.filter(l => !l.pts && !l.ins).length
   const semana = useMemo(() => {
     const corte = Date.now() - 7 * 86400000
     const m = {}
-    lista.filter(i => new Date(i.concedida_em).getTime() >= corte).forEach(i => {
-      const nome = alunos.find(a => a.id === i.aluno_id)?.nome
-      if (nome) (m[i.chave] = m[i.chave] || []).push(primeiro(nome))
+    visao.filter(i => new Date(i.concedida_em).getTime() >= corte).forEach(i => {
+      const a = todosAlunos[i.aluno_id]
+      if (a) (m[i.chave] = m[i.chave] || []).push(geral ? `${primeiro(a.nome)} (${a.turma})` : primeiro(a.nome))
     })
     return Object.entries(m).sort((a, b) => b[1].length - a[1].length)
-  }, [lista, alunos])
+  }, [visao, todosAlunos, geral])
 
   async function conferir() {
     setBusy(true)
@@ -69,11 +120,17 @@ export default function InsigniasProfessora({ userId, tid, turmas, online, showT
         <div className="btnrow">
           <button className="btn" onClick={conferir} disabled={busy || !online}>{busy ? 'Conferindo…' : 'Conferir regras agora'}</button>
         </div>
-        <p className="note">{lista.length} concedida(s) · {Object.keys(porAluno).length} de {alunos.length} alunos têm pelo menos uma.</p>
+        <div className="btnrow">
+          <button className={'btn mini' + (geral ? ' ghost' : '')} onClick={() => setGeral(false)}>Esta turma</button>
+          <button className={'btn mini' + (geral ? '' : ' ghost')} onClick={() => setGeral(true)}>Todas as turmas</button>
+        </div>
+        {geral && <p className="note">"Insígnias da semana" e "Quantos têm cada uma" mostram todas as turmas: {visao.length} concedida(s). Pioneiros e "Por aluno" continuam só desta turma.</p>}
+        <p className="note">Nesta turma: {lista.length} concedida(s) · {Object.keys(porAluno).length} de {alunos.length} alunos têm pelo menos uma.</p>
       </div>
 
       <div className="panel">
-        <h2 style={{ marginTop: 0 }}>Insígnias da semana</h2>
+        <h2 style={{ marginTop: 0 }}>Insígnias da semana · {geral ? 'todas as turmas' : curto(turma)}</h2>
+        <p className="hint">Pela data em que a insígnia foi entregue. As retroativas (regra nova valendo para trás) entram na semana em que a regra foi ligada.</p>
         {semana.length === 0 ? <p className="empty">Nada nos últimos 7 dias. Toque em "Conferir regras agora".</p> : <>
           {semana.map(([chave, nomes]) => <div className="ins-linha" key={chave}>
             <img src={arte(chave)} alt="" />
@@ -84,13 +141,41 @@ export default function InsigniasProfessora({ userId, tid, turmas, online, showT
       </div>
 
       <div className="panel">
-        <h2 style={{ marginTop: 0 }}>Quantos têm cada uma</h2>
+        <h2 style={{ marginTop: 0 }}>Pioneiros da turma</h2>
+        <p className="hint">O primeiro da turma a estrear cada função ganha a versão Pioneiro, sozinho (o servidor confere a cada 5 minutos).
+          Se não valer, passe ao próximo: quem vem depois na ordem ganha.</p>
+        {pioneiros.map(p => { const ins = POR_CHAVE['pioneiro_' + p.base]
+          return <div className="ins-linha" key={p.base}>
+            <img src={arte('pioneiro_' + p.base)} alt="" style={p.confirmado ? null : { opacity: .35 }} />
+            <div style={{ flex: 1 }}><b>{ins?.nome || p.base}</b>
+              <div className="muted-x">{p.confirmado ? <>{p.confirmado.nome} · {fmt(p.confirmado.feito_em)}</>
+                : p.candidato ? <>ainda não entregue · próximo: {primeiro(p.candidato.nome)}</> : 'ninguém estreou ainda'}</div></div>
+            {p.confirmado && <button className="btn ghost mini" onClick={() => passarAdiante(p)}>Passar ao próximo</button>}
+          </div> })}
+      </div>
+
+      <div className="panel">
+        <h2 style={{ marginTop: 0 }}>Quadro de engajamento · {geral ? 'todas as turmas' : curto(turma)}</h2>
+        <p className="hint">Só para você. Colunas separadas, nada somado. Toque no título da coluna para ordenar. {zerados > 0 && <b>{zerados} aluno(s) zerado(s) em tudo.</b>}</p>
+        <div className="scrollx"><table className="matrix"><thead><tr>
+          {[['nome', 'Aluno'], ['missoes', 'Missões (pts)'], ['insignias', 'Insígnias'], ['raras', 'Raras + lendárias']].map(([k, t]) =>
+            <th key={k} className={k === 'nome' ? 'nm' : ''} style={{ cursor: 'pointer', textDecoration: ordem === k ? 'underline' : 'none' }} onClick={() => setOrdem(k)}>{t}</th>)}
+        </tr></thead><tbody>{quadro.map(l => <tr key={l.id}>
+          <td className="nm">{l.nome}{geral && <span className="m"> · {l.turma}</span>}</td>
+          <td className={l.pts ? 'P' : ''}>{l.pts}</td><td>{l.ins}</td><td>{l.raras}</td>
+        </tr>)}</tbody></table></div>
+        <p className="note">Missões: ouro 3, prata 2, bronze 1 (só missões com ranking ligado). Insígnias sem as Pioneiro. Raras + lendárias inclui Pioneiro e as que você dá.</p>
+      </div>
+
+      <div className="panel">
+        <h2 style={{ marginTop: 0 }}>Quantos têm cada uma · {geral ? 'todas as turmas' : curto(turma)}</h2>
         <div className="ins-prof">
           {CATEGORIAS.map(([cat, nome, cor]) => <div key={cat}>
             <div className="fld" style={{ color: cor }}>{nome}</div>
             {INSIGNIAS.filter(i => i.cat === cat).map(i => <div key={i.k} className="ins-linha" style={{ borderBottom: 0, padding: '2px 0' }}>
               <img src={arte(i.k, { bloqueada: !quantos[i.k] })} style={{ width: 30, height: 30 }} alt="" />
-              <div style={{ fontSize: 13 }}>{i.nome}<b style={{ marginLeft: 6 }}>{quantos[i.k] || 0}</b></div>
+              <div style={{ fontSize: 13 }}>{i.nome}<b style={{ marginLeft: 6 }}>{quantos[i.k] || 0}</b>
+                {(() => { const r = raridade(i.k, rar); return r && <span className="selo-rar" style={{ background: NIVEIS_RAR[r.nivel].cor, marginLeft: 6 }}>{NIVEIS_RAR[r.nivel].nome}</span> })()}</div>
             </div>)}
           </div>)}
         </div>
@@ -103,7 +188,7 @@ export default function InsigniasProfessora({ userId, tid, turmas, online, showT
           {alunos.map(a => { const dele = porAluno[a.id] || []
             return <li key={a.id} style={{ display: 'block', cursor: 'pointer' }} onClick={() => { setAberto(aberto === a.id ? null : a.id); setDado('') }}>
               <div className="ent-cab">
-                <span className="who"><span>{a.nome}</span><span className="m">{dele.length} de {TOTAL}</span></span>
+                <span className="left"><Avatar a={a} tam="mini" /><span className="who"><span>{a.nome}</span><span className="m">{dele.filter(i => !ehPioneira(i.chave)).length} de {TOTAL}</span></span></span>
                 <span className="ins-chips">{dele.slice(0, 8).map(i => <img key={i.id} src={arte(i.chave)} title={POR_CHAVE[i.chave]?.nome} alt="" />)}</span>
               </div>
               {aberto === a.id && <div onClick={e => e.stopPropagation()}>

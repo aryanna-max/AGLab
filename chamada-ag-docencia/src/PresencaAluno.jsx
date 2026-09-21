@@ -7,7 +7,7 @@ import { fmtData, resumoFaltas } from './lib/alunoApi'
 
 const ORIGEM = { chamada_aluno: 'pelo app', manual: 'marcada pela professora', qr_professora: 'marcada pela professora' }
 
-export default function PresencaAluno({ historico, presencaHoje, online, onMarcar, foto }) {
+export default function PresencaAluno({ historico, presencaHoje, online, onMarcar, onLerQR, foto }) {
   const { dados, carregando } = historico
   const r = resumoFaltas(dados)
   const hoje = dados?.hoje
@@ -32,8 +32,9 @@ export default function PresencaAluno({ historico, presencaHoje, online, onMarca
         <p className="hint">{estado}</p>
         <div className="btnrow">
           <button className="btn" onClick={onMarcar} disabled={!podeMarcar}>📍 Marcar presença</button>
+          {onLerQR && <button className="btn ghost" onClick={onLerQR} disabled={!podeMarcar}>Ler QR da aula</button>}
         </div>
-        <p className="note">Leia o QR da aula e fique <b>20 segundos parado</b>: o app junta as leituras e envia a média. Só vale dentro do horário da aula.</p>
+        <p className="note">Na sala, toque em <b>Marcar presença</b> e fique <b>20 segundos parado</b>: o app junta as leituras e envia a média. Só vale dentro do horário da aula.</p>
       </div>
 
       {/* a selfie mora aqui: é como a professora reconhece o aluno na chamada e no radar */}
