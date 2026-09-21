@@ -15,6 +15,97 @@ const MIN_LEITURAS = 5
 
 const ehErroDeRede = e => !e?.code && /fetch|network|conex|Failed|load/i.test(String(e?.message || e))
 
+const NV = { ouro: '🥇 Ouro', prata: '🥈 Prata', bronze: '🥉 Bronze' }
+
+/* Ocupação de 20 s: junta as fixações do GPS e entrega as leituras a quem chamou.
+   Quem chama decide o que fazer com elas — os Pins salvam na hora, o Ir até
+   mostra ao aluno antes de virar pin. */
+function useOcupacao(pos, aoTerminar) {
+  const [ocupando, setOcupando] = useState(false)
+  const [prog, setProg] = useState(0)
+  const [coletadas, setColetadas] = useState([])
+  const ultRef = useRef(null), t0 = useRef(0), timer = useRef(null), colRef = useRef([])
+  const fimRef = useRef(aoTerminar); useEffect(() => { fimRef.current = aoTerminar })
+
+  // a cada nova fixação durante a ocupação, coleta (sem repetir a mesma)
+  useEffect(() => {
+    if (!ocupando || !pos) return
+    if (ultRef.current === pos.fixTs && pos.fixTs) return
+    ultRef.current = pos.fixTs
+    colRef.current = [...colRef.current, { ...pos, capturado_em: new Date().toISOString(), online: navigator.onLine }]
+    setColetadas(colRef.current)
+  }, [pos, ocupando])
+  useEffect(() => () => clearInterval(timer.current), [])
+
+  function terminar() {
+    clearInterval(timer.current); setOcupando(false)
+    fimRef.current(colRef.current, (performance.now() - t0.current) / 1000)
+  }
+  function comecar() {
+    colRef.current = []; setColetadas([]); ultRef.current = null
+    setOcupando(true); t0.current = performance.now(); setProg(0)
+    timer.current = setInterval(() => {
+      const s = (performance.now() - t0.current) / 1000
+      setProg(Math.min(1, s / OCUPACAO_S))
+      if (s >= OCUPACAO_S) terminar()
+    }, 200)
+  }
+  function cancelar() { clearInterval(timer.current); setOcupando(false); setProg(0); colRef.current = []; setColetadas([]) }
+  return { ocupando, prog, coletadas, comecar, cancelar }
+}
+
+function AnelOcupacao({ prog, n, onCancelar }) {
+  const R = 44, C = 2 * Math.PI * R
+  return (
+    <div className="ocup">
+      <svg viewBox="0 0 100 100" className="ocup-anel">
+        <circle cx="50" cy="50" r={R} fill="none" stroke="var(--line)" strokeWidth="8" />
+        <circle cx="50" cy="50" r={R} fill="none" stroke="var(--ok)" strokeWidth="8" strokeLinecap="round"
+          strokeDasharray={C} strokeDashoffset={C * (1 - prog)} transform="rotate(-90 50 50)" />
+        <text x="50" y="46" textAnchor="middle" className="ocup-n">{n}</text>
+        <text x="50" y="62" textAnchor="middle" className="ocup-l">leituras</text>
+      </svg>
+      <div className="ocup-txt"><b>Fique parado.</b> {Math.ceil(OCUPACAO_S * (1 - prog))} s</div>
+      <button className="btn ghost mini" onClick={onCancelar}>Cancelar</button>
+    </div>
+  )
+}
+
+/* O que vai para salvar_pin. Os dois caminhos (Pins e Ir até) mandam a mesma coisa. */
+const cargaDoPin = (nm, r, ls, dur, foto) => ({
+  p_nome: nm, p_lat: r.lat, p_lon: r.lon, p_utm_n: r.utmN, p_utm_e: r.utmE, p_altitude: r.alt,
+  p_n: r.n, p_acc_media: r.acc, p_desvio_n: r.desvioN, p_desvio_e: r.desvioE, p_duracao: dur,
+  p_marco_ref: (m => m && m.tipo !== 'referencia' ? m.nome : null)(marcoPorNome(nm)),   // deslocado também fica registrado: é o nome que o aluno ocupou
+  p_foto: foto || null,
+  p_leituras: ls.map(l => ({ lat: l.lat, lon: l.lon, acc: l.acc, alt: l.alt, altAcc: l.altAcc, utmN: l.utmN, utmE: l.utmE, distPerc: l.distPerc, capturado_em: l.capturado_em, online: l.online, fixTs: l.fixTs }))
+})
+
+const avisoDoPin = (nm, data, r) => {
+  const med = data.medalha
+  return med ? (med.vale !== 'melhor' && med.n_pins > 1 ? `Pin ${nm} salvo. Na missão vale só o primeiro: ${metros(med.erro, 1)} m · ${med.nivel ? NV[med.nivel] : 'sem medalha'}`
+      : `Pin ${nm}: ${metros(med.erro, 1)} m do marco · ${med.nivel ? NV[med.nivel] : 'sem medalha'} (missão ${med.missao})`)
+    : `Pin ${nm} salvo: média de ${r.n} leituras, espalhamento ±${metros(r.desvioHz, 1)} m`
+}
+
+/* Botão de foto do ponto, igual nos dois caminhos. */
+function FotoDoPonto({ foto, setFoto, onErro }) {
+  const [busy, setBusy] = useState(false)
+  const ref = useRef(null)
+  return (
+    <div className="foto-ponto">
+      {foto ? <img src={foto} alt="" onClick={() => ref.current && ref.current.click()} /> : null}
+      <button className="btn ghost mini" disabled={busy} onClick={() => ref.current && ref.current.click()}>{busy ? 'Processando…' : foto ? '📷 Trocar foto do ponto' : '📷 Foto do ponto (opcional)'}</button>
+      {foto && <button className="btn ghost mini" onClick={() => setFoto(null)}>Remover</button>}
+      <input ref={ref} type="file" accept="image/*" capture="environment" hidden onChange={async ev => {
+        const f = ev.target.files && ev.target.files[0]; ev.target.value = ''
+        if (!f) return
+        setBusy(true)
+        try { setFoto(await arquivoParaJpeg(f, { lado: 640, qualidade: 0.72 })) } catch (e) { onErro('Não consegui ler a foto.') } finally { setBusy(false) }
+      }} />
+    </div>
+  )
+}
+
 /* API padrão: o aluno, pelas RPCs anônimas. A professora passa store.apiProfessora(userId). */
 export function apiAluno(ident, codigo) {
   const base = () => ({ p_matricula: ident?.matricula || '', p_aluno_id: ident?.alunoId || null })
@@ -39,7 +130,7 @@ export default function Orbe({ pos, ident, codigo, onAviso, api }) {
         {[['ir', '🎯 Ir até'], ['pins', '📍 Pins'], ['poli', '🔺 Poligonal']].map(([k, l]) =>
           <button key={k} className={aba === k ? 'active' : ''} onClick={() => setAba(k)}>{l}</button>)}
       </nav>
-      {aba === 'ir' && <IrAte pos={pos} />}
+      {aba === 'ir' && <IrAte pos={pos} onAviso={onAviso} api={A} />}
       {aba === 'pins' && <Pins pos={pos} ident={ident} codigo={codigo} onAviso={onAviso} api={A} />}
       {aba === 'poli' && <Poligonal ident={ident} codigo={codigo} onAviso={onAviso} api={A} />}
     </div>
@@ -47,7 +138,7 @@ export default function Orbe({ pos, ident, codigo, onAviso, api }) {
 }
 
 /* ================= 🎯 IR ATÉ (locar) ================= */
-function IrAte({ pos }) {
+function IrAte({ pos, onAviso, api }) {
   const [alvoNome, setAlvoNome] = useState(MARCOS[1].nome)
   const [modoDig, setModoDig] = useState('lista')   // lista | utm | geo
   const [n, setN] = useState(''), [e, setE] = useState(''), [lat, setLat] = useState(''), [lon, setLon] = useState('')
@@ -144,7 +235,91 @@ function IrAte({ pos }) {
             <>Sem bússola o N fica para cima e a seta mostra o azimute. <span style={{ textDecoration: 'underline', cursor: 'pointer', fontWeight: 700 }} onClick={ligarBussola}>Ligar bússola</span> para o mostrador girar com o aparelho.</>}
           {alvo.sigma != null && <> Alvo conhecido a ±{alvo.sigma < 1 ? metros(alvo.sigma * 100, 0) + ' cm' : metros(alvo.sigma, 0) + ' m'}.</>}
         </p>
+        <OcuparNoAlvo alvo={alvo} pos={pos} api={api} onAviso={onAviso} />
       </>}
+    </div>
+  )
+}
+
+/* Ocupar o alvo sem sair do Ir até.
+   Antes era preciso trocar para a aba Pins no momento da coleta: o nome do alvo ficava
+   para trás e o aluno digitava outro, virando reocupação de um ponto que nem era aquele.
+   E, como a aba Pins salva assim que os 20 s acabam, ninguém via a qualidade antes.
+   Aqui a leitura vira uma PRÉVIA: o aluno vê onde ela caiu em relação à coordenada
+   oficial, e decide repetir ou marcar. */
+function OcuparNoAlvo({ alvo, pos, api, onAviso }) {
+  const digitada = alvo.nome === 'coordenada digitada'
+  const [nome, setNome] = useState(digitada ? '' : alvo.nome)
+  const [foto, setFoto] = useState(null)
+  const [leitura, setLeitura] = useState(null)     // conferida antes de virar pin
+  const [erro, setErro] = useState('')
+  const [salvando, setSalvando] = useState(false)
+  const alvoRef = useRef(alvo); useEffect(() => { alvoRef.current = alvo }, [alvo])
+
+  // trocou de alvo: o nome acompanha e a prévia antiga não vale mais.
+  // n e e entram porque coordenada digitada mantém o mesmo nome ao mudar os números.
+  useEffect(() => { setNome(digitada ? '' : alvo.nome); setLeitura(null); setErro('') }, [alvo.nome, alvo.n, alvo.e])
+
+  const oc = useOcupacao(pos, (ls, dur) => {
+    if (ls.length < MIN_LEITURAS) { setErro(`Só ${ls.length} leitura(s) em ${OCUPACAO_S} s — o GPS está lento aqui. Tente de novo, parado, com o céu mais aberto.`); return }
+    setErro(''); setLeitura({ r: resumirOcupacao(ls), ls, dur, alvo: alvoRef.current })
+  })
+
+  async function marcar() {
+    const { r, ls, dur } = leitura
+    const nm = (nome.trim() || (digitada ? 'ponto' : alvo.nome)).slice(0, 40)
+    setSalvando(true)
+    try {
+      const data = await api.salvarPin(cargaDoPin(nm, r, ls, dur, foto))
+      if (!data?.ok) { setErro(data?.erro || 'Não consegui salvar o pin.'); return }
+      onAviso && onAviso(avisoDoPin(nm, data, r))
+      setLeitura(null); setFoto(null)
+    } catch (e) { setErro(ehErroDeRede(e) ? 'Sem rede — o pin precisa de conexão para ser salvo. Tente de novo com sinal.' : 'Falhou: ' + (e.message || 'erro')) }
+    finally { setSalvando(false) }
+  }
+
+  if (oc.ocupando) return <AnelOcupacao prog={oc.prog} n={oc.coletadas.length} onCancelar={oc.cancelar} />
+
+  const L = leitura && (() => {
+    const { r } = leitura
+    const dAlvo = Math.hypot(r.utmN - leitura.alvo.n, r.utmE - leitura.alvo.e)
+    const firme = r.n >= 10 && r.desvioHz < 1          // a mesma barra da insígnia Parado de verdade
+    const perto = dAlvo <= Math.max(8, r.acc || 0)     // a mesma do "✓ Você chegou"
+    return { r, dAlvo, firme, perto, boa: firme && perto }
+  })()
+
+  return (
+    <div style={{ marginTop: 12 }}>
+      {!leitura ? <>
+        <div className="row">
+          <div><label className="fld">Nome do pin</label>
+            <input value={nome} onChange={ev => setNome(ev.target.value)} placeholder={digitada ? 'ponto' : alvo.nome} maxLength={40} /></div>
+          <div><label className="fld">&nbsp;</label>
+            <button className="btn" onClick={() => { setErro(''); oc.comecar() }} disabled={!pos}>📍 Fazer leitura aqui</button></div>
+        </div>
+        <FotoDoPonto foto={foto} setFoto={setFoto} onErro={setErro} />
+        <p className="note">O nome já vem do alvo que você buscou — não precisa digitar de novo na aba Pins. A leitura aparece aqui antes de virar pin: dá para repetir quantas vezes quiser, só a que você marcar é salva.</p>
+      </> : <>
+        <div className={'ir-box' + (L.boa ? ' chegou' : '')}>
+          {/* o mostrador acima também mostra um número grande (distância ao vivo);
+              este rótulo evita confundir os dois */}
+          <div className="ir-sub"><b>Leitura feita — confira antes de marcar</b></div>
+          <div className="ir-dist">{metros(L.dAlvo, 1)} m</div>
+          <div className="ir-sub">da coordenada do alvo{leitura.alvo.sigma != null ? ' (conhecido a ±' + (leitura.alvo.sigma < 1 ? metros(leitura.alvo.sigma * 100, 0) + ' cm' : metros(leitura.alvo.sigma, 0) + ' m') + ')' : ''}</div>
+          <div className="ir-sub">{L.r.n} leituras · espalhamento ±{metros(L.r.desvioHz, 1)} m · ±hz {L.r.acc != null ? metros(L.r.acc, 1) + ' m' : '—'}</div>
+          <div className="ir-sub"><b>{L.boa ? '✓ Boa leitura.'
+            : !L.perto ? 'Você ficou longe do alvo: chegue mais perto e repita — o pin grava onde você estava, não onde queria estar.'
+            : 'Leitura trêmula: fique mais parado, com o céu aberto, e repita.'}</b></div>
+        </div>
+        <FotoDoPonto foto={foto} setFoto={setFoto} onErro={setErro} />
+        <div className="btnrow">
+          <button className="btn" onClick={marcar} disabled={salvando}>{salvando ? 'Salvando…' : `📍 Marcar pin ${nome.trim() || (digitada ? 'ponto' : alvo.nome)}`}</button>
+          <button className="btn ghost" onClick={() => { setErro(''); setLeitura(null); oc.comecar() }} disabled={salvando}>↺ Repetir leitura</button>
+          <button className="btn ghost mini" onClick={() => setLeitura(null)} disabled={salvando}>Descartar</button>
+        </div>
+        <p className="note">Nada foi salvo ainda. <b>espalhamento</b> = o quanto as leituras variaram entre si (precisão); a distância grande é o quanto a média caiu longe da coordenada oficial (acurácia).</p>
+      </>}
+      {erro && <div className="flash err" style={{ textAlign: 'left' }}>{erro}</div>}
     </div>
   )
 }
@@ -153,16 +328,9 @@ function IrAte({ pos }) {
 function Pins({ pos, ident, codigo, onAviso, api }) {
   const [pins, setPins] = useState([])
   const [nome, setNome] = useState('')
-  const [ocupando, setOcupando] = useState(false)
-  const [prog, setProg] = useState(0)
-  const [coletadas, setColetadas] = useState([])
   const [foto, setFoto] = useState(null)          // foto do ponto (JPEG pequeno em data URL), opcional
-  const [fotoBusy, setFotoBusy] = useState(false)
-  const fotoRef = useRef(null)
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState('')
-  const posRef = useRef(pos); useEffect(() => { posRef.current = pos }, [pos])
-  const ultRef = useRef(null), t0 = useRef(0), timer = useRef(null), colRef = useRef([])
 
   async function carregar() {
     if (!ident) return
@@ -172,88 +340,38 @@ function Pins({ pos, ident, codigo, onAviso, api }) {
 
   function proximoNome() { const k = pins.length + 1; return 'P' + k }
 
-  // a cada nova fixação durante a ocupação, coleta (sem repetir a mesma)
-  useEffect(() => {
-    if (!ocupando || !pos) return
-    if (ultRef.current === pos.fixTs && pos.fixTs) return
-    ultRef.current = pos.fixTs
-    colRef.current = [...colRef.current, { ...pos, capturado_em: new Date().toISOString(), online: navigator.onLine }]
-    setColetadas(colRef.current)
-  }, [pos, ocupando])
-
-  function comecar() {
-    if (!pos) { setErro('Espere a posição aparecer.'); return }
-    setErro(''); colRef.current = []; setColetadas([]); ultRef.current = null
-    setOcupando(true); t0.current = performance.now(); setProg(0)
-    timer.current = setInterval(() => {
-      const s = (performance.now() - t0.current) / 1000
-      setProg(Math.min(1, s / OCUPACAO_S))
-      if (s >= OCUPACAO_S) terminar()
-    }, 200)
-  }
-  function cancelar() { clearInterval(timer.current); setOcupando(false); setProg(0); colRef.current = []; setColetadas([]) }
-  async function terminar() {
-    clearInterval(timer.current); setOcupando(false)
-    const ls = colRef.current
+  const oc = useOcupacao(pos, async (ls, dur) => {
     if (ls.length < MIN_LEITURAS) { setErro(`Só ${ls.length} leitura(s) em ${OCUPACAO_S} s — o GPS está lento aqui. Tente de novo, parado, com o céu mais aberto.`); return }
     const r = resumirOcupacao(ls)
     const nm = (nome.trim() || proximoNome()).slice(0, 40)
-    const marco = marcoPorNome(nm)
     setSalvando(true)
     try {
-      const data = await api.salvarPin({
-        p_nome: nm, p_lat: r.lat, p_lon: r.lon, p_utm_n: r.utmN, p_utm_e: r.utmE, p_altitude: r.alt,
-        p_n: r.n, p_acc_media: r.acc, p_desvio_n: r.desvioN, p_desvio_e: r.desvioE, p_duracao: (performance.now() - t0.current) / 1000,
-        p_marco_ref: marco && marco.tipo !== 'referencia' ? marco.nome : null,   // deslocado também fica registrado: é o nome que o aluno ocupou
-        p_foto: foto || null,
-        p_leituras: ls.map(l => ({ lat: l.lat, lon: l.lon, acc: l.acc, alt: l.alt, altAcc: l.altAcc, utmN: l.utmN, utmE: l.utmE, distPerc: l.distPerc, capturado_em: l.capturado_em, online: l.online, fixTs: l.fixTs }))
-      })
+      const data = await api.salvarPin(cargaDoPin(nm, r, ls, dur, foto))
       if (!data?.ok) { setErro(data?.erro || 'Não consegui salvar o pin.'); return }
-      const med = data.medalha
-      const NV = { ouro: '🥇 Ouro', prata: '🥈 Prata', bronze: '🥉 Bronze' }
-      onAviso && onAviso(med ? (med.vale !== 'melhor' && med.n_pins > 1 ? `Pin ${nm} salvo. Na missão vale só o primeiro: ${metros(med.erro, 1)} m · ${med.nivel ? NV[med.nivel] : 'sem medalha'}`
-          : `Pin ${nm}: ${metros(med.erro, 1)} m do marco · ${med.nivel ? NV[med.nivel] : 'sem medalha'} (missão ${med.missao})`)
-        : `Pin ${nm} salvo: média de ${r.n} leituras, espalhamento ±${metros(r.desvioHz, 1)} m`)
+      onAviso && onAviso(avisoDoPin(nm, data, r))
       setNome(''); setFoto(null); await carregar()
     } catch (e) { setErro(ehErroDeRede(e) ? 'Sem rede — o pin precisa de conexão para ser salvo. Tente de novo com sinal.' : 'Falhou: ' + (e.message || 'erro')) }
     finally { setSalvando(false) }
+  })
+  function comecar() {
+    if (!pos) { setErro('Espere a posição aparecer.'); return }
+    setErro(''); oc.comecar()
   }
 
   // reocupações: pins com o mesmo nome de um anterior → extra, não é vértice
   const primeiroPorNome = {}; pins.forEach(p => { const k = p.nome.toLowerCase(); if (!primeiroPorNome[k]) primeiroPorNome[k] = p })
-  const R = 44, C = 2 * Math.PI * R
 
   return (
     <div>
       <p className="hint">Levantar um ponto = <b>ocupação</b>: fique parado {OCUPACAO_S} s, o app junta as leituras e o pin recebe a <b>média</b>. Um toque só ensina a errar.</p>
-      {!ocupando ? <>
+      {!oc.ocupando ? <>
         <div className="row">
           <div><label className="fld">Nome do pin</label><input value={nome} onChange={ev => setNome(ev.target.value)} placeholder={proximoNome() + ' — ou o nome de um marco, ex. M0452'} maxLength={40} /></div>
           <div><label className="fld">&nbsp;</label><button className="btn" onClick={comecar} disabled={!pos || salvando}>{salvando ? 'Salvando…' : '📍 Ocupar e marcar'}</button></div>
         </div>
-        <div className="foto-ponto">
-          {foto ? <img src={foto} alt="" onClick={() => fotoRef.current && fotoRef.current.click()} /> : null}
-          <button className="btn ghost mini" disabled={fotoBusy} onClick={() => fotoRef.current && fotoRef.current.click()}>{fotoBusy ? 'Processando…' : foto ? '📷 Trocar foto do ponto' : '📷 Foto do ponto (opcional)'}</button>
-          {foto && <button className="btn ghost mini" onClick={() => setFoto(null)}>Remover</button>}
-          <input ref={fotoRef} type="file" accept="image/*" capture="environment" hidden onChange={async ev => {
-            const f = ev.target.files && ev.target.files[0]; ev.target.value = ''
-            if (!f) return
-            setFotoBusy(true)
-            try { setFoto(await arquivoParaJpeg(f, { lado: 640, qualidade: 0.72 })) } catch (e) { setErro('Não consegui ler a foto.') } finally { setFotoBusy(false) }
-          }} />
-        </div>
+        <FotoDoPonto foto={foto} setFoto={setFoto} onErro={setErro} />
         <p className="note">A foto do ponto vai junto com o pin e entra no relatório da professora. Se o nome for o de um marco conhecido (M0451, M0452, M0455…), o app compara com a coordenada oficial.</p>
-      </> : <div className="ocup">
-        <svg viewBox="0 0 100 100" className="ocup-anel">
-          <circle cx="50" cy="50" r={R} fill="none" stroke="var(--line)" strokeWidth="8" />
-          <circle cx="50" cy="50" r={R} fill="none" stroke="var(--ok)" strokeWidth="8" strokeLinecap="round"
-            strokeDasharray={C} strokeDashoffset={C * (1 - prog)} transform="rotate(-90 50 50)" />
-          <text x="50" y="46" textAnchor="middle" className="ocup-n">{coletadas.length}</text>
-          <text x="50" y="62" textAnchor="middle" className="ocup-l">leituras</text>
-        </svg>
-        <div className="ocup-txt"><b>Fique parado.</b> {Math.ceil(OCUPACAO_S * (1 - prog))} s</div>
-        <button className="btn ghost mini" onClick={cancelar}>Cancelar</button>
-      </div>}
+      </> : <AnelOcupacao prog={oc.prog} n={oc.coletadas.length} onCancelar={oc.cancelar} />}
       {erro && <div className="flash err" style={{ textAlign: 'left' }}>{erro}</div>}
 
       {pins.length > 0 && <div className="scrollx" style={{ marginTop: 12 }}>
