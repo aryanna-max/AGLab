@@ -645,3 +645,37 @@ export async function revogarAuxiliar(turmaId) {
   const { error } = await supabase.rpc('revogar_auxiliar', { p_turma_id: turmaId })
   if (error) throw error
 }
+
+/* ---------- aulas (material) ----------
+   Mesmo desenho das missões: cardápio dela (aulas, sem turma) · lançamentos
+   (aula × turma, com número) · leituras dos alunos. */
+export async function listarAulas() {
+  const { data, error } = await supabase.from('aulas').select('*,aula_pecas(id,tipo)').order('arquivada').order('frente').order('titulo')
+  if (error) throw error; return data || []
+}
+export async function lancamentosDeAulasDaTurma(turmaId) {
+  const { data, error } = await supabase.from('aula_lancamentos')
+    .select('*,aulas(titulo,frente,resumo,aula_pecas(id,tipo))')
+    .eq('turma_id', turmaId).order('numero', { nullsFirst: false })
+  if (error) throw error; return data || []
+}
+export async function lancarAula(userId, l) {
+  const { data, error } = await supabase.from('aula_lancamentos')
+    .insert({ owner_id: userId, aula_id: l.aula_id, turma_id: l.turma_id, numero: l.numero || null, data: l.data || null })
+    .select('*').single()
+  if (error) throw error; return data
+}
+export async function atualizarLancamentoAula(id, campos) {
+  const { error } = await supabase.from('aula_lancamentos').update(campos).eq('id', id); if (error) throw error
+}
+export async function apagarLancamentoAula(id) {
+  const { error } = await supabase.from('aula_lancamentos').delete().eq('id', id); if (error) throw error
+}
+/* Quem leu: uma linha por aluno da turma, inclusive quem não abriu — é isso
+   que a professora quer ver. Vem por RPC para a conta sair pronta do banco. */
+export async function leitoresDaAula(lancamentoId) {
+  const { data, error } = await supabase.rpc('leitores_da_aula', { p_lancamento_id: lancamentoId })
+  if (error) throw error
+  if (!data?.ok) throw new Error(data?.erro || 'Não consegui ler.')
+  return data
+}

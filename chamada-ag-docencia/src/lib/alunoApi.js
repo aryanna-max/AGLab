@@ -8,6 +8,8 @@ import { supabase } from '../supabaseClient'
 const K_PRES_HIST = 'agc2_hist_presenca'
 const K_MISSOES = 'agc2_missoes'
 const K_VISTAS = 'agc2_missoes_vistas'   // lançamentos que o aluno já abriu (para o alerta de "nova")
+const K_AULAS = 'agc2_aulas'
+const K_AULA = 'agc2_aula_'            // + lancamento_id: a aula aberta, para reler sem rede
 
 const ler = (k, def) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : def } catch (e) { return def } }
 const gravar = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)) } catch (e) {} }
@@ -94,6 +96,42 @@ export async function enviarMissao(ident, lancamentoId, texto) {
 
 export const missaoVista = id => (ler(K_VISTAS, []) || []).includes(id)
 export const marcarVista = id => { const v = ler(K_VISTAS, []) || []; if (!v.includes(id)) { v.push(id); gravar(K_VISTAS, v.slice(-200)) } }
+
+
+/* ---------- aulas (material) ---------- */
+/* A lista fica no celular como as missões. A aula aberta também: material que
+   some sem rede não é material à mão, que é a razão de tudo isto existir. */
+export function useAulas(ident, online) {
+  const chave = ident?.alunoId || ident?.matricula || ''
+  const [dados, setDados] = useState(() => { const c = ler(K_AULAS, null); return c && c.chave === chave ? c.dados : null })
+  const [carregando, setCarregando] = useState(false)
+  const recarregar = useCallback(async () => {
+    if (!ident || !navigator.onLine) return
+    setCarregando(true)
+    try {
+      const { data, error } = await supabase.rpc('minhas_aulas', idArgs(ident))
+      if (!error && data?.ok) { setDados(data); gravar(K_AULAS, { chave, dados: data }) }
+    } catch (e) {} finally { setCarregando(false) }
+  }, [chave])
+  useEffect(() => { recarregar() }, [recarregar, online])
+  return { dados, carregando, recarregar }
+}
+
+export function aulaGuardada(lancamentoId) { return ler(K_AULA + lancamentoId, null) }
+
+export async function carregarAula(ident, lancamentoId) {
+  const { data, error } = await supabase.rpc('minha_aula', { ...idArgs(ident), p_lancamento_id: lancamentoId })
+  if (error) throw error
+  if (!data?.ok) throw new Error(data?.erro || 'Não consegui abrir a aula.')
+  gravar(K_AULA + lancamentoId, data)
+  return data
+}
+
+/* Registra que o aluno abriu a peça. Falhou (sem rede, servidor fora)? A tela
+   não trava por causa disso: leitura é registro, não permissão. */
+export async function marcarLeitura(ident, lancamentoId, pecaId) {
+  try { await supabase.rpc('marcar_leitura', { ...idArgs(ident), p_lancamento_id: lancamentoId, p_peca_id: pecaId }) } catch (e) {}
+}
 
 /* ---------- utilidades de exibição ---------- */
 const DIAS = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb']

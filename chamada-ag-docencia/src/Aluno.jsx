@@ -7,7 +7,8 @@ import Orbe from './Orbe.jsx'
 import MinhaFoto from './MinhaFoto.jsx'
 import PresencaAluno from './PresencaAluno.jsx'
 import MissoesAluno from './MissoesAluno.jsx'
-import { useHistoricoPresenca, useMissoes, useInsignias, fmtPrazo, missaoVista, resumoFaltas } from './lib/alunoApi'
+import AulasAluno from './AulasAluno.jsx'
+import { useHistoricoPresenca, useMissoes, useInsignias, useAulas, fmtPrazo, missaoVista, resumoFaltas } from './lib/alunoApi'
 import InsigniasAluno, { Vitrine, CartaoInsignia } from './InsigniasAluno.jsx'
 import { prepararSom, tocarAviso } from './lib/som'
 import { EH_COMPUTADOR } from './lib/aparelho'
@@ -145,7 +146,7 @@ export default function Aluno() {
   const params = new URLSearchParams(location.search)
   const codigoDaUrl = (params.get('aula') || '').toUpperCase()
 
-  const [tela, setTela] = useState('home')   // home | presenca | missoes | insignias | ler-aula | identificar | chamada-ok | medir
+  const [tela, setTela] = useState('home')   // home | presenca | missoes | aulas | insignias | ler-aula | identificar | chamada-ok | medir
   const [ident, setIdent] = useState(() => { const i = ler(K_IDENT, null); return EH_COMPUTADOR && i && !i.teste ? null : i })
   const [presenca, setPresenca] = useState(() => { const p = ler(K_PRES, null); return p && p.data === hojeISO() ? p : null })
   const [codigoAula, setCodigoAula] = useState(codigoDaUrl)   // código lido do QR do dia (só na chamada)
@@ -201,6 +202,7 @@ export default function Aluno() {
   useEffect(() => { codigoRef.current = codigoAula }, [codigoAula])
   const historico = useHistoricoPresenca(ident, online)
   const missoes = useMissoes(ident, online)
+  const aulas = useAulas(ident, online)
   const insignias = useInsignias(ident, online)
   useEffect(() => { if (tela === 'home') insignias.recarregar() }, [tela])
   useEffect(() => { prepararSom() }, [])   // destrava o som da conquista no primeiro toque
@@ -403,7 +405,7 @@ export default function Aluno() {
     if (!ok) return
     const destino = depoisDeIdent; setDepoisDeIdent(null)
     if (destino === 'chamada') await entrarNaAula(codigoRef.current)
-    else if (destino === 'presenca' || destino === 'missoes' || destino === 'insignias') setTela(destino)
+    else if (destino === 'presenca' || destino === 'missoes' || destino === 'aulas' || destino === 'insignias') setTela(destino)
     else { setModo('livre'); modoRef.current = 'livre'; setTela('medir'); ligarGPS() }
   }
   function voltarHome() { if (ocupRef.current.ativa) cancelarChamada(); pararGPS(); setPos(null); setPlacar(null); setErro(''); setAviso(''); setMedirNaAula(false); setAbrirMissaoId(null); setTela('home') }
@@ -470,6 +472,12 @@ export default function Aluno() {
     </div>
   )
 
+  if (tela === 'aulas') return (
+    <div className="wrap"><Cabecalho titulo="Aulas" />
+      <AulasAluno ident={ident} online={online} aulas={aulas} />
+    </div>
+  )
+
   if (tela === 'insignias') return (
     <div className="wrap"><Cabecalho titulo="Insígnias" />
       <InsigniasAluno insignias={insignias} />
@@ -517,6 +525,10 @@ export default function Aluno() {
   // alerta ao abrir o app: missão nova ainda não vista, ou prazo vencendo em breve
   const novaM = abertasM.find(m => !missaoVista(m.lancamento_id))
   const urgM = abertasM.find(m => fmtPrazo(m.prazo_em).urgente && (m.minha?.status !== 'enviada' && m.minha?.status !== 'aceita'))
+  const listaA = aulas.dados?.aulas || []
+  const naoLida = listaA.find(a => (a.li || 0) === 0)
+  const subAulas = naoLida ? `${naoLida.numero ? 'Aula ' + naoLida.numero + ': ' : ''}${naoLida.titulo}`
+    : listaA.length ? `${listaA.length} aula(s) · o material fica no celular.` : 'HQ, o assunto e a ficha de campo.'
   const minhasIns = insignias.dados?.insignias || []
   const novaIns = minhasIns.find(i => i.nova)
   const alerta = novaM ? { titulo: `Nova missão: ${novaM.titulo}`, sub: fmtPrazo(novaM.prazo_em).texto, urgente: false }
@@ -539,7 +551,11 @@ export default function Aluno() {
         <span className="am-ico">{alerta.urgente ? '⏱' : '✨'}</span>
         <span className="am-txt"><b>{alerta.titulo}</b><span>{alerta.sub}</span></span>
       </button>}
-      <div className="escolha tres">
+      <div className="escolha quatro">
+        <button className="card-perfil" onClick={() => irArea('aulas')}>
+          <span className="cp-emoji">📚</span><span className="cp-tit">Aulas</span>
+          <span className="cp-sub">{subAulas}</span>
+        </button>
         <button className="card-perfil" onClick={() => irArea('presenca')}>
           <span className="cp-emoji">📍</span><span className="cp-tit">Presença</span>
           <span className="cp-sub">{subPresenca}{faltaFoto && <><br />📷 Falta a sua foto.</>}</span>

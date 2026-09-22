@@ -314,6 +314,8 @@ table.matrix tr.sel-row td{background:rgba(123,79,0,.10)}
 /* ---------- home do aluno: três cards, alerta de missão ---------- */
 .escolha.tres{grid-template-columns:1fr}
 @media(min-width:560px){.escolha.tres{grid-template-columns:repeat(3,1fr);max-width:900px}}
+.escolha.quatro{grid-template-columns:1fr}
+@media(min-width:560px){.escolha.quatro{grid-template-columns:repeat(2,1fr);max-width:640px}}
 .cp-badge{display:inline-block;margin-left:6px;min-width:20px;padding:0 6px;border-radius:999px;background:#c0392b;color:#fff;font-size:12px;line-height:20px;text-align:center;vertical-align:middle}
 .alerta-missao{display:flex;gap:12px;align-items:center;width:100%;text-align:left;border:1px solid var(--line);border-left:5px solid var(--brand2);background:var(--panel);color:inherit;border-radius:12px;padding:12px 14px;margin:0 0 12px;cursor:pointer;font:inherit}
 .alerta-missao.urgente{border-left-color:#d35400}
@@ -411,3 +413,28 @@ table.matrix tr.sel-row td{background:rgba(123,79,0,.10)}
 .ins-linha img{width:44px;height:44px;flex:0 0 auto}
 .ins-chips{display:flex;gap:4px;flex-wrap:wrap}
 .ins-chips img{width:26px;height:26px}
+
+/* ---------- aulas: o material em cartões ---------- */
+/* As portas de uma aula (HQ, assunto, ficha) usam os mesmos cartões da home:
+   é a mesma gramática, e o aluno não precisa aprender duas. */
+.aula-portas{display:grid;gap:10px;margin:12px 0}
+.card-perfil.ficha{border-left:5px solid var(--brand2)}
+
+/* A HQ é uma tira vertical: um quadro por vez, rolando. As imagens carregam
+   sob demanda e ficam no cache do service worker (ver vite.config.js). */
+.hq-tira{display:flex;flex-direction:column;gap:10px;margin:8px 0 14px}
+.hq-tira img{width:100%;height:auto;border-radius:10px;background:var(--chip);display:block}
+
+/* O cartão: um conceito por tela. Se precisar rolar, são dois cartões. */
+.cartao-aula{border:1px solid var(--line);border-radius:14px;background:var(--panel);
+  padding:18px 16px;margin:10px 0 14px;min-height:190px;box-shadow:var(--shadow)}
+.cartao-aula h3{margin:0 0 10px;font-size:18px;color:var(--brand)}
+.cartao-aula p{margin:0 0 10px;font-size:16px;line-height:1.5}
+.cartao-aula p:last-child{margin-bottom:0}
+.cartao-aula ul,.cartao-aula ol{margin:0 0 10px;padding-left:20px;font-size:16px;line-height:1.5}
+.cartao-aula li{margin-bottom:5px}
+
+.cartao-pontos{display:flex;gap:7px;justify-content:center;margin:0 0 12px}
+.cp-ponto{width:9px;height:9px;border-radius:999px;background:var(--line);cursor:pointer}
+.cp-ponto.lido{background:var(--brand2);opacity:.45}
+.cp-ponto.atual{background:var(--brand);opacity:1;transform:scale(1.25)}
