@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import * as store from './lib/store'
 import { paraUTM25S } from './lib/geo'
+import { iniciais as initials } from './Avatar.jsx'
 
 /* Radar da professora: quem está por perto, como bolinhas com foto.
    - aceso (anel verde pulsando): mandou batimento nos últimos 90 s — está com o Orbe ou a Chamada aberta
@@ -10,6 +11,10 @@ import { paraUTM25S } from './lib/geo'
    Quando há auxiliar com a caderneta do dia e ela está transmitindo, o centro passa
    a ser ELA: com a professora longe, um radar centrado na casa dela não diz nada —
    o que importa é como a turma se distribui em volta de quem está em campo.
+   Decisão dela (18/09/2026): o centro pode ser um PONTO FIXO — a melhor leitura já
+   registrada pelo celular da auxiliar (a da Edilene em 11/09 teve ±3,5 m). Fixo é o
+   padrão quando existe; "ao vivo" volta ao comportamento acima. No fixo, a auxiliar
+   aparece como bolinha, igual aos alunos.
    Raio: barra de 10 a 250 m, ou "auto" (enquadra quem está transmitindo). Bolinhas
    sobrepostas são afastadas um pouco para nenhuma cobrir a outra. */
 
@@ -18,7 +23,6 @@ const BLOCO_F = { lat: -8.0587608, lon: -34.9512426 }
 const RAIO_MIN = 10, RAIO_MAX = 250
 const PASSOS_AUTO = [15, 25, 40, 60, 100, 150, 250]
 
-const initials = n => { const p = String(n || '').trim().split(/\s+/); return ((p[0]?.[0] || '') + (p.length > 1 ? p[p.length - 1][0] : '')).toUpperCase() || '?' }
 const hojeISO = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` }
 const fmtM = m => m >= 10 ? Math.round(m) + ' m' : m.toFixed(1).replace('.', ',') + ' m'
 
@@ -29,6 +33,8 @@ export default function Radar({ userId, tid, turmas, online, showToast, ehComput
   const [agora, setAgora] = useState(Date.now())
   const [raioManual, setRaioManual] = useState(null)   // null = auto
   const [auxAcesso, setAuxAcesso] = useState(null)    // quem está com a caderneta hoje
+  const [fixoAux, setFixoAux] = useState(null)        // melhor leitura já registrada pela auxiliar
+  const [usarFixo, setUsarFixo] = useState(true)
   const watchRef = useRef(null)
   const t = turmas.find(x => x.id === tid)
 
@@ -60,10 +66,10 @@ export default function Radar({ userId, tid, turmas, online, showToast, ehComput
     let vivo = true
     const puxa = async () => {
       try {
-        const [v, ch] = await Promise.all([store.vivos(tid), store.ensureChamada(userId, tid, hojeISO())])
+        const [v, ch] = await Promise.all([store.vivos(tid), store.chamadaAuto(userId, turmas.find(x => x.id === tid), hojeISO())])
         if (!vivo) return
         setVivos(v)
-        const p = await store.getPresentes(ch.id); if (!vivo) return
+        const p = ch ? await store.getPresentes(ch.id) : []; if (!vivo) return
         const m = {}; p.forEach(id => m[id] = true); setPresentes(m)
         setAgora(Date.now())
       } catch (e) {}
@@ -75,10 +81,16 @@ export default function Radar({ userId, tid, turmas, online, showToast, ehComput
 
   const vivoMap = {}; vivos.forEach(v => vivoMap[v.aluno_id] = v)
 
+  useEffect(() => {
+    const id = auxAcesso?.aluno_id
+    if (!id || !online) { setFixoAux(null); return }
+    store.melhorLeituraDe(id).then(setFixoAux).catch(() => setFixoAux(null))
+  }, [auxAcesso?.aluno_id, online])
+
   /* Referência do dia: a auxiliar, enquanto o batimento dela estiver fresco.
      Parou de transmitir (fechou a tela, negou o GPS) — volta ao centro de sempre. */
   const auxId = auxAcesso?.aluno_id || null
-  const auxNome = auxId ? (t?.alunos || []).find(a => a.id === auxId)?.nome : null
+  const auxNome = auxId ? [...(t?.auxiliares || []), ...(t?.alunos || [])].find(a => a.id === auxId)?.nome : null
   const refAux = (() => {
     if (!auxId) return null
     const v = vivoMap[auxId]
@@ -89,10 +101,12 @@ export default function Radar({ userId, tid, turmas, online, showToast, ehComput
              nome: auxNome || 'auxiliar', curto: String(auxNome || 'auxiliar').trim().split(/\s+/)[0] }
   })()
 
-  const centroUsado = refAux || centro
+  const fixo = usarFixo && fixoAux ? { lat: fixoAux.lat, lon: fixoAux.lon, acc: fixoAux.acuracia_m,
+    quando: new Date(fixoAux.capturado_em || fixoAux.criado_em).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) } : null
+  const centroUsado = fixo || refAux || centro
   const c0 = centroUsado ? paraUTM25S(centroUsado.lat, centroUsado.lon) : null
 
-  const bolinhas = (t ? t.alunos : []).filter(a => a.id !== (refAux ? auxId : null)).map(a => {
+  const bolinhas = (t ? t.alunos : []).filter(a => a.id !== (refAux && !fixo ? auxId : null)).map(a => {
     const v = vivoMap[a.id]
     const aceso = v && (agora - new Date(v.visto_em).getTime()) / 1000 < VIVO_S
     const presente = !!presentes[a.id]
@@ -188,14 +202,22 @@ export default function Radar({ userId, tid, turmas, online, showToast, ehComput
 
           {/* centro por cima de tudo: a professora */}
           <circle cx={cx} cy={cy} r={7} className="radar-eu" />
-          <text x={cx + 11} y={cy + 4} className="radar-lab">{refAux ? refAux.curto : (centro?.origem || '…')}</text>
+          <text x={cx + 11} y={cy + 4} className="radar-lab">{fixo ? 'ponto fixo' : refAux ? refAux.curto : (centro?.origem || '…')}</text>
         </svg>
       </div>
-      {refAux && <p className="note" style={{ color: 'var(--brand2)' }}>
+      {fixoAux && <div className="btnrow" style={{ marginTop: 4 }}>
+        <button className={'btn ghost mini' + (usarFixo ? ' on' : '')} onClick={() => setUsarFixo(true)}>Centro fixo</button>
+        <button className={'btn ghost mini' + (!usarFixo ? ' on' : '')} onClick={() => setUsarFixo(false)}>Centro ao vivo</button>
+      </div>}
+      {fixo && <p className="note" style={{ color: 'var(--brand2)' }}>
+        Centro fixo: a melhor leitura do celular de <b>{auxNome || 'auxiliar'}</b>, em {fixo.quando} (±{String(Math.round((fixo.acc || 0) * 10) / 10).replace('.', ',')} m informados).
+        {' '}Não se move durante a aula; {auxNome ? auxNome.split(/\s+/)[0] : 'a auxiliar'} aparece como bolinha.
+      </p>}
+      {!fixo && refAux && <p className="note" style={{ color: 'var(--brand2)' }}>
         Centro: <b>{refAux.nome}</b>, que está com a caderneta de hoje (±{Math.round(refAux.acc || 0)} m).
         Enquanto ela transmitir, o radar mostra a turma em volta de quem está em campo — não em volta de você.
       </p>}
-      {!refAux && auxAcesso && <p className="note" style={{ color: 'var(--miss)' }}>
+      {!fixo && !refAux && auxAcesso && <p className="note" style={{ color: 'var(--miss)' }}>
         {auxNome || 'A auxiliar'} está com a caderneta de hoje, mas não está transmitindo posição — o centro voltou para o de sempre.
       </p>}
       {!refAux && <p className="note">Centro: {centro?.origem === 'você' ? `o seu celular (±${Math.round(centro.acc || 0)} m)` : centro?.origem?.startsWith('seu celular') ? `a última medição do seu celular (${centro.origem.slice(14)}) — no computador a localização local não vale` : 'o Bloco F (localização negada ou indisponível)'}. Norte para cima. Quem estiver além do raio fica na borda. Bolinhas muito próximas são afastadas um pouco para não se cobrirem — a distância escrita é a real.</p>}

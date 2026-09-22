@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { supabase } from './supabaseClient'
-import { PERC, paraUTM25S, distanciaUTM, metros, vezesPiorQuePerc } from './lib/geo'
+import { PERC, paraUTM25S, distanciaUTM, metros, vezesPiorQuePerc, altitudes } from './lib/geo'
 import { decodeFromVideo, parsePayload } from './lib/qr'
 import { gravarPerfil, irParaProfessora } from './Escolha.jsx'
 import Orbe from './Orbe.jsx'
@@ -8,12 +8,16 @@ import MinhaFoto from './MinhaFoto.jsx'
 import PresencaAluno from './PresencaAluno.jsx'
 import MissoesAluno from './MissoesAluno.jsx'
 import AulasAluno from './AulasAluno.jsx'
-import { useHistoricoPresenca, useMissoes, useInsignias, useAulas, fmtPrazo, missaoVista, resumoFaltas } from './lib/alunoApi'
+import { useHistoricoPresenca, useMissoes, useInsignias, useAulas, useAvisosAluno, fmtQuando, fmtPrazo, missaoVista, resumoFaltas } from './lib/alunoApi'
 import InsigniasAluno, { Vitrine, CartaoInsignia } from './InsigniasAluno.jsx'
+import { POR_CHAVE, semAlarde } from './lib/insignias'
 import { prepararSom, tocarAviso } from './lib/som'
 import { EH_COMPUTADOR } from './lib/aparelho'
 import { resumirOcupacao } from './lib/topo'
 import { estadoAvisos, ativarAvisosAluno, sincronizarAvisosAluno, TEXTO_ESTADO } from './lib/avisos'
+import Avatar from './Avatar.jsx'
+import MeuAvatar from './MeuAvatar.jsx'
+import { guardarSelfieDoServidor } from './lib/selfie'
 
 const CHAMADA_S = 20          // a presença é uma ocupação: 20 s parado, média das leituras (decisão dela, 15/09)
 const CHAMADA_MIN = 3
@@ -44,6 +48,9 @@ const AvisoPrecisao = ({ pos }) => pos && pos.acc > ACC_GROSSEIRA ? (
 const K_IDENT = 'agc2_ident'            // {alunoId, matricula, nome, turma}
 const K_PRES = 'agc2_presenca_dia'      // {data, codigo, hora, local, turma, fora}
 const K_FILA = 'agc2_fila_leituras'
+const K_CARTAS_VISTAS = 'agc2_cartas_vistas'   // cartas especiais que o aluno já abriu
+const K_AV_ABERTO = 'agc2_avisos_aberto'   // quadro de avisos aberto ou recolhido
+const K_AV_VISTO = 'agc2_avisos_visto_em'   // última vez que abriu o quadro (para contar os novos)
 const K_AVISOS_DISP = 'agc2_avisos_dispensado'  // quando o aluno tocou em "agora não" (o cartão volta em 3 dias)
 export const NOME_GPS = 'Campo'         // área de medições (decisão dela, 15/09: cards Presença · Campo · Missões)
 
@@ -146,7 +153,7 @@ export default function Aluno() {
   const params = new URLSearchParams(location.search)
   const codigoDaUrl = (params.get('aula') || '').toUpperCase()
 
-  const [tela, setTela] = useState('home')   // home | presenca | missoes | aulas | insignias | ler-aula | identificar | chamada-ok | medir
+  const [tela, setTela] = useState('home')   // home | presenca | missoes | aulas | insignias | avatar | ler-aula | identificar | chamada-ok | medir
   const [ident, setIdent] = useState(() => { const i = ler(K_IDENT, null); return EH_COMPUTADOR && i && !i.teste ? null : i })
   const [presenca, setPresenca] = useState(() => { const p = ler(K_PRES, null); return p && p.data === hojeISO() ? p : null })
   const [codigoAula, setCodigoAula] = useState(codigoDaUrl)   // código lido do QR do dia (só na chamada)
@@ -185,6 +192,7 @@ export default function Aluno() {
       leituras: ls.map(l => ({ lat: l.lat, lon: l.lon, acc: l.acc, alt: l.alt, fixTs: l.fixTs })) })
   }   // na Chamada, medir é um passo explícito (confusão relatada em 15/09)
   const [enviando, setEnviando] = useState(false)
+  const [aConferir, setAConferir] = useState(false)   // registrado, mas a presença fica para a professora conferir
   const [placar, setPlacar] = useState(null)
   const [naFila, setNaFila] = useState(() => ler(K_FILA, []).length)
   const [online, setOnline] = useState(navigator.onLine)
@@ -203,6 +211,24 @@ export default function Aluno() {
   const historico = useHistoricoPresenca(ident, online)
   const missoes = useMissoes(ident, online)
   const aulas = useAulas(ident, online)
+  const avisosProf = useAvisosAluno(ident, online)
+  const [avAberto, setAvAberto] = useState(() => ler(K_AV_ABERTO, false))
+  // carta especial (aviso com imagem): abre em tela cheia; a que ele ainda não viu abre sozinha uma vez
+  const [cartaId, setCartaId] = useState(null)
+  const [cartaAlta, setCartaAlta] = useState(false)   // imagem vertical: o texto vai por cima do terço de baixo
+  useEffect(() => {
+    const vistas = ler(K_CARTAS_VISTAS, [])
+    const nova = (avisosProf.dados?.avisos || []).find(v => v.imagem && !vistas.includes(v.id))
+    if (nova && !cartaId) setCartaId(nova.id)
+  }, [avisosProf.dados])
+  // registra no servidor que ele abriu a carta (a professora quer saber quando)
+  useEffect(() => {
+    if (!cartaId || !identRef.current) return
+    if (!(avisosProf.dados?.avisos || []).some(v => v.id === cartaId)) return
+    supabase.rpc('abri_aviso', { p_matricula: identRef.current.matricula || '', p_aluno_id: identRef.current.alunoId || null, p_aviso: cartaId }).then(() => {}, () => {})
+  }, [cartaId, avisosProf.dados])
+  function fecharCarta() { if (cartaId) gravar(K_CARTAS_VISTAS, [...new Set([...ler(K_CARTAS_VISTAS, []), cartaId])]); setCartaId(null) }
+  const [avVistoEm, setAvVistoEm] = useState(() => ler(K_AV_VISTO, 0))
   const insignias = useInsignias(ident, online)
   useEffect(() => { if (tela === 'home') insignias.recarregar() }, [tela])
   useEffect(() => { prepararSom() }, [])   // destrava o som da conquista no primeiro toque
@@ -212,8 +238,11 @@ export default function Aluno() {
     if (!id || !navigator.onLine) return
     supabase.rpc('validar_sessao', { p_codigo: '', p_matricula: id.matricula || '', p_aluno_id: id.alunoId || null }).then(({ data }) => {
       if (!data?.ok) return
-      if (data.tem_foto !== id.temFoto || data.tem_selfie !== id.temSelfie || data.nome !== id.nome || !!data.teste !== !!id.teste) {
-        const i = { ...id, nome: data.nome, turma: data.turma, turmaId: data.turma_id, temFoto: data.tem_foto, temSelfie: data.tem_selfie, teste: !!data.teste }
+      guardarSelfieDoServidor(id, data.selfie)   // celular novo ou app reinstalado: a cara dele volta com ele
+      if (data.tem_foto !== id.temFoto || data.tem_selfie !== id.temSelfie || data.nome !== id.nome || !!data.teste !== !!id.teste
+          || (data.avatar || '') !== (id.avatar || '') || (data.avatar_em || null) !== (id.avatarEm || null)) {
+        const i = { ...id, nome: data.nome, turma: data.turma, turmaId: data.turma_id, temFoto: data.tem_foto, temSelfie: data.tem_selfie,
+          avatar: data.avatar || '', avatarEm: data.avatar_em || null, teste: !!data.teste }
         gravar(K_IDENT, i); setIdent(i); identRef.current = i
       }
     }).catch(() => {})
@@ -286,8 +315,10 @@ export default function Aluno() {
       if (!data?.ok) { setErro(data?.erro || 'Não encontrei você.'); return false }
       // no computador, só o login de teste (regra dela, 16/09): aluno real usa o celular
       if (EH_COMPUTADOR && !data.teste) { setErro('No computador a tela do aluno é só para teste: entre com uma matrícula da TURMA TESTE (TESTE1 a TESTE4). Alunos usam o celular.'); return false }
-      const i = { alunoId: data.aluno_id, matricula: data.matricula, nome: data.nome, turma: data.turma, turmaId: data.turma_id, temFoto: data.tem_foto, temSelfie: data.tem_selfie, teste: !!data.teste }
+      const i = { alunoId: data.aluno_id, matricula: data.matricula, nome: data.nome, turma: data.turma, turmaId: data.turma_id, temFoto: data.tem_foto, temSelfie: data.tem_selfie,
+        avatar: data.avatar || '', avatarEm: data.avatar_em || null, teste: !!data.teste }
       gravar(K_IDENT, i); setIdent(i); identRef.current = i; setMatInput(i.matricula || '')
+      guardarSelfieDoServidor(i, data.selfie)
       return true
     } catch (e) {
       if (ehErroDeRede(e) && (matricula || alunoId) && !EH_COMPUTADOR) {
@@ -354,17 +385,37 @@ export default function Aluno() {
       if (rotulo === 'chamada') {
         if (data.presenca) fixarPresenca(data, item.codigo, false)
         else if (data.motivo === 'fora_da_janela') fixarPresenca(data, item.codigo, true)
+        else if (data.motivo === 'a_conferir') setAConferir(true)
+        else if (data.motivo === 'sem_sessao') setErro('Não achei aula aberta agora para a sua turma. Confira o horário ou fale com a professora.')
       } else { setAviso('Leitura enviada — ' + (rotulo === 'outro' && descricao ? descricao : nomeLocal(rotulo))); setTimeout(() => setAviso(''), 2500) }
     } catch (e) {
       if (ehErroDeRede(e)) {
         const f = ler(K_FILA, []); f.push(item); gravar(K_FILA, f); setNaFila(f.length)
-        setAviso('Sem rede: leitura guardada no celular. Sobe sozinha quando tiver conexão.'); setTimeout(() => setAviso(''), 4000)
+        // A chamada é julgada pela janela da aula no instante em que a fila sobe (enviar_leitura
+        // usa now(), não o capturado_em). Sem rede na sala, a leitura sobe depois e já não vira
+        // presença — então aqui não se promete o que não se cumpre: quem confirma é a professora,
+        // que marca na sala pelo botão dela (esse caminho não depende de janela nem de GPS).
+        setAviso(rotulo === 'chamada'
+          ? 'Sem rede aqui — a professora confirma a sua presença na sala. Sua leitura ficou guardada.'
+          : 'Sem rede: leitura guardada no celular. Sobe sozinha quando tiver conexão.')
+        setTimeout(() => setAviso(''), 4000)
       } else setErro('Falhou o envio: ' + (e.message || 'erro'))
     } finally { setEnviando(false) }
   }
 
   /* ---------- navegação ---------- */
-  function irChamada() { setErro(''); setTela('ler-aula') }
+  /* Presença na sala (regra dela, 18/09/2026: "pra eles é na sala"): com aula da turma aberta
+     agora, marca sem QR — o servidor confere se a posição está perto da referência do dia e,
+     se não estiver, deixa "a conferir" para a professora. O aluno não vê distância nem raio.
+     O QR nunca abre sozinho (pedido dela, 18/09): é o botão "Ler QR da aula", opcional. */
+  function irChamada() {
+    setErro(''); setAConferir(false)
+    const h = historico.dados?.hoje
+    setCodigoAula(''); codigoRef.current = ''
+    setAula({ turma: identRef.current?.turma || '', local: h?.local || null, janela_aberta: true })
+    setModo('aula'); modoRef.current = 'aula'; autoRef.current = false
+    setTela('chamada-ok'); ligarGPS()
+  }
   function irArea(area) {
     setErro('')
     if (!identRef.current) { setDepoisDeIdent(area); setTela('identificar'); return }
@@ -405,7 +456,7 @@ export default function Aluno() {
     if (!ok) return
     const destino = depoisDeIdent; setDepoisDeIdent(null)
     if (destino === 'chamada') await entrarNaAula(codigoRef.current)
-    else if (destino === 'presenca' || destino === 'missoes' || destino === 'aulas' || destino === 'insignias') setTela(destino)
+    else if (['presenca', 'missoes', 'aulas', 'insignias', 'selfie', 'avatar'].includes(destino)) setTela(destino)
     else { setModo('livre'); modoRef.current = 'livre'; setTela('medir'); ligarGPS() }
   }
   function voltarHome() { if (ocupRef.current.ativa) cancelarChamada(); pararGPS(); setPos(null); setPlacar(null); setErro(''); setAviso(''); setMedirNaAula(false); setAbrirMissaoId(null); setTela('home') }
@@ -414,6 +465,7 @@ export default function Aluno() {
   function abrirPorAviso(abrir) {
     if (!abrir || abrir === 'home') { voltarHome(); return }
     if (abrir === 'campo') { irMedir(); return }
+    if (abrir.startsWith('carta:')) { voltarHome(); setCartaId(abrir.slice(6)); avisosProf.recarregar(); return }
     if (abrir.startsWith('missao:')) { setAbrirMissaoId(abrir.slice(7)); irArea('missoes'); return }
     if (abrir === 'presenca' || abrir === 'missoes') irArea(abrir)
   }
@@ -422,9 +474,9 @@ export default function Aluno() {
     if (a) { history.replaceState(null, '', location.pathname); abrirPorAviso(a) }
     if (!('serviceWorker' in navigator)) return
     const f = e => {
-      if (e.data?.tipo === 'orbe-abrir') { missoes.recarregar(); abrirPorAviso(e.data.abrir) }
+      if (e.data?.tipo === 'orbe-abrir') { missoes.recarregar(); avisosProf.recarregar(); abrirPorAviso(e.data.abrir) }
       // aviso chegou com o app aberto: o sistema não toca nada, então o Radar sai daqui
-      if (e.data?.tipo === 'orbe-aviso') tocarAviso()
+      if (e.data?.tipo === 'orbe-aviso') { avisosProf.recarregar(); tocarAviso() }
     }
     navigator.serviceWorker.addEventListener('message', f)
     return () => navigator.serviceWorker.removeEventListener('message', f)
@@ -448,6 +500,7 @@ export default function Aluno() {
       <span className="spacer" />
       {naFila > 0 && <span className="badge off">{naFila} na fila</span>}
       {!online && <span className="badge off">sem rede</span>}
+      {ident && <Avatar nome={ident.nome} avatar={ident.avatar} tam="mini" />}
     </header>
   )
 
@@ -459,10 +512,65 @@ export default function Aluno() {
     </div>
   )
 
+  /* Cartão de "Nova insígnia": não abre para insígnia sem alarde, nem para chave que o catálogo
+     não conhece. Essas ficariam "novas" para sempre, porque nada as marcaria como vistas —
+     então marcamos calado. Fica acima dos returns por tela: é hook, e a ordem tem que ser fixa. */
+  const minhasIns = insignias.dados?.insignias || []
+  const novaIns = minhasIns.find(i => i.nova && POR_CHAVE[i.chave] && !semAlarde(i.chave))
+  const caladas = minhasIns.some(i => i.nova && (!POR_CHAVE[i.chave] || semAlarde(i.chave)))
+  useEffect(() => { if (caladas && !novaIns) insignias.marcarVistas() }, [caladas, !!novaIns])
+
   if (tela === 'presenca') return (
     <div className="wrap"><Cabecalho titulo="Presença" />
-      <PresencaAluno historico={historico} presencaHoje={presenca} online={online} onMarcar={irChamada}
-        foto={ident && <MinhaFoto ident={ident} online={online} pedir={ident.temFoto === false} jaEnviada={ident.temSelfie} onEnviada={() => { insignias.recarregar(); const i = { ...ident, temFoto: true, temSelfie: true }; gravar(K_IDENT, i); setIdent(i) }} />} />
+      <PresencaAluno historico={historico} presencaHoje={presenca} online={online} onMarcar={irChamada} onLerQR={() => { setErro(''); setTela('ler-aula') }}
+        foto={ident && <MinhaFoto ident={ident} online={online} pedir={ident.temFoto === false} jaEnviada={ident.temSelfie}
+          onTrocarAvatar={() => irArea('avatar')}
+          onEnviada={() => { insignias.recarregar(); const i = { ...ident, temFoto: true, temSelfie: true }; gravar(K_IDENT, i); setIdent(i) }} />} />
+    </div>
+  )
+
+  /* Complete o seu Orbe (18/09/2026, pedido dela: "notificações, selfie... avatar"): os três passos
+     de quem chega, num quadro só na tela inicial. Fica até tudo estar feito; o feito aparece com ✓. */
+  const fotoEnviada = () => { insignias.recarregar(); const i = { ...identRef.current, temFoto: true, temSelfie: true }; gravar(K_IDENT, i); setIdent(i); identRef.current = i }
+  const PassosOrbe = () => {
+    if (!ident) return null
+    const temAvisos = !EH_COMPUTADOR && estadoAv && estadoAv !== 'sem-suporte'
+    const okAvisos = estadoAv === 'ativo', okSelfie = ident.temSelfie === true || ident.temFoto === true, okAvatar = !!ident.avatar
+    if ((!temAvisos || okAvisos) && okSelfie && okAvatar) return null
+    const feitos = [okAvisos && temAvisos, okSelfie, okAvatar].filter(Boolean).length, total = temAvisos ? 3 : 2
+    return <div className="panel passos-home">
+      <h2>Complete o seu Orbe <span className="ph-n">{feitos} de {total}</span></h2>
+      {temAvisos && <div className={'ph-it' + (okAvisos ? ' ok' : '')}>
+        <span className="ph-ico">{okAvisos ? '✓' : '🔔'}</span>
+        <span className="ph-txt"><b>Notificações</b><span>{okAvisos ? 'Ativadas: os avisos da professora chegam mesmo com o app fechado.'
+          : estadoAv === 'inativo' ? 'Missão nova e recados da aula chegam no celular, mesmo com o app fechado.' : TEXTO_ESTADO[estadoAv]}</span></span>
+        {!okAvisos && estadoAv === 'inativo' && <button className="btn mini" onClick={ativarAvisos} disabled={ativandoAv || !online}>{ativandoAv ? 'Ativando…' : 'Ativar'}</button>}
+      </div>}
+      {temAvisos && erroAv && <div className="flash err" style={{ textAlign: 'left' }}>{erroAv}</div>}
+      <div className={'ph-it' + (okSelfie ? ' ok' : '')}>
+        <span className="ph-ico">{okSelfie ? '✓' : '📷'}</span>
+        <span className="ph-txt"><b>Selfie</b><span>{okSelfie ? 'Enviada. Fica só com a professora.' : 'Só a professora vê: é como ela reconhece você na chamada.'}</span></span>
+        {!okSelfie && <button className="btn mini" onClick={() => irArea('selfie')}>Tirar</button>}
+      </div>
+      <div className={'ph-it' + (okAvatar ? ' ok' : '')}>
+        <span className="ph-ico">{okAvatar ? <Avatar nome={ident.nome} avatar={ident.avatar} tam="mini" /> : '🙂'}</span>
+        <span className="ph-txt"><b>Avatar</b><span>{okAvatar ? 'Escolhido. É a sua cara para a turma.' : 'A sua cara no app e para a turma.'}</span></span>
+        {!okAvatar && <button className="btn mini" onClick={() => irArea('avatar')}>Escolher</button>}
+      </div>
+    </div>
+  }
+
+  if (tela === 'selfie') return (
+    <div className="wrap"><Cabecalho titulo="Minha foto" />
+      <MinhaFoto ident={ident} online={online} pedir={!ident?.temSelfie} jaEnviada={ident?.temSelfie}
+        onTrocarAvatar={() => irArea('avatar')} onEnviada={() => { fotoEnviada(); setTimeout(voltarHome, 1200) }} />
+    </div>
+  )
+
+  if (tela === 'avatar') return (
+    <div className="wrap"><Cabecalho titulo="Meu avatar" />
+      <MeuAvatar ident={ident} online={online} onVoltar={voltarHome}
+        onEscolhido={(av, em) => { const i = { ...identRef.current, avatar: av, avatarEm: em }; gravar(K_IDENT, i); setIdent(i); identRef.current = i }} />
     </div>
   )
 
@@ -480,7 +588,7 @@ export default function Aluno() {
 
   if (tela === 'insignias') return (
     <div className="wrap"><Cabecalho titulo="Insígnias" />
-      <InsigniasAluno insignias={insignias} />
+      <InsigniasAluno insignias={insignias} nome={ident?.nome} avatar={ident?.avatar} />
     </div>
   )
 
@@ -518,39 +626,82 @@ export default function Aluno() {
     : rf ? `${rf.presencas} presença(s) · ${rf.faltasHa} h-a de falta.` : 'Marcar presença e acompanhar faltas.'
   const faltaFoto = ident && ident.temFoto === false
   const listaM = missoes.dados?.missoes || []
+  const listaAv = avisosProf.dados?.avisos || []
   const abertasM = listaM.filter(m => m.aberta)
   const nAbertas = abertasM.length
   const proxima = abertasM.slice().sort((a, b) => new Date(a.prazo_em) - new Date(b.prazo_em))[0]
   const subMissoes = proxima ? `${nAbertas} aberta(s) · ${fmtPrazo(proxima.prazo_em).texto}` : 'O que a professora lançou para a turma.'
-  // alerta ao abrir o app: missão nova ainda não vista, ou prazo vencendo em breve
-  const novaM = abertasM.find(m => !missaoVista(m.lancamento_id))
-  const urgM = abertasM.find(m => fmtPrazo(m.prazo_em).urgente && (m.minha?.status !== 'enviada' && m.minha?.status !== 'aceita'))
   const listaA = aulas.dados?.aulas || []
   const naoLida = listaA.find(a => (a.li || 0) === 0)
   const subAulas = naoLida ? `${naoLida.numero ? 'Aula ' + naoLida.numero + ': ' : ''}${naoLida.titulo}`
     : listaA.length ? `${listaA.length} aula(s) · o material fica no celular.` : 'HQ, o assunto e a ficha de campo.'
-  const minhasIns = insignias.dados?.insignias || []
-  const novaIns = minhasIns.find(i => i.nova)
-  const alerta = novaM ? { titulo: `Nova missão: ${novaM.titulo}`, sub: fmtPrazo(novaM.prazo_em).texto, urgente: false }
-    : urgM ? { titulo: `Prazo acabando: ${urgM.titulo}`, sub: fmtPrazo(urgM.prazo_em).texto, urgente: true } : null
+
+  /* Destaque da missão aberta (opção A, escolhida por ela em 18/09/2026): cartão dourado no topo com a
+     missão de prazo mais próximo que ele ainda não enviou; vermelho com menos de 1 h; some quando envia. */
+  const pendM = abertasM.filter(m => !['enviada', 'aceita'].includes(m.minha?.status))
+    .sort((a, b) => new Date(a.prazo_em) - new Date(b.prazo_em))
+  const DestaqueMissao = () => {
+    const m = pendM[0]; if (!m) return null
+    const total = (m.etapas || []).length, feitas = Object.keys(m.minha?.etapas_feitas || {}).length
+    const min = (new Date(m.prazo_em).getTime() - Date.now()) / 60000
+    const falta = min < 60 ? `faltam ${Math.max(1, Math.round(min))} min` : min < 24 * 60 ? `faltam ${Math.floor(min / 60)} h${Math.round(min % 60) ? ' ' + Math.round(min % 60) + ' min' : ''}` : fmtPrazo(m.prazo_em).texto
+    const refazer = m.minha?.status === 'refazer'
+    const abrir = () => { setAbrirMissaoId(m.lancamento_id); irArea('missoes') }
+    return <button className={'destaque-missao' + (min < 60 ? ' urgente' : '')} onClick={abrir}>
+      <span className="dm-top">🎯 {refazer ? 'Refazer' : 'Missão aberta'} · {falta}{m.em_equipe ? ' · em equipe' : ''}</span>
+      <b className="dm-tit">{m.titulo}</b>
+      {total > 0 && <><span className="dm-prog"><i style={{ width: `${Math.round(100 * feitas / total)}%` }} /></span>
+        <span className="dm-sub">{feitas} de {total} etapas</span></>}
+      <span className="dm-btn">{feitas > 0 || refazer ? 'Continuar missão' : 'Começar missão'}</span>
+      {pendM.length > 1 && <span className="dm-mais">+{pendM.length - 1} aberta(s) no card Missões</span>}
+    </button>
+  }
 
   if (tela === 'home') return (
     <div className="wrap">
       <header className="app"><img className="orbe-mini" src="/orbe-mascote.png" alt="" /><h1>Orbe</h1><span className="sub">Topografia · IFPE · aluno</span><span className="spacer" />
-        {naFila > 0 && <span className="badge off">{naFila} na fila</span>}{!online && <span className="badge off">sem rede</span>}</header>
+        {naFila > 0 && <span className="badge off">{naFila} na fila</span>}{!online && <span className="badge off">sem rede</span>}
+        {ident && <button className="eu-avatar" onClick={() => irArea('avatar')} title="Meu avatar" aria-label="Meu avatar">
+          <Avatar nome={ident.nome} avatar={ident.avatar} tam="mini" /></button>}</header>
       {EH_COMPUTADOR && <div className="flash dup" style={{ textAlign: 'left' }}>
         <b>Modo de teste: tela do aluno no computador.</b> Missões, presença, insígnias e avisos funcionam para conferir.
         Medir posição não: no computador a localização vem do Wi-Fi e não vale como dado — use o celular para Presença e Campo.{' '}
         <span style={{ cursor: 'pointer', textDecoration: 'underline', fontWeight: 700 }} onClick={irParaProfessora}>Voltar para a professora</span>
       </div>}
       <CardPresenca />
+      {(() => { const c = cartaId && listaAv.find(v => v.id === cartaId); if (!c) return null
+        return <div className="velado" onClick={fecharCarta}>
+          <div className={'carta-especial' + (cartaAlta ? ' alta' : '')} onClick={e => e.stopPropagation()}>
+            {c.imagem && <img src={c.imagem} alt="" onLoad={e => setCartaAlta(e.currentTarget.naturalHeight > e.currentTarget.naturalWidth * 1.2)} />}
+            <div className="ce-base">
+            <div className="ce-txt"><b>{c.titulo}</b>{c.texto && <p>{c.texto}</p>}</div>
+            <div className="ce-btns">
+              {c.destino && <button className="btn" onClick={() => { const d = c.destino; fecharCarta(); abrirPorAviso(d) }}>Ver a missão</button>}
+              <button className="btn ghost" onClick={fecharCarta}>Fechar</button>
+            </div>
+            </div>
+          </div>
+        </div> })()}
+      <DestaqueMissao />
+      {listaAv.length > 0 && (() => {
+        // recolhível (pedido dela, 18/09/2026): fechado mostra o mais recente e quantos são novos
+        const novos = listaAv.filter(v => new Date(v.em).getTime() > avVistoEm).length
+        return <div className={'panel avisos-home' + (avAberto ? ' aberto' : '')}>
+          <button className="av-cab" onClick={() => { const a = !avAberto; setAvAberto(a); gravar(K_AV_ABERTO, a); if (a) { setAvVistoEm(Date.now()); gravar(K_AV_VISTO, Date.now()) } }}>
+            <span>🔔 Avisos{novos > 0 && <span className="cp-badge">{novos}</span>}</span>
+            {!avAberto && <span className="av-ult">{listaAv[0].titulo}</span>}
+            <span className="av-seta">{avAberto ? '▴' : '▾'}</span>
+          </button>
+          {avAberto && listaAv.map(v => <button key={v.id} className={'av-item' + (v.abrir && v.abrir !== 'home' ? ' clica' : '')} onClick={() => abrirPorAviso(v.abrir)}>
+            <span className="av-tit"><b>{v.auto ? '⚙️ ' : ''}{v.titulo}</b><span className="av-em">{fmtQuando(v.em)}</span></span>
+            {v.texto && <span className="av-txt">{v.texto}</span>}
+          </button>)}
+        </div>
+      })()}
       {/* sempre à vista, mesmo com zero: as bloqueadas mostram o caminho (princípio do guia) */}
       <Vitrine minhas={minhasIns} onAbrir={() => irArea('insignias')} />
       {novaIns && <CartaoInsignia chave={novaIns.chave} dado={novaIns.dado} onFechar={() => { insignias.marcarVistas(); irArea('insignias') }} />}
-      {alerta && <button className={'alerta-missao' + (alerta.urgente ? ' urgente' : '')} onClick={() => irArea('missoes')}>
-        <span className="am-ico">{alerta.urgente ? '⏱' : '✨'}</span>
-        <span className="am-txt"><b>{alerta.titulo}</b><span>{alerta.sub}</span></span>
-      </button>}
+      <PassosOrbe />
       <div className="escolha quatro">
         <button className="card-perfil" onClick={() => irArea('aulas')}>
           <span className="cp-emoji">📚</span><span className="cp-tit">Aulas</span>
@@ -571,16 +722,6 @@ export default function Aluno() {
       </div>
       {erro && <div className="flash err">{erro}</div>}
       {aviso && <div className="flash dup">{aviso}</div>}
-      {ident && !EH_COMPUTADOR && estadoAv && estadoAv !== 'ativo' && estadoAv !== 'sem-suporte' && !avDispensado && <div className="panel aviso-push">
-        <b>🔔 Ativar avisos da professora</b>
-        <p className="note" style={{ margin: '4px 0 0' }}>Missão nova e recados da aula chegam no celular, mesmo com o app fechado.</p>
-        {estadoAv !== 'inativo' && <p className="note" style={{ margin: '6px 0 0' }}>{TEXTO_ESTADO[estadoAv]}</p>}
-        <div className="btnrow">
-          {estadoAv === 'inativo' && <button className="btn" onClick={ativarAvisos} disabled={ativandoAv || !online}>{ativandoAv ? 'Ativando…' : 'Ativar avisos'}</button>}
-          <button className="btn ghost" onClick={() => { gravar(K_AVISOS_DISP, Date.now()); setAvDispensado(true) }}>Agora não</button>
-        </div>
-        {erroAv && <div className="flash err" style={{ textAlign: 'left' }}>{erroAv}</div>}
-      </div>}
 
       <p className="note" style={{ textAlign: 'center' }}>
         {ident ? <>Você: <b>{ident.nome || ident.matricula}</b> · <span style={{ cursor: 'pointer', textDecoration: 'underline' }} onClick={trocarIdent}>trocar</span></>
@@ -591,6 +732,7 @@ export default function Aluno() {
         <p className="note" style={{ marginTop: 4 }}><b>iPhone:</b> Compartilhar → <b>Adicionar à Tela de Início</b>. <b>Android:</b> menu ⋮ → <b>Instalar app</b>.</p>
       </div>
       <p className="note" style={{ textAlign: 'center', cursor: 'pointer' }} onClick={irParaProfessora}>Sou professor(a)</p>
+      <img className="home-turma" src="/orbe-turma.png" width="1120" height="606" alt="A turma do Orbe: Orbe, Vértice, Navi, Lumi e Téo" />
     </div>
   )
 
@@ -606,6 +748,13 @@ export default function Aluno() {
         {presenca
           ? <><h2 style={{ marginTop: 0 }}>Pronto. Presença enviada.</h2>
               <p className="hint">Pode guardar o celular. Se a professora pedir para medir, toque abaixo.</p></>
+          : aConferir && !ocupando
+          ? <><h2 style={{ marginTop: 0 }}>Registrado.</h2>
+              <p className="hint">A professora vai conferir a sua presença. Se o GPS estava ruim, dá para tentar de novo, parado.</p>
+              <div className="btnrow" style={{ justifyContent: 'center' }}>
+                <button className="btn" onClick={() => { setAConferir(false); comecarChamada() }} disabled={!pos || enviando}>Tentar de novo</button>
+                <button className="btn ghost" onClick={voltarHome}>Voltar</button>
+              </div></>
           : ocupando
           ? <div className="ocup">
               {(() => { const R = 44, C = 2 * Math.PI * R; return <svg viewBox="0 0 100 100" className="ocup-anel">
@@ -652,6 +801,10 @@ export default function Aluno() {
             <div className="c"><div className="n">{pos.distPerc > 2000 ? metros(pos.distPerc / 1000, 1) + ' km' : metros(pos.distPerc, 0) + ' m'}</div><div className="l">até a PERC</div></div>
           </div>
           {razaoVert && <p className="note">A incerteza <b>vertical é {razaoVert.toFixed(1)}× a horizontal</b>.</p>}
+          {(() => { const al = altitudes(pos.alt); return al && <p className="note">
+            Altitude elipsoidal (h) <b>{metros(al.h, 1)} m</b> · altitude ortométrica (H) <b>{metros(al.H, 1)} m</b>.
+            H = h − N, com N = −5,56 m no campus. O seu celular entregou a {al.veio}; a outra foi calculada.
+          </p> })()}
           {vezes && <div className="perc-box">
             <div className="pb-tit">A estação do IBGE, aqui no campus</div>
             <div className="pb-sub">PERC · Bloco A · incerteza de <b>1 milímetro</b></div>

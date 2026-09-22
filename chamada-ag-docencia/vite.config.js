@@ -84,7 +84,7 @@ export default defineConfig({
           {
             urlPattern: ({ url }) => url.pathname.startsWith('/insignias/'),
             handler: 'CacheFirst',
-            options: { cacheName: 'insignias', expiration: { maxEntries: 120, maxAgeSeconds: 60 * 60 * 24 * 180 }, cacheableResponse: { statuses: [0, 200] } }
+            options: { cacheName: 'insignias', expiration: { maxEntries: 240, maxAgeSeconds: 60 * 60 * 24 * 180 }, cacheableResponse: { statuses: [0, 200] } }
           },
           {
             urlPattern: ({ url }) => url.href.includes('supabase.co'),

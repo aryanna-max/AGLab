@@ -9,6 +9,10 @@
     {
       "source": "/auxiliar",
       "destination": "/index.html"
+    },
+    {
+      "source": "/instalar",
+      "destination": "/index.html"
     }
   ]
 }
