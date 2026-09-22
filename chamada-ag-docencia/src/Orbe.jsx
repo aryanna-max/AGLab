@@ -100,7 +100,7 @@ function FotoDoPonto({ foto, setFoto, onErro }) {
         const f = ev.target.files && ev.target.files[0]; ev.target.value = ''
         if (!f) return
         setBusy(true)
-        try { setFoto(await arquivoParaJpeg(f, { lado: 640, qualidade: 0.72 })) } catch (e) { onErro('Não consegui ler a foto.') } finally { setBusy(false) }
+        try { setFoto(await arquivoParaJpeg(f, { lado: 800, qualidade: 0.72 })) } catch (e) { onErro('Não consegui ler a foto.') } finally { setBusy(false) }
       }} />
     </div>
   )

@@ -389,7 +389,14 @@ export default function Aluno() {
     } catch (e) {
       if (ehErroDeRede(e)) {
         const f = ler(K_FILA, []); f.push(item); gravar(K_FILA, f); setNaFila(f.length)
-        setAviso('Sem rede: leitura guardada no celular. Sobe sozinha quando tiver conexão.'); setTimeout(() => setAviso(''), 4000)
+        // A chamada é julgada pela janela da aula no instante em que a fila sobe (enviar_leitura
+        // usa now(), não o capturado_em). Sem rede na sala, a leitura sobe depois e já não vira
+        // presença — então aqui não se promete o que não se cumpre: quem confirma é a professora,
+        // que marca na sala pelo botão dela (esse caminho não depende de janela nem de GPS).
+        setAviso(rotulo === 'chamada'
+          ? 'Sem rede aqui — a professora confirma a sua presença na sala. Sua leitura ficou guardada.'
+          : 'Sem rede: leitura guardada no celular. Sobe sozinha quando tiver conexão.')
+        setTimeout(() => setAviso(''), 4000)
       } else setErro('Falhou o envio: ' + (e.message || 'erro'))
     } finally { setEnviando(false) }
   }
