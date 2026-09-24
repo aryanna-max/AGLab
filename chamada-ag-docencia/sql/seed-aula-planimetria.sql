@@ -7,8 +7,9 @@
 -- na aba Aulas da professora, escolhendo a turma. É de propósito: o cardápio é
 -- dela, o lançamento é por turma.
 --
--- Rode uma vez no SQL editor do Supabase. Se você tiver mais de uma conta no
--- projeto, troque o select do owner pela sua.
+-- Rode uma vez no SQL editor do Supabase. O dono sai de quem tem turmas, não
+-- do usuário mais antigo: num projeto com mais de uma conta, a mais antiga pode
+-- ser uma conta de teste sem nada — e aí a aula nasceria invisível para ela.
 
 do $$
 declare
@@ -17,9 +18,9 @@ declare
   base text := '/aulas/planimetria-01/';
   i    int;
 begin
-  select id into prof from auth.users order by created_at limit 1;
+  select t.owner_id into prof from turmas t group by t.owner_id order by count(*) desc limit 1;
   if prof is null then
-    raise exception 'Nenhum usuário em auth.users — crie a conta da professora antes.';
+    raise exception 'Nenhuma turma no banco — crie a turma antes, para saber de quem é a aula.';
   end if;
 
   insert into aulas (owner_id, titulo, frente, resumo)
