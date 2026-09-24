@@ -89,6 +89,23 @@ conteúdo, que é a única coisa que ele não guarda.
   turma viu o semestre acontecer, e é assim que ele procura. São poucas aulas:
   seção ali só somaria clique. O assunto aparece como etiqueta no cartão.
 
+### HQ: leitor em tela cheia, um quadro por vez
+
+**Decisão (24/09/2026), confirmada em teste no celular.** A HQ abre num leitor
+que ocupa a tela inteira, um quadro por vez, com `object-fit: contain`.
+
+A primeira versão era uma tira vertical **dentro do painel**, e não funcionou:
+o quadro ficava com a largura do painel menos as margens — uns 320 px num
+celular, para uma arte de 503. Ilegível. Se alguém devolver a imagem para
+dentro do painel achando que tela cheia é exagero, o balão some de novo.
+
+`contain` é o que faz o mesmo leitor servir arte vertical e horizontal sem
+mexer em código: **quem decide o formato é o arquivo**. O quadro usa o que
+couber e nunca é cortado.
+
+Navegação por toque nas metades da tela (esquerda volta, direita avança, a
+última fecha); os dois quadros seguintes vão baixando adiante.
+
 ### Ficha de campo: nem toda aula tem
 
 Ficha responde o que aparece **com o instrumento montado e a mão ocupada**:
