@@ -72,17 +72,22 @@ regra, não ajuste.
 
 ### Organização: por assunto, não por número de aula
 
-**Decisão (24/09/2026).** O acervo se agrupa por **frente** (Planimetria,
-Altimetria, Planialtimetria, Geral) e cada aula é nomeada pelo **título**.
-Não existe "Aula 4" em lugar nenhum — nem na tela do aluno, nem na da
-professora, nem no banco: `aula_lancamentos` não tem coluna de número.
+**Decisão (24/09/2026).** Não existe "Aula 4" em lugar nenhum — nem na tela do
+aluno, nem na da professora, nem no banco: `aula_lancamentos` não tem coluna de
+número. Quem nomeia a aula é o **título**; a frente é etiqueta.
 
 O motivo é como a memória do aluno funciona: ele não lembra que foi a aula 4,
 lembra que era sobre azimute. Numerar obriga a lembrar da ordem para achar o
 conteúdo, que é a única coisa que ele não guarda.
 
-A ordem dentro do assunto vem da data do lançamento, com o título como
-desempate. Quem lança não escolhe posição, só o assunto.
+**As duas telas se organizam diferente, e isso é de propósito:**
+
+- **Cardápio e turma (ela)** — agrupados por frente, na ordem do curso:
+  Planimetria, Altimetria, Planialtimetria, Geral. O acervo dela cresce a cada
+  semestre e precisa de gaveta.
+- **Aluno** — lista corrida, **na ordem em que ela lançou**. Foi assim que a
+  turma viu o semestre acontecer, e é assim que ele procura. São poucas aulas:
+  seção ali só somaria clique. O assunto aparece como etiqueta no cartão.
 
 ### Ficha de campo: nem toda aula tem
 

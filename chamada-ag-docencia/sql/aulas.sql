@@ -10,9 +10,12 @@
 --   aula_lancamentos  aula × turma                    (≅ missao_lancamentos)
 --   aula_leituras     quem abriu qual peça, e quando
 --
--- O acervo se organiza por ASSUNTO, não por número de aula: o aluno não lembra
--- que foi a aula 4, lembra que era sobre azimute. Por isso não há coluna de
--- número — a frente agrupa, o título nomeia, a data ordena dentro do grupo.
+-- Não há número de aula: o aluno não lembra que foi a aula 4, lembra que era
+-- sobre azimute. Quem nomeia é o título; a frente é etiqueta.
+--
+-- Para o ALUNO a lista é corrida, na ordem em que ela lançou — foi assim que a
+-- turma viu o semestre acontecer. A divisão por frente é a organização DELA,
+-- no cardápio, onde o acervo cresce e precisa de gaveta.
 
 -- ---------- o cardápio ----------
 create table if not exists public.aulas (
@@ -135,7 +138,7 @@ begin
     return jsonb_build_object('ok', false, 'erro', 'Não achei essa matrícula.');
   end if;
 
-  select coalesce(jsonb_agg(x order by frente_ord, quando, titulo_ord), '[]'::jsonb) into lista from (
+  select coalesce(jsonb_agg(x order by quando, criada), '[]'::jsonb) into lista from (
     select jsonb_build_object(
              'lancamento_id', l.id,
              'aula_id',       a.id,
@@ -148,11 +151,10 @@ begin
              'li',            (select count(*) from aula_leituras r
                                 where r.lancamento_id = l.id and r.aluno_id = al.id)
            ) as x,
-           -- planimetria antes de altimetria, e o geral por último: é a ordem do curso
-           case a.frente when 'planimetria' then 1 when 'altimetria' then 2
-                         when 'planialtimetria' then 3 else 4 end as frente_ord,
-           coalesce(l.data, current_date) as quando,
-           a.titulo as titulo_ord
+           -- na ordem em que ela lançou: é assim que a turma viu o semestre
+           -- acontecer, e é o que o aluno tem na cabeça ao procurar.
+           coalesce(l.data, l.criado_em::date) as quando,
+           l.criado_em as criada
       from aula_lancamentos l
       join aulas a on a.id = l.aula_id
      where l.turma_id = al.turma_id and l.publicada and not a.arquivada
