@@ -56,6 +56,33 @@ bronze/prata/ouro e entrega. Material e exercício não devem ser duas coisas �
 - **A aula do dia baixa sozinha** no momento da chamada, em segundo plano. A
   turma sai para o campo com o material no bolso sem ter pensado nisso.
 
+### Acesso: a porta Aulas é acervo, não vitrine do dia
+
+**Decisão (24/09/2026).** Lançou e publicou, a turma vê — e continua vendo o
+semestre inteiro. Sem trava de data: `minhas_aulas` filtra por turma,
+`publicada` e `arquivada`, e nada mais.
+
+O QR da chamada é **atalho**, não permissão: ele abre a aula do dia no momento
+em que o aluno já está com o celular na mão. Quem governa o acesso é o
+lançamento publicado. O campo `data` do lançamento é informação no cartão, não
+gatilho — se um dia virar "abre na data", é uma linha no filtro, e é mudança de
+regra, não ajuste.
+
+É por essa porta que o aluno volta na aula 4 na véspera da prova.
+
+### Ficha de campo: nem toda aula tem
+
+Ficha responde o que aparece **com o instrumento montado e a mão ocupada**:
+o que conferir antes de sair, a sequência de operação, as tolerâncias da
+prática, o que não pode faltar ao voltar, e o que fazer quando não fecha.
+
+O teste: frase que começa com "é importante entender que" é cartão; frase que
+começa com número ou verbo no imperativo é ficha. E o teste prático — o aluno
+abriria isso em pé, com o tripé montado? Se só abriria sentado, é cartão.
+
+Aula conceitual não tem ficha, e forçar uma faz ela virar resumo dos cartões.
+A tela já se comporta assim: sem peça do tipo `ficha`, a porta não aparece.
+
 ### Cuidados concretos, já levantados no código
 
 - Material **nunca** em `public/`: `globPatterns` varre `**/*.png` e tudo que
