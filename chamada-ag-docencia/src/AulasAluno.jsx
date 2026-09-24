@@ -85,6 +85,11 @@ function Aula({ ident, online, lancamentoId, onVoltar }) {
   const hq = pecas.filter(p => p.tipo === 'hq')
   const cartoes = pecas.filter(p => p.tipo === 'cartao')
   const ficha = pecas.find(p => p.tipo === 'ficha')
+  /* Aprofundamento: a quarta camada, para imprimir e estudar na mesa. Abre fora
+     do app, no visualizador do aparelho — é o único lugar onde PDF é o certo.
+     Só peças com url: as que vierem do Storage precisam de URL assinada, e isso
+     entra junto com o editor, na fase 2. */
+  const pdfs = pecas.filter(p => p.tipo === 'pdf' && p.url)
 
   if (parte === 'hq') return <HQ quadros={hq} ident={ident} lancamentoId={lancamentoId} onVoltar={() => setParte('capa')} />
   if (parte === 'cartoes') return <Cartoes cartoes={cartoes} ident={ident} lancamentoId={lancamentoId} onVoltar={() => setParte('capa')} />
@@ -110,6 +115,11 @@ function Aula({ ident, online, lancamentoId, onVoltar }) {
           <span className="cp-emoji">📋</span><span className="cp-tit">Ficha de campo</span>
           <span className="cp-sub">{ficha.titulo || 'o passo a passo, para abrir em campo'}</span>
         </button>}
+        {pdfs.map(p => <a key={p.id} className="card-perfil" href={p.url} target="_blank" rel="noopener noreferrer"
+          onClick={() => marcarLeitura(ident, lancamentoId, p.id)}>
+          <span className="cp-emoji">📄</span><span className="cp-tit">{p.titulo || 'Aprofundamento'}</span>
+          <span className="cp-sub">PDF · abre fora do app, para ler na mesa ou imprimir</span>
+        </a>)}
       </div>
 
       {!online && <p className="note">Sem rede: esta aula está guardada no celular.</p>}
