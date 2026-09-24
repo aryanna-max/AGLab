@@ -18,15 +18,19 @@ function resumoPecas(pecas) {
   return ['hq', 'cartao', 'ficha', 'pdf'].filter(t => n[t]).map(t => `${n[t]} ${TIPO[t]}`).join(' · ')
 }
 
-/* Agrupa por frente, que é o assunto na linguagem do curso. */
-function porAssunto(lancamentos) {
+/* Agrupa por frente, que é o assunto na linguagem do curso — e na ordem do
+   curso, não na alfabética: planimetria, altimetria, planialtimetria, geral.
+   Serve às duas abas, para o cardápio e a turma lerem igual. */
+const ORDEM_FRENTE = ['planimetria', 'altimetria', 'planialtimetria', 'geral']
+function porAssunto(itens, frenteDe) {
   const grupos = []
-  for (const l of lancamentos) {
-    const chave = l.aulas?.frente || 'geral'
+  for (const it of itens) {
+    const chave = frenteDe(it) || 'geral'
     const g = grupos.find(x => x.chave === chave)
-    if (g) g.itens.push(l); else grupos.push({ chave, itens: [l] })
+    if (g) g.itens.push(it); else grupos.push({ chave, itens: [it] })
   }
-  return grupos
+  const pos = c => { const i = ORDEM_FRENTE.indexOf(c); return i < 0 ? ORDEM_FRENTE.length : i }
+  return grupos.sort((a, b) => pos(a.chave) - pos(b.chave) || a.chave.localeCompare(b.chave))
 }
 
 export default function AulasProfessora({ userId, tid, turmas, online, showToast }) {
@@ -77,7 +81,7 @@ function Lancadas({ lancamentos, recarregar, showToast, irCardapio }) {
     <div className="panel">
       <h2 style={{ marginTop: 0 }}>Aulas desta turma</h2>
       <p className="hint">Por assunto, na ordem em que o aluno vê. Publicada, fica disponível — o QR da chamada é só um atalho para a aula do dia.</p>
-      {porAssunto(lancamentos).map(g => <div key={g.chave} className="acervo-grupo">
+      {porAssunto(lancamentos, l => l.aulas?.frente).map(g => <div key={g.chave} className="acervo-grupo">
         <h3 className="acervo-assunto">{NOME_FRENTE[g.chave] || g.chave}</h3>
         {g.itens.map(l => <Lancamento key={l.id} l={l} aberto={abertoId === l.id}
           onAbrir={() => setAbertoId(abertoId === l.id ? null : l.id)} recarregar={recarregar} showToast={showToast} />)}
@@ -184,11 +188,13 @@ function Cardapio({ userId, aulas, lancamentos, tid, recarregar, showToast, onLa
   return (
     <div className="panel">
       <h2 style={{ marginTop: 0 }}>Cardápio de aulas</h2>
-      <p className="hint">Escrita uma vez, serve todas as turmas. O acervo se organiza por assunto — quem nomeia a aula é o título, não um número.</p>
+      <p className="hint">Por assunto, na ordem do curso. Escrita uma vez, serve todas as turmas — quem nomeia a aula é o título, não um número.</p>
       {lista.length === 0 && <p className="empty">
         {verArquivadas ? 'Nenhuma aula arquivada.' : 'Nenhuma aula ainda. A primeira entra pelo SQL (sql/seed-aula-planimetria.sql); o editor vem na próxima fase.'}
       </p>}
-      {lista.map(a => {
+      {porAssunto(lista, a => a.frente).map(g => <div key={g.chave} className="acervo-grupo">
+        <h3 className="acervo-assunto">{NOME_FRENTE[g.chave] || g.chave}</h3>
+        {g.itens.map(a => {
         const ja = lancadas.has(a.id)
         return <div key={a.id} className="aula-lanc">
           <div className="al-top">
@@ -205,6 +211,7 @@ function Cardapio({ userId, aulas, lancamentos, tid, recarregar, showToast, onLa
           </div>}
         </div>
       })}
+      </div>)}
       <p className="note" style={{ cursor: 'pointer', textDecoration: 'underline' }} onClick={() => setVerArquivadas(v => !v)}>
         {verArquivadas ? 'Ver as ativas' : 'Ver arquivadas'}
       </p>
