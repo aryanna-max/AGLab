@@ -562,3 +562,12 @@ table.matrix tr.sel-row td{background:rgba(123,79,0,.10)}
 .cal-d.geral{justify-content:flex-start;gap:2px;padding-top:3px;min-height:52px;aspect-ratio:auto}
 .cal-chip{font-style:normal;font-size:9px;font-weight:700;line-height:1;padding:2px 3px;border-radius:4px;border:1px solid var(--c);color:var(--c)}
 .cal-chip.dada{background:var(--c);color:#fff}.cal-chip.plan{border-style:dashed}.cal-chip.vazia{opacity:.35}
+
+/* ---------- material: lado da professora ---------- */
+.aula-lanc{display:flex;flex-direction:column;gap:4px;border:1px solid var(--line);border-radius:12px;
+  padding:12px 14px;margin:0 0 10px;background:var(--panel)}
+.aula-lanc .al-top{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.aula-lanc .al-tit{font-size:16px}
+.aula-lanc .btnrow{margin-top:8px}
+.quem-leu{margin-top:10px;border-top:1px solid var(--line);padding-top:10px}
+.quem-leu .lista-simples li{display:flex;justify-content:space-between;gap:10px;align-items:baseline}

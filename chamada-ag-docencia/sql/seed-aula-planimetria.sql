@@ -1,5 +1,8 @@
 -- Aula de exemplo da fase 1: Topografia planimétrica, HQ 1.
 --
+-- Aula conceitual: HQ e cartões, SEM ficha de campo. Ficha responde o que
+-- aparece com o instrumento na mão; forçar uma aqui viraria resumo dos cartões.
+--
 -- Cria a aula no CARDÁPIO. Não lança em turma nenhuma — isso se faz no app,
 -- na aba Aulas da professora, escolhendo a turma. É de propósito: o cardápio é
 -- dela, o lançamento é por turma.
@@ -82,21 +85,7 @@ Três coisas que nenhuma planta dispensa:
 
 Observe, registre, confira e represente com responsabilidade: a laje que sobe naquele terreno está apoiada nas suas medidas.
 
-Topografia planimétrica = conhecer o terreno para projetar com segurança.'),
+Topografia planimétrica = conhecer o terreno para projetar com segurança.');
 
-  -- ---------- a ficha de campo: um cartão só, para abrir com a mão suja ----------
-  (prof, au, 'ficha', 20, 'Levantamento planimétrico — em campo',
-   '**Antes de medir**
-1. Percorra o terreno inteiro uma vez, sem equipamento.
-2. Decida quais pontos definem limites e detalhes.
-
-**Medindo**
-3. Materialize e identifique cada ponto (P1, P2, P3…).
-4. Meça DH e ângulo horizontal de cada alinhamento.
-
-**Antes de sair**
-5. Feche o croqui no campo, com legenda e norte.
-6. Confira: todo ponto do croqui tem medida? Toda medida tem ponto?');
-
-  raise notice 'Aula criada: % — lance na turma pela aba Aulas.', au;
+  raise notice 'Aula criada: % — lance na turma pela aba Material.', au;
 end $$;
