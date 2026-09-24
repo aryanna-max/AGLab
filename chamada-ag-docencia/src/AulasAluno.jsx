@@ -128,19 +128,56 @@ function Aula({ ident, online, lancamentoId, onVoltar }) {
   )
 }
 
-/* ---------- a HQ: um quadro por vez, rolagem vertical ---------- */
+/* ---------- a HQ: um quadro por vez, em tela cheia ---------- */
+/* Tela cheia e object-fit: contain — o quadro ocupa o que couber e nunca é
+   cortado. Serve para arte vertical ou horizontal sem mudar nada aqui: quem
+   decide o formato é o arquivo, não o leitor.
+   Dentro do painel, como era antes, o quadro ficava na largura do painel menos
+   as margens: uns 320 px num celular, para uma arte de 503. Ilegível. */
 function HQ({ quadros, ident, lancamentoId, onVoltar }) {
-  useEffect(() => { if (quadros[0]) marcarLeitura(ident, lancamentoId, quadros[0].id) }, [lancamentoId])
+  const [i, setI] = useState(0)
+  const q = quadros[i]
+  const marcados = useRef({})
+
+  useEffect(() => {
+    if (!q || marcados.current[q.id]) return
+    marcados.current[q.id] = true
+    marcarLeitura(ident, lancamentoId, q.id)
+  }, [q && q.id])
+
+  const anterior = () => setI(x => Math.max(0, x - 1))
+  const proximo = () => { if (i < quadros.length - 1) setI(i + 1); else onVoltar() }
+
+  // setas do teclado ajudam a conferir no computador
+  useEffect(() => {
+    const f = e => { if (e.key === 'ArrowLeft') anterior(); if (e.key === 'ArrowRight') proximo(); if (e.key === 'Escape') onVoltar() }
+    window.addEventListener('keydown', f)
+    return () => window.removeEventListener('keydown', f)
+  }, [i, quadros.length])
+
+  if (!q) return null
   return (
-    <div className="panel">
-      <h2 style={{ marginTop: 0 }}>HQ</h2>
-      <div className="hq-tira">
-        {quadros.map((q, i) => <img key={q.id} src={q.url} alt={`Quadro ${i + 1}`}
-          width={q.largura || undefined} height={q.altura || undefined}
-          loading={i < 2 ? 'eager' : 'lazy'} decoding="async"
-          onLoad={() => marcarLeitura(ident, lancamentoId, q.id)} />)}
+    <div className="hq-leitor">
+      <img src={q.url} alt={`Quadro ${i + 1} de ${quadros.length}`}
+        width={q.largura || undefined} height={q.altura || undefined}
+        decoding="async" />
+
+      {/* os dois seguintes já vão baixando, para o toque não esperar */}
+      <div className="hq-adiante">
+        {[quadros[i + 1], quadros[i + 2]].filter(Boolean).map(p => <img key={p.id} src={p.url} alt="" aria-hidden="true" />)}
       </div>
-      <button className="btn ghost" onClick={onVoltar}>Voltar</button>
+
+      {/* metades invisíveis: tocar na esquerda volta, na direita avança */}
+      <button className="hq-meia esq" onClick={anterior} aria-label="Quadro anterior" disabled={i === 0} />
+      <button className="hq-meia dir" onClick={proximo} aria-label="Próximo quadro" />
+
+      <div className="hq-barra">
+        <button className="hq-x" onClick={onVoltar} aria-label="Fechar">✕</button>
+        <span className="hq-cont">{i + 1} / {quadros.length}</span>
+      </div>
+      <div className="hq-pontos">
+        {quadros.map((p, j) => <span key={p.id} className={'hq-ponto' + (j === i ? ' atual' : '')} />)}
+      </div>
     </div>
   )
 }

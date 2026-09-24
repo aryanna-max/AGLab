@@ -456,8 +456,29 @@ table.matrix tr.sel-row td{background:rgba(123,79,0,.10)}
 
 /* A HQ é uma tira vertical: um quadro por vez, rolando. As imagens carregam
    sob demanda e ficam no cache do service worker (ver vite.config.js). */
-.hq-tira{display:flex;flex-direction:column;gap:10px;margin:8px 0 14px}
-.hq-tira img{width:100%;height:auto;border-radius:10px;background:var(--chip);display:block}
+/* Leitor de HQ: tela cheia, um quadro por vez, sem corte.
+   'contain' faz o mesmo leitor servir arte vertical e horizontal. */
+.hq-leitor{position:fixed;inset:0;z-index:60;background:#0b0f14;display:grid;place-items:center;
+  padding:calc(env(safe-area-inset-top) + 44px) 8px calc(env(safe-area-inset-bottom) + 28px)}
+.hq-leitor > img{max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain;
+  border-radius:8px;display:block}
+.hq-adiante{position:absolute;width:1px;height:1px;overflow:hidden;opacity:0;pointer-events:none}
+
+.hq-meia{position:absolute;top:0;bottom:0;width:45%;border:0;background:transparent;cursor:pointer;padding:0}
+.hq-meia.esq{left:0}
+.hq-meia.dir{right:0;width:55%}
+.hq-meia:disabled{cursor:default}
+
+.hq-barra{position:absolute;top:0;left:0;right:0;display:flex;align-items:center;gap:10px;
+  padding:calc(env(safe-area-inset-top) + 6px) 12px 6px;color:#fff}
+.hq-x{border:0;background:rgba(255,255,255,.14);color:#fff;font-size:18px;line-height:1;
+  width:34px;height:34px;border-radius:999px;cursor:pointer}
+.hq-cont{margin-left:auto;font-size:13px;opacity:.8}
+
+.hq-pontos{position:absolute;left:0;right:0;bottom:calc(env(safe-area-inset-bottom) + 10px);
+  display:flex;gap:6px;justify-content:center}
+.hq-ponto{width:6px;height:6px;border-radius:999px;background:rgba(255,255,255,.3)}
+.hq-ponto.atual{background:#fff;transform:scale(1.3)}
 
 /* O cartão: um conceito por tela. Se precisar rolar, são dois cartões. */
 .cartao-aula{border:1px solid var(--line);border-radius:14px;background:var(--panel);
