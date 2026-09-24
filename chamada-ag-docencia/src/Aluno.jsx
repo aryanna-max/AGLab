@@ -633,7 +633,7 @@ export default function Aluno() {
   const subMissoes = proxima ? `${nAbertas} aberta(s) · ${fmtPrazo(proxima.prazo_em).texto}` : 'O que a professora lançou para a turma.'
   const listaA = aulas.dados?.aulas || []
   const naoLida = listaA.find(a => (a.li || 0) === 0)
-  const subAulas = naoLida ? `${naoLida.numero ? 'Aula ' + naoLida.numero + ': ' : ''}${naoLida.titulo}`
+  const subAulas = naoLida ? naoLida.titulo
     : listaA.length ? `${listaA.length} aula(s) · o material fica no celular.` : 'HQ, o assunto e a ficha de campo.'
 
   /* Destaque da missão aberta (opção A, escolhida por ela em 18/09/2026): cartão dourado no topo com a

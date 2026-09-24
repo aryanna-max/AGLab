@@ -730,7 +730,8 @@ export async function revogarAuxiliar(turmaId) {
 
 /* ---------- aulas (material) ----------
    Mesmo desenho das missões: cardápio dela (aulas, sem turma) · lançamentos
-   (aula × turma, com número) · leituras dos alunos. */
+   (aula × turma) · leituras dos alunos. O acervo se organiza por assunto — a
+   frente agrupa, o título nomeia —, não por número de aula. */
 export async function listarAulas() {
   const { data, error } = await supabase.from('aulas').select('*,aula_pecas(id,tipo)').order('arquivada').order('frente').order('titulo')
   if (error) throw error; return data || []
@@ -738,12 +739,12 @@ export async function listarAulas() {
 export async function lancamentosDeAulasDaTurma(turmaId) {
   const { data, error } = await supabase.from('aula_lancamentos')
     .select('*,aulas(titulo,frente,resumo,aula_pecas(id,tipo))')
-    .eq('turma_id', turmaId).order('numero', { nullsFirst: false })
+    .eq('turma_id', turmaId).order('data', { nullsFirst: false })
   if (error) throw error; return data || []
 }
 export async function lancarAula(userId, l) {
   const { data, error } = await supabase.from('aula_lancamentos')
-    .insert({ owner_id: userId, aula_id: l.aula_id, turma_id: l.turma_id, numero: l.numero || null, data: l.data || null })
+    .insert({ owner_id: userId, aula_id: l.aula_id, turma_id: l.turma_id, data: l.data || null })
     .select('*').single()
   if (error) throw error; return data
 }

@@ -3,7 +3,7 @@ import * as store from './lib/store'
 
 /* Aulas — lado da professora.
    Cardápio: a biblioteca dela, sem turma — a HQ de planimetria é escrita uma vez.
-   Lançadas: a aula acontecendo nesta turma, com número, e quem leu.
+   Lançadas: o que esta turma tem, agrupado por assunto, e quem leu.
    Mesma divisão das missões, de propósito: é a mesma cabeça operando as duas. */
 
 const NOME_FRENTE = { planimetria: 'Planimetria', altimetria: 'Altimetria', planialtimetria: 'Planialtimetria', geral: 'Geral' }
@@ -16,6 +16,17 @@ function resumoPecas(pecas) {
   const n = {}
   for (const p of pecas || []) n[p.tipo] = (n[p.tipo] || 0) + 1
   return ['hq', 'cartao', 'ficha', 'pdf'].filter(t => n[t]).map(t => `${n[t]} ${TIPO[t]}`).join(' · ')
+}
+
+/* Agrupa por frente, que é o assunto na linguagem do curso. */
+function porAssunto(lancamentos) {
+  const grupos = []
+  for (const l of lancamentos) {
+    const chave = l.aulas?.frente || 'geral'
+    const g = grupos.find(x => x.chave === chave)
+    if (g) g.itens.push(l); else grupos.push({ chave, itens: [l] })
+  }
+  return grupos
 }
 
 export default function AulasProfessora({ userId, tid, turmas, online, showToast }) {
@@ -65,9 +76,12 @@ function Lancadas({ lancamentos, recarregar, showToast, irCardapio }) {
   return (
     <div className="panel">
       <h2 style={{ marginTop: 0 }}>Aulas desta turma</h2>
-      <p className="hint">Na ordem em que o aluno vê. Publicada, fica disponível — o QR da chamada é só um atalho para a aula do dia.</p>
-      {lancamentos.map(l => <Lancamento key={l.id} l={l} aberto={abertoId === l.id}
-        onAbrir={() => setAbertoId(abertoId === l.id ? null : l.id)} recarregar={recarregar} showToast={showToast} />)}
+      <p className="hint">Por assunto, na ordem em que o aluno vê. Publicada, fica disponível — o QR da chamada é só um atalho para a aula do dia.</p>
+      {porAssunto(lancamentos).map(g => <div key={g.chave} className="acervo-grupo">
+        <h3 className="acervo-assunto">{NOME_FRENTE[g.chave] || g.chave}</h3>
+        {g.itens.map(l => <Lancamento key={l.id} l={l} aberto={abertoId === l.id}
+          onAbrir={() => setAbertoId(abertoId === l.id ? null : l.id)} recarregar={recarregar} showToast={showToast} />)}
+      </div>)}
     </div>
   )
 }
@@ -95,7 +109,7 @@ function Lancamento({ l, aberto, onAbrir, recarregar, showToast }) {
         {!l.publicada && <span className="tag nova">fora do ar</span>}
         {l.data && <span className="note">{fmtD(l.data)}</span>}
       </div>
-      <b className="al-tit">{l.numero ? `Aula ${l.numero} · ` : ''}{a.titulo}</b>
+      <b className="al-tit">{a.titulo}</b>
       <span className="note">{resumoPecas(a.aula_pecas) || 'sem peças ainda'}</span>
       <div className="btnrow">
         <button className="btn ghost mini" onClick={onAbrir}>{aberto ? 'Fechar' : 'Quem leu'}</button>
@@ -155,15 +169,14 @@ function Cardapio({ userId, aulas, lancamentos, tid, recarregar, showToast, onLa
   const [busy, setBusy] = useState(null)
   const [verArquivadas, setVerArquivadas] = useState(false)
   const lancadas = new Set(lancamentos.map(l => l.aula_id))
-  const proximoNumero = Math.max(0, ...lancamentos.map(l => l.numero || 0)) + 1
   const lista = aulas.filter(a => verArquivadas ? a.arquivada : !a.arquivada)
 
   async function lancar(a) {
     if (!tid) { showToast('Escolha a turma no topo'); return }
     setBusy(a.id)
     try {
-      await store.lancarAula(userId, { aula_id: a.id, turma_id: tid, numero: proximoNumero, data: new Date().toISOString().slice(0, 10) })
-      showToast(`Aula ${proximoNumero} lançada`)
+      await store.lancarAula(userId, { aula_id: a.id, turma_id: tid, data: new Date().toISOString().slice(0, 10) })
+      showToast(`"${a.titulo}" lançada`)
       recarregar(); onLancou()
     } catch (e) { showToast('Erro: ' + e.message) } finally { setBusy(null) }
   }
@@ -171,7 +184,7 @@ function Cardapio({ userId, aulas, lancamentos, tid, recarregar, showToast, onLa
   return (
     <div className="panel">
       <h2 style={{ marginTop: 0 }}>Cardápio de aulas</h2>
-      <p className="hint">Escrita uma vez, serve todas as turmas. O número da aula é de cada turma, não do cardápio.</p>
+      <p className="hint">Escrita uma vez, serve todas as turmas. O acervo se organiza por assunto — quem nomeia a aula é o título, não um número.</p>
       {lista.length === 0 && <p className="empty">
         {verArquivadas ? 'Nenhuma aula arquivada.' : 'Nenhuma aula ainda. A primeira entra pelo SQL (sql/seed-aula-planimetria.sql); o editor vem na próxima fase.'}
       </p>}
@@ -187,7 +200,7 @@ function Cardapio({ userId, aulas, lancamentos, tid, recarregar, showToast, onLa
           <span className="note">{resumoPecas(a.aula_pecas) || 'sem peças ainda'}</span>
           {!ja && <div className="btnrow">
             <button className="btn" onClick={() => lancar(a)} disabled={busy === a.id}>
-              {busy === a.id ? 'Lançando…' : `Lançar como aula ${proximoNumero}`}
+              {busy === a.id ? 'Lançando…' : 'Lançar nesta turma'}
             </button>
           </div>}
         </div>

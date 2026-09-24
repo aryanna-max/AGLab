@@ -7,11 +7,12 @@
 --
 --   aulas             cardápio dela, sem turma        (≅ missoes)
 --   aula_pecas        as peças de uma aula            (cartão, ficha, HQ, PDF)
---   aula_lancamentos  aula × turma, com número        (≅ missao_lancamentos)
+--   aula_lancamentos  aula × turma                    (≅ missao_lancamentos)
 --   aula_leituras     quem abriu qual peça, e quando
 --
--- O número da aula mora no LANÇAMENTO, não no cardápio: a mesma aula pode ser a
--- 3ª numa turma e a 5ª em outra.
+-- O acervo se organiza por ASSUNTO, não por número de aula: o aluno não lembra
+-- que foi a aula 4, lembra que era sobre azimute. Por isso não há coluna de
+-- número — a frente agrupa, o título nomeia, a data ordena dentro do grupo.
 
 -- ---------- o cardápio ----------
 create table if not exists public.aulas (
@@ -57,14 +58,13 @@ create table if not exists public.aula_lancamentos (
   owner_id    uuid not null references auth.users(id) on delete cascade,
   aula_id     uuid not null references public.aulas(id) on delete cascade,
   turma_id    uuid not null references public.turmas(id) on delete cascade,
-  numero      integer,
   data        date,
   publicada   boolean not null default true,
   criado_em   timestamptz not null default now(),
   unique (aula_id, turma_id)
 );
 
-create index if not exists aula_lancamentos_da_turma on public.aula_lancamentos (turma_id, numero);
+create index if not exists aula_lancamentos_da_turma on public.aula_lancamentos (turma_id, data);
 
 -- ---------- quem leu ----------
 -- Uma linha por peça aberta. Por peça, e não por aula, porque é isso que
@@ -135,11 +135,10 @@ begin
     return jsonb_build_object('ok', false, 'erro', 'Não achei essa matrícula.');
   end if;
 
-  select coalesce(jsonb_agg(x order by ordem_na_turma), '[]'::jsonb) into lista from (
+  select coalesce(jsonb_agg(x order by frente_ord, quando, titulo_ord), '[]'::jsonb) into lista from (
     select jsonb_build_object(
              'lancamento_id', l.id,
              'aula_id',       a.id,
-             'numero',        l.numero,
              'titulo',        a.titulo,
              'frente',        a.frente,
              'resumo',        a.resumo,
@@ -149,7 +148,11 @@ begin
              'li',            (select count(*) from aula_leituras r
                                 where r.lancamento_id = l.id and r.aluno_id = al.id)
            ) as x,
-           coalesce(l.numero, 9999) as ordem_na_turma
+           -- planimetria antes de altimetria, e o geral por último: é a ordem do curso
+           case a.frente when 'planimetria' then 1 when 'altimetria' then 2
+                         when 'planialtimetria' then 3 else 4 end as frente_ord,
+           coalesce(l.data, current_date) as quando,
+           a.titulo as titulo_ord
       from aula_lancamentos l
       join aulas a on a.id = l.aula_id
      where l.turma_id = al.turma_id and l.publicada and not a.arquivada
@@ -196,7 +199,7 @@ begin
     from aula_pecas p where p.aula_id = au.id;
 
   return jsonb_build_object('ok', true,
-    'lancamento_id', lan.id, 'numero', lan.numero, 'data', lan.data,
+    'lancamento_id', lan.id, 'data', lan.data,
     'titulo', au.titulo, 'frente', au.frente, 'resumo', au.resumo,
     'pecas', pecas);
 end $$;

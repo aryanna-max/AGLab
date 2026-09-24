@@ -39,20 +39,31 @@ export default function AulasAluno({ ident, online, aulas, abrirId }) {
     onVoltar={() => { setAbertaId(null); recarregar() }} />
 
   const lista = dados?.aulas || []
+  /* Agrupado por assunto, não numerado: o aluno não lembra que foi a aula 4,
+     lembra que era sobre azimute. A ordem dentro do grupo vem do servidor. */
+  const grupos = []
+  for (const a of lista) {
+    const chave = a.frente || 'geral'
+    const g = grupos.find(x => x.chave === chave)
+    if (g) g.itens.push(a); else grupos.push({ chave, itens: [a] })
+  }
+
   return (
     <div className="panel">
       <h2 style={{ marginTop: 0 }}>Aulas</h2>
       {!dados && <p className="note">{carregando ? 'Carregando…' : online ? 'Não consegui carregar agora.' : 'Sem rede: as aulas aparecem quando a conexão voltar.'}</p>}
       {dados && lista.length === 0 && <p className="empty">Nenhuma aula publicada ainda.</p>}
-      {lista.map(a => <button key={a.lancamento_id} className="missao-card" onClick={() => setAbertaId(a.lancamento_id)}>
-        <span className="mc-top">
-          <span className="tag">{FRENTE[a.frente] || a.frente}</span>
-          {a.tem_hq && <span className="tag">HQ</span>}
-          {a.li > 0 && <span className="tag nivel">{a.li >= a.pecas ? 'lida' : 'comecei'}</span>}
-        </span>
-        <span className="mc-tit">{a.numero ? `Aula ${a.numero} · ` : ''}{a.titulo}</span>
-        <span className="mc-sub">{a.data ? fmtData(a.data) : ''}{a.resumo ? (a.data ? ' · ' : '') + a.resumo : ''}</span>
-      </button>)}
+      {grupos.map(g => <div key={g.chave} className="acervo-grupo">
+        <h3 className="acervo-assunto">{FRENTE[g.chave] || g.chave}</h3>
+        {g.itens.map(a => <button key={a.lancamento_id} className="missao-card" onClick={() => setAbertaId(a.lancamento_id)}>
+          <span className="mc-top">
+            {a.tem_hq && <span className="tag">HQ</span>}
+            {a.li > 0 && <span className="tag nivel">{a.li >= a.pecas ? 'lida' : 'comecei'}</span>}
+          </span>
+          <span className="mc-tit">{a.titulo}</span>
+          <span className="mc-sub">{a.resumo || (a.data ? fmtData(a.data) : '')}</span>
+        </button>)}
+      </div>)}
     </div>
   )
 }
@@ -89,7 +100,8 @@ function Aula({ ident, online, lancamentoId, onVoltar }) {
   const lidos = cartoes.filter(c => c.lida).length
   return (
     <div className="panel">
-      <h2 style={{ marginTop: 0 }}>{aula.numero ? `Aula ${aula.numero} · ` : ''}{aula.titulo}</h2>
+      <h2 style={{ marginTop: 0 }}>{aula.titulo}</h2>
+      <p className="note" style={{ marginTop: 0 }}>{FRENTE[aula.frente] || aula.frente}</p>
       {aula.resumo && <p className="hint">{aula.resumo}</p>}
 
       <div className="aula-portas">

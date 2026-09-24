@@ -571,3 +571,8 @@ table.matrix tr.sel-row td{background:rgba(123,79,0,.10)}
 .aula-lanc .btnrow{margin-top:8px}
 .quem-leu{margin-top:10px;border-top:1px solid var(--line);padding-top:10px}
 .quem-leu .lista-simples li{display:flex;justify-content:space-between;gap:10px;align-items:baseline}
+
+/* o acervo é agrupado por assunto, não numerado */
+.acervo-grupo{margin:0 0 14px}
+.acervo-assunto{margin:0 0 8px;font-size:13px;font-weight:800;letter-spacing:.04em;
+  text-transform:uppercase;color:var(--muted)}

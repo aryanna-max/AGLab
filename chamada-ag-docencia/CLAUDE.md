@@ -68,7 +68,21 @@ lançamento publicado. O campo `data` do lançamento é informação no cartão,
 gatilho — se um dia virar "abre na data", é uma linha no filtro, e é mudança de
 regra, não ajuste.
 
-É por essa porta que o aluno volta na aula 4 na véspera da prova.
+É por essa porta que o aluno volta ao assunto na véspera da prova.
+
+### Organização: por assunto, não por número de aula
+
+**Decisão (24/09/2026).** O acervo se agrupa por **frente** (Planimetria,
+Altimetria, Planialtimetria, Geral) e cada aula é nomeada pelo **título**.
+Não existe "Aula 4" em lugar nenhum — nem na tela do aluno, nem na da
+professora, nem no banco: `aula_lancamentos` não tem coluna de número.
+
+O motivo é como a memória do aluno funciona: ele não lembra que foi a aula 4,
+lembra que era sobre azimute. Numerar obriga a lembrar da ordem para achar o
+conteúdo, que é a única coisa que ele não guarda.
+
+A ordem dentro do assunto vem da data do lançamento, com o título como
+desempate. Quem lança não escolhe posição, só o assunto.
 
 ### Ficha de campo: nem toda aula tem
 
