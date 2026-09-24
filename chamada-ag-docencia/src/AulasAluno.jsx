@@ -38,32 +38,25 @@ export default function AulasAluno({ ident, online, aulas, abrirId }) {
   if (abertaId) return <Aula ident={ident} online={online} lancamentoId={abertaId}
     onVoltar={() => { setAbertaId(null); recarregar() }} />
 
+  /* Lista corrida, sem seções: a divisão por frente é a organização DELA, no
+     cardápio. O aluno tem poucas aulas e não precisa navegar por categoria —
+     o assunto aparece como etiqueta em cada uma. A ordem vem do servidor. */
   const lista = dados?.aulas || []
-  /* Agrupado por assunto, não numerado: o aluno não lembra que foi a aula 4,
-     lembra que era sobre azimute. A ordem dentro do grupo vem do servidor. */
-  const grupos = []
-  for (const a of lista) {
-    const chave = a.frente || 'geral'
-    const g = grupos.find(x => x.chave === chave)
-    if (g) g.itens.push(a); else grupos.push({ chave, itens: [a] })
-  }
 
   return (
     <div className="panel">
       <h2 style={{ marginTop: 0 }}>Aulas</h2>
       {!dados && <p className="note">{carregando ? 'Carregando…' : online ? 'Não consegui carregar agora.' : 'Sem rede: as aulas aparecem quando a conexão voltar.'}</p>}
       {dados && lista.length === 0 && <p className="empty">Nenhuma aula publicada ainda.</p>}
-      {grupos.map(g => <div key={g.chave} className="acervo-grupo">
-        <h3 className="acervo-assunto">{FRENTE[g.chave] || g.chave}</h3>
-        {g.itens.map(a => <button key={a.lancamento_id} className="missao-card" onClick={() => setAbertaId(a.lancamento_id)}>
-          <span className="mc-top">
-            {a.tem_hq && <span className="tag">HQ</span>}
-            {a.li > 0 && <span className="tag nivel">{a.li >= a.pecas ? 'lida' : 'comecei'}</span>}
-          </span>
-          <span className="mc-tit">{a.titulo}</span>
-          <span className="mc-sub">{a.resumo || (a.data ? fmtData(a.data) : '')}</span>
-        </button>)}
-      </div>)}
+      {lista.map(a => <button key={a.lancamento_id} className="missao-card" onClick={() => setAbertaId(a.lancamento_id)}>
+        <span className="mc-top">
+          <span className="tag">{FRENTE[a.frente] || a.frente}</span>
+          {a.tem_hq && <span className="tag">HQ</span>}
+          {a.li > 0 && <span className="tag nivel">{a.li >= a.pecas ? 'lida' : 'comecei'}</span>}
+        </span>
+        <span className="mc-tit">{a.titulo}</span>
+        <span className="mc-sub">{a.resumo || (a.data ? fmtData(a.data) : '')}</span>
+      </button>)}
     </div>
   )
 }
