@@ -12,14 +12,15 @@ import InsigniasAluno, { Vitrine, CartaoInsignia } from './InsigniasAluno.jsx'
 import { POR_CHAVE, semAlarde } from './lib/insignias'
 import { prepararSom, tocarAviso } from './lib/som'
 import { EH_COMPUTADOR } from './lib/aparelho'
-import { resumirOcupacao } from './lib/topo'
 import { estadoAvisos, ativarAvisosAluno, sincronizarAvisosAluno, TEXTO_ESTADO } from './lib/avisos'
 import Avatar from './Avatar.jsx'
 import MeuAvatar from './MeuAvatar.jsx'
 import { guardarSelfieDoServidor } from './lib/selfie'
 
-const CHAMADA_S = 20          // a presença é uma ocupação: 20 s parado, média das leituras (decisão dela, 15/09)
-const CHAMADA_MIN = 3
+// A presença é um envio só, com a posição que o GPS já está mostrando — o mesmo princípio
+// dos atalhos de "Onde você está agora?". Era uma ocupação de 20 s com média das leituras
+// (15/09); ela trocou em 22/09: o que a chamada precisa saber é quem estava na sala, e a
+// ocupação é exercício de medição, que vive no Orbe e nas missões.
 const ACC_GROSSEIRA = 150   // acima disso o celular está em localização aproximada, não em GNSS
 const ehIOS = /iPhone|iPad|iPod/.test(navigator.userAgent)
 const AvisoPrecisao = ({ pos }) => pos && pos.acc > ACC_GROSSEIRA ? (
@@ -162,34 +163,10 @@ export default function Aluno() {
   const [erro, setErro] = useState('')
   const [aviso, setAviso] = useState('')
   const [medirNaAula, setMedirNaAula] = useState(false)
-  const [ocupando, setOcupando] = useState(false)
-  const [ocupProg, setOcupProg] = useState(0)
-  const [ocupN, setOcupN] = useState(0)
-  const ocupRef = useRef({ ativa: false, lista: [], ultimoFix: null, t0: 0, timer: null })
-
-  function comecarChamada() {
+  function enviarPresenca() {
     if (!pos) { setErro('Espere a posição aparecer.'); return }
-    setErro(''); ocupRef.current = { ativa: true, lista: [{ ...pos }], ultimoFix: pos.fixTs, t0: performance.now(), timer: null }
-    setOcupN(1); setOcupando(true); setOcupProg(0)
-    ocupRef.current.timer = setInterval(() => {
-      const s = (performance.now() - ocupRef.current.t0) / 1000
-      setOcupProg(Math.min(1, s / CHAMADA_S))
-      if (s >= CHAMADA_S) terminarChamada()
-    }, 200)
+    setErro(''); enviar('chamada', pos)
   }
-  function cancelarChamada() { clearInterval(ocupRef.current.timer); ocupRef.current.ativa = false; setOcupando(false); setOcupProg(0) }
-  function terminarChamada() {
-    clearInterval(ocupRef.current.timer); ocupRef.current.ativa = false; setOcupando(false)
-    const ls = ocupRef.current.lista
-    if (ls.length < CHAMADA_MIN) { setErro(`Só ${ls.length} leitura(s) em ${CHAMADA_S} s — o GPS está lento aqui. Tente de novo, parado, com o céu mais aberto.`); return }
-    const r = resumirOcupacao(ls)
-    const ult = ls[ls.length - 1]
-    const altAccs = ls.filter(l => l.altAcc != null).map(l => l.altAcc)
-    const media = { lat: r.lat, lon: r.lon, acc: r.acc, alt: r.alt, altAcc: altAccs.length ? altAccs.reduce((a, b) => a + b, 0) / altAccs.length : null,
-      utmN: r.utmN, utmE: r.utmE, distPerc: distanciaUTM(r.utmN, r.utmE, PERC.utmN, PERC.utmE), fixTs: ult.fixTs, rumo: null, velocidade: null }
-    enviar('chamada', media, undefined, { ocupacao_s: CHAMADA_S, n_leituras: r.n, desvio_n_m: r.desvioN, desvio_e_m: r.desvioE, espalhamento_m: r.desvioHz,
-      leituras: ls.map(l => ({ lat: l.lat, lon: l.lon, acc: l.acc, alt: l.alt, fixTs: l.fixTs })) })
-  }   // na Chamada, medir é um passo explícito (confusão relatada em 15/09)
   const [enviando, setEnviando] = useState(false)
   const [aConferir, setAConferir] = useState(false)   // registrado, mas a presença fica para a professora conferir
   const [placar, setPlacar] = useState(null)
@@ -348,8 +325,6 @@ export default function Aluno() {
           fixTs: p.timestamp ? new Date(p.timestamp).toISOString() : null, rumo: c.heading, velocidade: c.speed
         }
         setPos(leitura); setErro('')
-        // durante a ocupação da chamada, cada fixação nova entra na média
-        if (ocupRef.current.ativa && ocupRef.current.ultimoFix !== leitura.fixTs) { ocupRef.current.ultimoFix = leitura.fixTs; ocupRef.current.lista.push(leitura); setOcupN(ocupRef.current.lista.length) }
       },
       e => setErro(e.code === 1 ? 'Você precisa permitir a localização para participar.' : 'Não consegui obter a posição.'),
       { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 }
@@ -457,7 +432,7 @@ export default function Aluno() {
     else if (['presenca', 'missoes', 'insignias', 'selfie', 'avatar'].includes(destino)) setTela(destino)
     else { setModo('livre'); modoRef.current = 'livre'; setTela('medir'); ligarGPS() }
   }
-  function voltarHome() { if (ocupRef.current.ativa) cancelarChamada(); pararGPS(); setPos(null); setPlacar(null); setErro(''); setAviso(''); setMedirNaAula(false); setAbrirMissaoId(null); setTela('home') }
+  function voltarHome() { pararGPS(); setPos(null); setPlacar(null); setErro(''); setAviso(''); setMedirNaAula(false); setAbrirMissaoId(null); setTela('home') }
 
   // tocou num aviso da professora: abre na tela que ela escolheu (home | presenca | campo | missoes | missao:<id>)
   function abrirPorAviso(abrir) {
@@ -732,36 +707,24 @@ export default function Aluno() {
         {presenca
           ? <><h2 style={{ marginTop: 0 }}>Pronto. Presença enviada.</h2>
               <p className="hint">Pode guardar o celular. Se a professora pedir para medir, toque abaixo.</p></>
-          : aConferir && !ocupando
+          : aConferir
           ? <><h2 style={{ marginTop: 0 }}>Registrado.</h2>
-              <p className="hint">A professora vai conferir a sua presença. Se o GPS estava ruim, dá para tentar de novo, parado.</p>
+              <p className="hint">A professora vai conferir a sua presença. Se o GPS estava ruim, dá para enviar de novo com o céu mais aberto.</p>
               <div className="btnrow" style={{ justifyContent: 'center' }}>
-                <button className="btn" onClick={() => { setAConferir(false); comecarChamada() }} disabled={!pos || enviando}>Tentar de novo</button>
+                <button className="btn" onClick={() => { setAConferir(false); enviarPresenca() }} disabled={!pos || enviando}>Enviar de novo</button>
                 <button className="btn ghost" onClick={voltarHome}>Voltar</button>
               </div></>
-          : ocupando
-          ? <div className="ocup">
-              {(() => { const R = 44, C = 2 * Math.PI * R; return <svg viewBox="0 0 100 100" className="ocup-anel">
-                <circle cx="50" cy="50" r={R} fill="none" stroke="var(--line)" strokeWidth="8" />
-                <circle cx="50" cy="50" r={R} fill="none" stroke="var(--ok)" strokeWidth="8" strokeLinecap="round" strokeDasharray={C} strokeDashoffset={C * (1 - ocupProg)} transform="rotate(-90 50 50)" />
-                <text x="50" y="46" textAnchor="middle" className="ocup-n">{ocupN}</text>
-                <text x="50" y="62" textAnchor="middle" className="ocup-l">leituras</text>
-              </svg> })()}
-              <div className="ocup-txt"><b>Fique parado.</b> {Math.ceil(CHAMADA_S * (1 - ocupProg))} s</div>
-              <button className="btn ghost mini" onClick={cancelarChamada}>Cancelar</button>
-            </div>
-          : <><h2 style={{ marginTop: 0 }}>Registrar presença</h2>
-              <p className="hint">A presença é uma <b>ocupação</b>: {CHAMADA_S} segundos parado, o app junta as leituras e registra a <b>média</b>. Um toque só ensina a errar.</p>
+          : <><h2 style={{ marginTop: 0 }}>Enviar presença</h2>
+              <p className="hint">Um toque: o app manda a posição que ele já está mostrando. Quem confirma a chamada é a professora, na sala.</p>
               <ol className="orienta">
                 <li>Fique <b>onde a professora indicou</b>{aula?.local ? <> — hoje: <b>{nomeLocal(aula.local)}</b></> : null}.</li>
                 <li>Celular <b>na mão, tela para cima</b>, afastado do corpo. Não no bolso.</li>
-                <li>Espere a posição aparecer{pos ? <> — apareceu: <b>± {metros(pos.acc, 0)} m</b></> : <> — <i>procurando satélites…</i></>}.</li>
-                <li>Toque em registrar e <b>não ande</b> durante os {CHAMADA_S} s.</li>
+                <li>Espere a posição aparecer{pos ? <> — apareceu: <b>± {metros(pos.acc, 0)} m</b></> : <> — <i>procurando satélites…</i></>} e toque em enviar.</li>
               </ol>
               <AvisoPrecisao pos={pos} />
               {erro && <div className="flash err" style={{ textAlign: 'left' }}>{erro}</div>}
               <div className="btnrow" style={{ justifyContent: 'center' }}>
-                <button className="btn" onClick={comecarChamada} disabled={!pos || enviando}>{enviando ? 'Registrando…' : `📍 Registrar presença · ${CHAMADA_S} s`}</button>
+                <button className="btn" onClick={enviarPresenca} disabled={!pos || enviando}>{enviando ? 'Enviando…' : '📍 Enviar presença'}</button>
                 <button className="btn ghost" onClick={voltarHome}>Voltar</button>
               </div></>}
         {presenca && <div className="btnrow" style={{ justifyContent: 'center' }}>
