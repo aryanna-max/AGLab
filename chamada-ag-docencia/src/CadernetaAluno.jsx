@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { escolhaDeEquipe, entrarEmEquipe, salvarCaderneta } from './lib/alunoApi'
-import { caderVazia, calcularCaderneta, lerHz, lerNumero, nomeChave, fmtM, marcosOficiais } from './lib/caderneta'
+import { caderVazia, calcularCaderneta, lerHz, lerNumero, nomeChave, fmtM, marcosOficiais, partesHz, juntarHz } from './lib/caderneta'
 import Avatar from './Avatar.jsx'
 
 /* Missão com caderneta de estação total (Transporte de Coordenadas) e equipes que os
@@ -140,6 +140,21 @@ export function useCaderneta(m, ident, online) {
 /* ================= CADERNETA: telas ================= */
 const OPC_NOVO = '__novo__'
 
+/* Ângulo em três caixas (° ' "), como no visor da estação. Grava o mesmo texto de antes
+   ("123 45 30"), então o que já foi digitado no campo único abre separado nas caixas.
+   Caixa vazia antes de uma preenchida vira 00 no texto, para "123 _ 30" não ler 123°30'. */
+function CaixasHz({ valor, onChange, disabled, ruim, re }) {
+  const [cx, setCx] = useState(() => partesHz(valor))
+  // versão nova chegou da equipe (ou apagou a linha): as caixas seguem o texto gravado
+  useEffect(() => { if (juntarHz(cx) !== String(valor || '').trim() && juntarHz(partesHz(valor)) !== juntarHz(cx)) setCx(partesHz(valor)) }, [valor])   // eslint-disable-line react-hooks/exhaustive-deps
+  const mudar = (k, v) => { const n = cx.map((x, j) => j === k ? v.replace(/[^\d.,]/g, '') : x); setCx(n); onChange(juntarHz(n)) }
+  const caixa = (k, ph, max, modo) => <input inputMode={modo} maxLength={max} value={cx[k]} disabled={disabled} placeholder={ph} aria-label={['graus', 'minutos', 'segundos'][k]}
+    className={ruim ? 'ruim' : ''} onChange={e => mudar(k, e.target.value)} />
+  return <div className="hz-caixas">
+    {caixa(0, re ? '0' : '°', 3, 'numeric')}<span>°</span>{caixa(1, re ? '00' : "'", 2, 'numeric')}<span>'</span>{caixa(2, re ? '00' : '"', 5, 'decimal')}<span>"</span>
+  </div>
+}
+
 function SeletorPonto({ valor, onChange, opcoes, disabled, placeholder }) {
   const lista = opcoes.some(o => nomeChave(o) === nomeChave(valor)) || !valor ? opcoes : [...opcoes, valor]
   return <select value={valor || ''} disabled={disabled} onChange={e => {
@@ -184,7 +199,7 @@ export function PainelCaderneta({ m, cadHook, podeEditar }) {
   return <>
     <div className="panel">
       <h2 style={{ marginTop: 0 }}>1 · Caderneta de campo</h2>
-      <p className="hint">Uma linha por visada. <b>A primeira visada de cada estação é a ré.</b> Ângulo em graus, minutos e segundos (ex.: <b>0 00 00</b> na ré, <b>123 45 30</b> na vante); distância horizontal em metros.</p>
+      <p className="hint">Uma linha por visada. <b>A primeira visada de cada estação é a ré.</b> Ângulo exatamente como no visor da estação, uma caixa para graus, outra para minutos e outra para segundos (na ré, em branco vale 0° 00' 00": zerada). Nas vantes, anote a leitura do visor, sem conta: o app desconta a ré sozinho. Distância horizontal em metros.</p>
       {conflito && <div className="devolutiva" style={{ marginBottom: 10 }}>
         <b>{conflito.por || 'Um colega'} salvou a caderneta às {new Date(conflito.em).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</b>
         <p>A versão dele e a deste celular são diferentes. Conversem e escolham uma: a outra se perde.</p>
@@ -198,10 +213,11 @@ export function PainelCaderneta({ m, cadHook, podeEditar }) {
             <div className="cad-grid">
               <div><label className="fld">Estação</label><SeletorPonto valor={l.est} opcoes={opcoes} disabled={!podeEditar} placeholder="—" onChange={v => setLinha(i, 'est', v)} /></div>
               <div><label className="fld">Ponto visado</label><SeletorPonto valor={l.pv} opcoes={opcoes} disabled={!podeEditar} placeholder="—" onChange={v => setLinha(i, 'pv', v)} /></div>
-              <div><label className="fld">Âng. horizontal</label><input inputMode="decimal" value={l.hz || ''} disabled={!podeEditar} placeholder="0 00 00" className={hzRuim ? 'ruim' : ''} onChange={e => setLinha(i, 'hz', e.target.value)} /></div>
+              <div><label className="fld">Âng. horizontal</label><CaixasHz valor={l.hz} re={info?.papel === 're'} disabled={!podeEditar} ruim={hzRuim} onChange={v => setLinha(i, 'hz', v)} /></div>
               <div><label className="fld">Dist. horizontal (m)</label><input inputMode="decimal" value={l.dh || ''} disabled={!podeEditar} placeholder="0,000" className={dhRuim ? 'ruim' : ''} onChange={e => setLinha(i, 'dh', e.target.value)} /></div>
             </div>
-            {hzRuim && <p className="note cad-aviso">Ângulo ilegível: use graus, minutos e segundos separados por espaço (123 45 30).</p>}
+            {info?.papel === 're' && !String(l.hz || '').trim() && <p className="note" style={{ margin: '4px 0 0' }}>Ré com ângulo em branco = zerada (0° 00' 00").</p>}
+            {hzRuim && <p className="note cad-aviso">Ângulo inválido: graus inteiros de 0 a 359, minutos de 0 a 59, segundos de 0 a 59 (com vírgula, se tiver décimo). Sem ponto nos graus.</p>}
             {dhRuim && <p className="note cad-aviso">Distância ilegível: só o número, em metros (12,345).</p>}
           </div> })}
       </div>

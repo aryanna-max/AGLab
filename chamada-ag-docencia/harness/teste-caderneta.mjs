@@ -3,7 +3,7 @@
    Monta uma caderneta sintética a partir de coordenadas conhecidas (Hz ao segundo, DH ao mm),
    e confere que o app devolve as coordenadas de volta, mede o fechamento e a conta à mão. */
 import { MARCOS, azimute } from '../src/lib/topo.js'
-import { lerHz, lerNumero, calcularCaderneta, gabarito, sugerirMedalhas, marcosOficiais } from '../src/lib/caderneta.js'
+import { lerHz, lerNumero, calcularCaderneta, gabarito, sugerirMedalhas, marcosOficiais, partesHz, juntarHz } from '../src/lib/caderneta.js'
 
 let falhas = 0
 const ok = (cond, msg) => { console.log((cond ? '  ok  ' : '  FALHOU ') + msg); if (!cond) falhas++ }
@@ -23,6 +23,16 @@ ok(lerNumero('9108742.431') === 9108742.431, 'número com ponto')
 ok(lerNumero('9 108 742,431') === 9108742.431, 'número com espaços')
 ok(lerNumero('12,5') === 12.5, 'DH com vírgula')
 ok(Number.isNaN(lerNumero('12,5m')), 'DH com letra recusada')
+
+// ---------- ângulo em três caixas ----------
+ok(JSON.stringify(partesHz('123 45 30')) === '["123","45","30"]', 'texto antigo "123 45 30" abre separado nas caixas')
+ok(JSON.stringify(partesHz('123°45\'30,5"')) === '["123","45","30,5"]', 'texto com símbolos abre nas caixas')
+ok(JSON.stringify(partesHz('')) === '["","",""]', 'vazio abre vazio')
+ok(juntarHz(['123', '', '30']) === '123 00 30' && perto(lerHz(juntarHz(['123', '', '30'])), 123.008333, 1e-6), 'minuto em branco vira 00 (não lê 123°30\')')
+ok(juntarHz(['0', '0', '0']) === '0 0 0' && lerHz(juntarHz(['0', '0', '0'])) === 0, 'ré zerada')
+ok(juntarHz(['', '', '']) === '', 'caixas vazias gravam vazio')
+ok(Number.isNaN(lerHz(juntarHz(partesHz('123.4530')))), 'o ambíguo "123.4530" continua marcado como inválido')
+ok(Number.isNaN(lerHz(juntarHz(['123', '75', '00']))), '75 minutos marcado como inválido')
 
 // ---------- caderneta sintética ----------
 const marcos = marcosOficiais()
@@ -70,6 +80,13 @@ const cadConta = JSON.parse(JSON.stringify(cad))
 cadConta.resultado.alvo.n = String(ALVO.n + 0.30)
 const gt = gabarito(cadConta, marcos, 'M0451A')
 ok(!gt.calculoConfere && perto(gt.contaAlvo.dist, 0.30, 0.003), 'conta errada é pega (30 cm no M0451A)')
+
+// ré com ângulo em branco = zerada: mesma resposta que anotando 0 00 00
+const cadBranco = JSON.parse(JSON.stringify(cad)); cadBranco.linhas[0].hz = ''
+const gb = gabarito(cadBranco, marcos, 'M0451A')
+ok(gb.problemas.length === 0 && perto(gb.alvo.n, g.alvo.n, 1e-9) && perto(gb.alvo.e, g.alvo.e, 1e-9), 'ré em branco vale 0° 00\' 00" (mesmo M0451A)')
+const cadVanteBranco = JSON.parse(JSON.stringify(cad)); cadVanteBranco.linhas[2].hz = ''
+ok(calcularCaderneta(cadVanteBranco, marcos).problemas.some(p => p.includes('Linha 3: falta o ângulo')), 'vante em branco continua acusada')
 
 // ré que não é ponto conhecido
 const cadRe = { linhas: [{ est: 'M0452', pv: 'X9', hz: '0 00 00', dh: '10' }, { est: 'M0452', pv: 'M0451A', hz: '10 00 00', dh: '20' }], resultado: {} }
