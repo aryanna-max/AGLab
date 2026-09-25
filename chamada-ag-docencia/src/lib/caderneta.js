@@ -188,3 +188,43 @@ export function resumoTexto(cad, alvoNome, obs) {
   if ((obs || '').trim()) t.push('Observações: ' + obs.trim())
   return t.join('\n')
 }
+
+/* ---------- O ponto novo pelas cadernetas: média acurada (aba Análise) ----------
+   Cada equipe é uma determinação independente do alvo. Quem fechou num marco conhecido tem
+   uma medida da própria qualidade (o fechamento); quem não fechou, não. A média acurada pondera
+   por 1/σ², com σ = fechamento (mínimo de 5 mm, o que a estação e o prisma dão num campus) e
+   deixa de fora quem não tem controle; a média simples entra só para comparação. */
+export const SIGMA_MIN = 0.005   // m
+
+// o marco antigo que o alvo substitui (M0451 de 2023 → M0451A), se existir na lista
+export const marcoAntigoDo = alvo => {
+  const k = nomeChave(alvo)
+  const m = MARCOS.find(x => x.tipo === 'deslocado' && k !== nomeChave(x.nome) && k.startsWith(nomeChave(x.nome)))
+  return m ? { nome: m.nome, n: m.n, e: m.e, estimativa: m.estimativa || null } : null
+}
+
+// unidades: [{ rotulo, cad, enviada }] → uma determinação por unidade que chegou ao alvo
+export function determinacoesDoAlvo(unidades, marcos, alvo) {
+  const kA = nomeChave(alvo)
+  return unidades.map(u => {
+    const r = calcularCaderneta(u.cad, marcos)
+    const p = r.pontos.find(x => nomeChave(x.nome) === kA); if (!p) return null
+    const iAlvo = r.linhas.find(l => l.papel === 'vante' && nomeChave(l.pv) === kA)?.i ?? -1
+    const ctrl = r.controles.length ? r.controles.reduce((a, b) => (b.linha > a.linha ? b : a)) : null   // o último
+    return { rotulo: u.rotulo, enviada: !!u.enviada, n: p.n, e: p.e, est: p.est,
+      fechamento: ctrl ? ctrl.erro : null, controle: ctrl ? ctrl.nome : null, controleDepois: ctrl ? ctrl.linha - 1 > iAlvo : null }
+  }).filter(Boolean)
+}
+
+export function mediaAcurada(dets) {
+  const simples = dets.length ? { n: dets.reduce((s, d) => s + d.n, 0) / dets.length, e: dets.reduce((s, d) => s + d.e, 0) / dets.length } : null
+  const com = dets.filter(d => d.fechamento != null)
+  let ponderada = null
+  if (com.length) {
+    const w = com.map(d => 1 / Math.max(d.fechamento, SIGMA_MIN) ** 2), W = w.reduce((s, v) => s + v, 0)
+    ponderada = { n: com.reduce((s, d, i) => s + w[i] * d.n, 0) / W, e: com.reduce((s, d, i) => s + w[i] * d.e, 0) / W, sigma: 1 / Math.sqrt(W), n_det: com.length }
+  }
+  let espalho = null
+  for (let i = 0; i < dets.length; i++) for (let j = i + 1; j < dets.length; j++) espalho = Math.max(espalho || 0, Math.hypot(dets[i].n - dets[j].n, dets[i].e - dets[j].e))
+  return { simples, ponderada, espalho, n_det: dets.length }
+}

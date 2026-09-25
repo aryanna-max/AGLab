@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { escolhaDeEquipe, entrarEmEquipe, salvarCaderneta } from './lib/alunoApi'
-import { caderVazia, calcularCaderneta, lerHz, lerNumero, nomeChave, fmtM, marcosOficiais, partesHz, juntarHz, DH_MAX, sugerirVirgula } from './lib/caderneta'
+import { caderVazia, calcularCaderneta, lerHz, lerNumero, nomeChave, fmtM, marcosOficiais, partesHz, juntarHz, DH_MAX, sugerirVirgula, marcoAntigoDo } from './lib/caderneta'
 import Avatar from './Avatar.jsx'
 
 /* Missão com caderneta de estação total (Transporte de Coordenadas) e equipes que os
@@ -173,20 +173,30 @@ function SeletorPonto({ valor, onChange, opcoes, disabled, placeholder }) {
 /* Croqui da caderneta (pedido dela, 25/09): o mesmo desenho em SVG da poligonal, embaixo da
    caderneta. Mostra a geometria — estações, ré, vantes, pontos novos — e nenhum número: a conta
    continua sendo à mão. Marco oficial em verde, ré tracejada, vante em azul, alvo em losango. */
-export function CroquiCaderneta({ calc, marcos, alvo }) {
+/* camadas: [{ calc, cor, rotulo }] — várias equipes no mesmo desenho (tela da professora).
+   Sem camadas, desenha só a caderneta `calc`, nas cores da legenda (tela do aluno). */
+export function CroquiCaderneta({ calc, marcos, alvo, camadas, titulo = 'Croqui da caderneta' }) {
   const d = useMemo(() => {
+    const cams = camadas || [{ calc, cor: null }]
     const conh = Object.fromEntries(marcos.map(x => [nomeChave(x.nome), x]))
-    const novos = Object.fromEntries(calc.pontos.map(p => [nomeChave(p.nome), p]))
-    const pos = k => conh[k] || novos[k] || null
-    const re = [], vantes = [], usados = new Set()
-    calc.linhas.forEach(l => {
-      const kE = nomeChave(l.est), kP = nomeChave(l.pv), E = pos(kE); if (!E) return
-      usados.add(kE)
-      if (l.papel === 're' && conh[kP]) { re.push([E, conh[kP]]); usados.add(kP) }
-      if (l.papel === 'vante' && l.n != null) { vantes.push([E, { n: l.n, e: l.e }]); if (conh[kP]) usados.add(kP) }
+    const re = [], vantes = [], usados = new Set(), novosTodos = []
+    let alvoCalc = null
+    cams.forEach(cm => {
+      const novos = Object.fromEntries(cm.calc.pontos.map(p => [nomeChave(p.nome), p]))
+      const pos = k => conh[k] || novos[k] || null
+      cm.calc.linhas.forEach(l => {
+        const kE = nomeChave(l.est), kP = nomeChave(l.pv), E = pos(kE); if (!E) return
+        usados.add(kE)
+        if (l.papel === 're' && conh[kP]) { re.push([E, conh[kP]]); usados.add(kP) }
+        if (l.papel === 'vante' && l.n != null) { vantes.push([E, { n: l.n, e: l.e }, cm.cor]); if (conh[kP]) usados.add(kP) }
+      })
+      cm.calc.pontos.forEach(p => novosTodos.push({ ...p, cor: cm.cor, rotulo: cm.rotulo }))
+      alvoCalc = alvoCalc || novos[nomeChave(alvo)] || null
     })
     const marcosUsados = [...usados].map(k => conh[k]).filter(Boolean)
-    const pts = [...marcosUsados, ...calc.pontos, ...vantes.map(v => v[1])]
+    // o marco antigo que o alvo substitui (M0451 de 2023): cinza, ligado ao alvo calculado
+    const antigo = marcoAntigoDo(alvo)
+    const pts = [...marcosUsados, ...novosTodos, ...vantes.map(v => v[1]), ...(antigo ? [antigo] : [])]
     if (pts.length < 2) return null
     const minN = Math.min(...pts.map(p => p.n)), maxN = Math.max(...pts.map(p => p.n)), minE = Math.min(...pts.map(p => p.e)), maxE = Math.max(...pts.map(p => p.e))
     const span = Math.max(maxN - minN, maxE - minE, 20), S = 300, pad = 30, k = (S - 2 * pad) / span
@@ -194,24 +204,30 @@ export function CroquiCaderneta({ calc, marcos, alvo }) {
     const offX = (S - 2 * pad - (maxE - minE) * k) / 2, offY = (S - 2 * pad - (maxN - minN) * k) / 2
     const X = e => pad + offX + (e - minE) * k, Y = n => S - pad - offY - (n - minN) * k
     const escala = [5, 10, 20, 50, 100, 200].find(v => v * k >= 40) || 200
-    return { S, X, Y, re, vantes, marcosUsados, novos: calc.pontos, escala, k }
-  }, [calc, marcos])
+    return { S, X, Y, re, vantes, marcosUsados, novos: novosTodos, escala, k, antigo, alvoCalc, varias: cams.length > 1 }
+  }, [calc, marcos, alvo, camadas])
   if (!d) return <p className="note">O croqui aparece quando houver uma estação e uma ré com marcos conhecidos.</p>
   const kAlvo = nomeChave(alvo)
   return <>
-    <label className="fld">Croqui da caderneta</label>
+    <label className="fld">{titulo}</label>
     <svg viewBox={`0 0 ${d.S} ${d.S}`} className="poli-svg cad-croqui" aria-label="croqui das visadas">
       {d.re.map(([a, b], i) => <line key={'r' + i} x1={d.X(a.e)} y1={d.Y(a.n)} x2={d.X(b.e)} y2={d.Y(b.n)} className="cq-re" />)}
-      {d.vantes.map(([a, b], i) => <line key={'v' + i} x1={d.X(a.e)} y1={d.Y(a.n)} x2={d.X(b.e)} y2={d.Y(b.n)} className="cq-vante" />)}
+      {d.vantes.map(([a, b, cor], i) => <line key={'v' + i} x1={d.X(a.e)} y1={d.Y(a.n)} x2={d.X(b.e)} y2={d.Y(b.n)} className="cq-vante" style={cor ? { stroke: cor } : undefined} />)}
+      {d.antigo && <g>
+        {d.alvoCalc && <line x1={d.X(d.antigo.e)} y1={d.Y(d.antigo.n)} x2={d.X(d.alvoCalc.e)} y2={d.Y(d.alvoCalc.n)} className="cq-antigo-lig" />}
+        <circle cx={d.X(d.antigo.e)} cy={d.Y(d.antigo.n)} r="5" className="cq-antigo" /><text x={d.X(d.antigo.e) - 9} y={d.Y(d.antigo.n) - 4} textAnchor="end" className="radar-lab cq-antigo-lab">{d.antigo.nome} (2023)</text></g>}
       {d.marcosUsados.map(p => <g key={p.nome}><circle cx={d.X(p.e)} cy={d.Y(p.n)} r="5" className="poli-marco" /><text x={d.X(p.e) + 7} y={d.Y(p.n) - 6} className="radar-lab">{p.nome}</text></g>)}
-      {d.novos.map(p => { const x = d.X(p.e), y = d.Y(p.n), eAlvo = nomeChave(p.nome) === kAlvo
-        return <g key={p.nome}>{eAlvo ? <rect x={x - 6} y={y - 6} width="12" height="12" transform={`rotate(45 ${x} ${y})`} className="cq-alvo" /> : <circle cx={x} cy={y} r="5" className="poli-v" />}
-          <text x={x + 8} y={y - 7} className="radar-lab">{p.nome}</text></g> })}
+      {d.novos.map((p, i) => { const x = d.X(p.e), y = d.Y(p.n), eAlvo = nomeChave(p.nome) === kAlvo, st = p.cor ? { fill: p.cor } : undefined
+        // com várias equipes, o nome do alvo sai uma vez só (os losangos quase se sobrepõem)
+        const rotular = !d.varias || !eAlvo || d.novos.findIndex(q => nomeChave(q.nome) === kAlvo) === i
+        return <g key={p.nome + i}>{eAlvo ? <rect x={x - 6} y={y - 6} width="12" height="12" transform={`rotate(45 ${x} ${y})`} className="cq-alvo" style={st} /> : <circle cx={x} cy={y} r="5" className="poli-v" style={st} />}
+          {rotular && <text x={x + 9} y={eAlvo && d.antigo ? y + 5 : y - 7} className="radar-lab">{p.nome}</text>}</g> })}
       <text x="8" y="16" className="radar-lab">N ↑</text>
       <line x1={d.S - 12 - d.escala * d.k} y1={d.S - 12} x2={d.S - 12} y2={d.S - 12} className="cq-escala" />
       <text x={d.S - 12} y={d.S - 17} textAnchor="end" className="radar-lab">{d.escala} m</text>
     </svg>
-    <p className="note">● verde: marco oficial · ◆ {alvo} · ● azul: ponto novo · tracejado: ré · linha azul: vante. O desenho sai das visadas de vocês: se um ponto aparecer fora do lugar, confiram o ângulo e a distância daquela linha.</p>
+    {d.varias ? <p className="note">{(camadas || []).map(c => <span key={c.rotulo} style={{ marginRight: 10, whiteSpace: 'nowrap' }}><b style={{ color: c.cor }}>●</b> {c.rotulo}</span>)} · ● verde: marco oficial · ◆ {alvo} · tracejado: ré{d.antigo ? ` · ○ cinza: ${d.antigo.nome} de 2023` : ''}. Na escala do desenho, diferenças de centímetros entre equipes não aparecem; o que salta aos olhos é erro grosseiro.</p>
+      : <p className="note">● verde: marco oficial · ◆ {alvo} · ● azul: ponto novo · tracejado: ré · linha azul: vante.{d.antigo ? ` ○ cinza: ${d.antigo.nome} de 2023, o marco antigo que saiu do lugar na obra.` : ''} O desenho sai das visadas de vocês: se um ponto aparecer fora do lugar, confiram o ângulo e a distância daquela linha.</p>}
   </>
 }
 
