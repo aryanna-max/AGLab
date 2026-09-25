@@ -119,6 +119,38 @@ abriria isso em pé, com o tripé montado? Se só abriria sentado, é cartão.
 Aula conceitual não tem ficha, e forçar uma faz ela virar resumo dos cartões.
 A tela já se comporta assim: sem peça do tipo `ficha`, a porta não aparece.
 
+### Editor de aulas: o arquivo é público, e isso foi escolhido
+
+**Decisão (25/09/2026).** O material sobe pelo app, para o bucket `materiais`,
+que é **público**. Duas razões, e a segunda vale mesmo se um dia houver login:
+
+- o aluno entra sem conta, então não há sessão para assinar URL;
+- URL assinada **expira e muda**, e o service worker guarda arquivo *por URL*.
+  Se a URL trocasse, a HQ sumiria sem rede — exatamente o que o cache
+  `materiais-aula` existe para evitar.
+
+O preço, dito em claro: quem tiver o link abre o arquivo sem entrar no app. Vale
+para HQ e PDF — material didático dela, que a turma veria de qualquer jeito. O
+caminho tem dois uuid e um nome sorteado, então não se chega nele por tentativa,
+mas **não é segredo**. Material que não pode circular não sobe aqui. E nada de
+dado de aluno neste bucket: foto e selfie continuam em `fotos`, privado e
+assinado.
+
+**Arquivo novo, nome novo.** Cada upload sorteia o nome e o antigo é apagado
+depois. Se o caminho fosse fixo (`quadro-3.webp`), quem já tivesse aberto a aula
+veria o quadro velho por 180 dias — é o prazo do CacheFirst — sem jeito de
+forçar a troca.
+
+**Peça que fica conserva o id.** `aula_leituras.peca_id` tem cascade: apagar e
+recriar as peças a cada salvamento zeraria o "quem leu". Então o editor atualiza
+quem tem id, insere quem não tem, e apaga só o que ela tirou da lista.
+
+**Armadilha de vocabulário, já sentida na pele.** `store.js` tem
+`apagarAula(chamadaId)`, do **calendário**, e `apagarAulaDoCardapio(id)`, do
+**material**. São duas coisas com o mesmo nome na boca dela: a aula do dia e a
+aula do acervo. O build quebrou por causa disso. Ao criar função nova nessa
+vizinhança, diga no nome de qual das duas se trata.
+
 ### Cuidados concretos, já levantados no código
 
 - Material **nunca** em `public/`: `globPatterns` varre `**/*.png` e tudo que
