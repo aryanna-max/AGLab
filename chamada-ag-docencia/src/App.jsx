@@ -8,6 +8,7 @@ import Radar from './Radar.jsx'
 import MapaAlunos from './MapaAlunos.jsx'
 import Analise from './Analise.jsx'
 import MissoesProfessora from './MissoesProfessora.jsx'
+import AulasProfessora from './AulasProfessora.jsx'
 import AvisosProfessora from './AvisosProfessora.jsx'
 import InsigniasProfessora from './InsigniasProfessora.jsx'
 import Aulas from './Aulas.jsx'
@@ -149,7 +150,7 @@ function Main({ session }) {
       </div>}
 
       <nav className="tabs">
-        {[['chamada', 'Chamada'], ['aulas', '📅 Aulas e frequência'], ['missoes', 'Missões'], ['insignias', 'Insígnias'], ['avisos', 'Avisos'], ['analise', 'Análise'], ['radar', 'Radar'], ['mapa', '🗺️ Mapa'], ['posicao', 'Minha posição'], ['turmas', 'Turmas & Fotos']].map(([k, l]) =>
+        {[['chamada', 'Chamada'], ['aulas', '📅 Aulas e frequência'], ['material', '📚 Material'], ['missoes', 'Missões'], ['insignias', 'Insígnias'], ['avisos', 'Avisos'], ['analise', 'Análise'], ['radar', 'Radar'], ['mapa', '🗺️ Mapa'], ['posicao', 'Minha posição'], ['turmas', 'Turmas & Fotos']].map(([k, l]) =>
           <button key={k} className={tab === k ? 'active' : ''} onClick={() => { setDataChamada(null); setTab(k) }}>{l}</button>)}
       </nav>
 
@@ -161,6 +162,7 @@ function Main({ session }) {
             {tab === 'aulas' && <><Aulas userId={userId} tid={tid} setTid={setTid} turmas={turmas} online={online} showToast={showToast} refresh={refresh} abrirChamada={d => { setDataChamada(d); setTab('chamada') }} onMudou={() => setVersaoAulas(v => v + 1)} /><Resumo key={tid + ':' + versaoAulas} tid={tid} turmas={turmas} showToast={showToast} /></>}
             {tab === 'insignias' && <InsigniasProfessora userId={userId} tid={tid} turmas={turmas} online={online} showToast={showToast} />}
             {tab === 'avisos' && <AvisosProfessora userId={userId} tid={tid} turmas={turmas} online={online} showToast={showToast} />}
+            {tab === 'material' && <AulasProfessora userId={userId} tid={tid} turmas={turmas} online={online} showToast={showToast} />}
             {tab === 'missoes' && <MissoesProfessora userId={userId} tid={tid} turmas={turmas} online={online} showToast={showToast} />}
             {tab === 'analise' && <Analise tid={tid} turmas={turmas} online={online} showToast={showToast} />}
             {tab === 'mapa' && <MapaAlunos tid={tid} turmas={turmas} online={online} />}

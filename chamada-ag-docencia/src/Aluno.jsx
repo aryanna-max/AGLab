@@ -7,7 +7,8 @@ import Orbe from './Orbe.jsx'
 import MinhaFoto from './MinhaFoto.jsx'
 import PresencaAluno from './PresencaAluno.jsx'
 import MissoesAluno from './MissoesAluno.jsx'
-import { useHistoricoPresenca, useMissoes, useInsignias, useAvisosAluno, fmtQuando, fmtPrazo, missaoVista, resumoFaltas } from './lib/alunoApi'
+import AulasAluno from './AulasAluno.jsx'
+import { useHistoricoPresenca, useMissoes, useInsignias, useAulas, useAvisosAluno, fmtQuando, fmtPrazo, missaoVista, resumoFaltas } from './lib/alunoApi'
 import InsigniasAluno, { Vitrine, CartaoInsignia } from './InsigniasAluno.jsx'
 import { POR_CHAVE, semAlarde } from './lib/insignias'
 import { prepararSom, tocarAviso } from './lib/som'
@@ -153,7 +154,7 @@ export default function Aluno() {
   const params = new URLSearchParams(location.search)
   const codigoDaUrl = (params.get('aula') || '').toUpperCase()
 
-  const [tela, setTela] = useState('home')   // home | presenca | missoes | insignias | avatar | ler-aula | identificar | chamada-ok | medir
+  const [tela, setTela] = useState('home')   // home | presenca | missoes | aulas | insignias | avatar | ler-aula | identificar | chamada-ok | medir
   const [ident, setIdent] = useState(() => { const i = ler(K_IDENT, null); return EH_COMPUTADOR && i && !i.teste ? null : i })
   const [presenca, setPresenca] = useState(() => { const p = ler(K_PRES, null); return p && p.data === hojeISO() ? p : null })
   const [codigoAula, setCodigoAula] = useState(codigoDaUrl)   // código lido do QR do dia (só na chamada)
@@ -186,6 +187,7 @@ export default function Aluno() {
   useEffect(() => { codigoRef.current = codigoAula }, [codigoAula])
   const historico = useHistoricoPresenca(ident, online)
   const missoes = useMissoes(ident, online)
+  const aulas = useAulas(ident, online)
   const avisosProf = useAvisosAluno(ident, online)
   const [avAberto, setAvAberto] = useState(() => ler(K_AV_ABERTO, false))
   // carta especial (aviso com imagem): abre em tela cheia; a que ele ainda não viu abre sozinha uma vez
@@ -429,7 +431,7 @@ export default function Aluno() {
     if (!ok) return
     const destino = depoisDeIdent; setDepoisDeIdent(null)
     if (destino === 'chamada') await entrarNaAula(codigoRef.current)
-    else if (['presenca', 'missoes', 'insignias', 'selfie', 'avatar'].includes(destino)) setTela(destino)
+    else if (['presenca', 'missoes', 'aulas', 'insignias', 'selfie', 'avatar'].includes(destino)) setTela(destino)
     else { setModo('livre'); modoRef.current = 'livre'; setTela('medir'); ligarGPS() }
   }
   function voltarHome() { pararGPS(); setPos(null); setPlacar(null); setErro(''); setAviso(''); setMedirNaAula(false); setAbrirMissaoId(null); setTela('home') }
@@ -553,6 +555,12 @@ export default function Aluno() {
     </div>
   )
 
+  if (tela === 'aulas') return (
+    <div className="wrap"><Cabecalho titulo="Aulas" />
+      <AulasAluno ident={ident} online={online} aulas={aulas} />
+    </div>
+  )
+
   if (tela === 'insignias') return (
     <div className="wrap"><Cabecalho titulo="Insígnias" />
       <InsigniasAluno insignias={insignias} nome={ident?.nome} avatar={ident?.avatar} />
@@ -598,6 +606,10 @@ export default function Aluno() {
   const nAbertas = abertasM.length
   const proxima = abertasM.slice().sort((a, b) => new Date(a.prazo_em) - new Date(b.prazo_em))[0]
   const subMissoes = proxima ? `${nAbertas} aberta(s) · ${fmtPrazo(proxima.prazo_em).texto}` : 'O que a professora lançou para a turma.'
+  const listaA = aulas.dados?.aulas || []
+  const naoLida = listaA.find(a => (a.li || 0) === 0)
+  const subAulas = naoLida ? naoLida.titulo
+    : listaA.length ? `${listaA.length} aula(s) · o material fica no celular.` : 'HQ, notas de aula e ficha de campo.'
 
   /* Destaque da missão aberta (opção A, escolhida por ela em 18/09/2026): cartão dourado no topo com a
      missão de prazo mais próximo que ele ainda não enviou; vermelho com menos de 1 h; some quando envia. */
@@ -665,7 +677,11 @@ export default function Aluno() {
       <Vitrine minhas={minhasIns} onAbrir={() => irArea('insignias')} />
       {novaIns && <CartaoInsignia chave={novaIns.chave} dado={novaIns.dado} onFechar={() => { insignias.marcarVistas(); irArea('insignias') }} />}
       <PassosOrbe />
-      <div className="escolha tres">
+      <div className="escolha quatro">
+        <button className="card-perfil" onClick={() => irArea('aulas')}>
+          <span className="cp-emoji">📚</span><span className="cp-tit">Aulas</span>
+          <span className="cp-sub">{subAulas}</span>
+        </button>
         <button className="card-perfil" onClick={() => irArea('presenca')}>
           <span className="cp-emoji">📍</span><span className="cp-tit">Presença</span>
           <span className="cp-sub">{subPresenca}{faltaFoto && <><br />📷 Falta a sua foto.</>}</span>

@@ -348,6 +348,8 @@ table.matrix tr.sel-row td{background:rgba(123,79,0,.10)}
 /* ---------- home do aluno: três cards, alerta de missão ---------- */
 .escolha.tres{grid-template-columns:1fr}
 @media(min-width:560px){.escolha.tres{grid-template-columns:repeat(3,1fr);max-width:900px}}
+.escolha.quatro{grid-template-columns:1fr}
+@media(min-width:560px){.escolha.quatro{grid-template-columns:repeat(2,1fr);max-width:640px}}
 .cp-badge{display:inline-block;margin-left:6px;min-width:20px;padding:0 6px;border-radius:999px;background:#c0392b;color:#fff;font-size:12px;line-height:20px;text-align:center;vertical-align:middle}
 .alerta-missao{display:flex;gap:12px;align-items:center;width:100%;text-align:left;border:1px solid var(--line);border-left:5px solid var(--brand2);background:var(--panel);color:inherit;border-radius:12px;padding:12px 14px;margin:0 0 12px;cursor:pointer;font:inherit}
 .alerta-missao.urgente{border-left-color:#d35400}
@@ -446,6 +448,51 @@ table.matrix tr.sel-row td{background:rgba(123,79,0,.10)}
 .ins-chips{display:flex;gap:4px;flex-wrap:wrap}
 .ins-chips img{width:26px;height:26px}
 
+/* ---------- aulas: o material em cartões ---------- */
+/* As portas de uma aula (HQ, assunto, ficha) usam os mesmos cartões da home:
+   é a mesma gramática, e o aluno não precisa aprender duas. */
+.aula-portas{display:grid;gap:10px;margin:12px 0}
+.card-perfil.ficha{border-left:5px solid var(--brand2)}
+
+/* A HQ é uma tira vertical: um quadro por vez, rolando. As imagens carregam
+   sob demanda e ficam no cache do service worker (ver vite.config.js). */
+/* Leitor de HQ: tela cheia, um quadro por vez, sem corte.
+   'contain' faz o mesmo leitor servir arte vertical e horizontal. */
+.hq-leitor{position:fixed;inset:0;z-index:60;background:#0b0f14;display:grid;place-items:center;
+  padding:calc(env(safe-area-inset-top) + 44px) 8px calc(env(safe-area-inset-bottom) + 28px)}
+.hq-leitor > img{max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain;
+  border-radius:8px;display:block}
+.hq-adiante{position:absolute;width:1px;height:1px;overflow:hidden;opacity:0;pointer-events:none}
+
+.hq-meia{position:absolute;top:0;bottom:0;width:45%;border:0;background:transparent;cursor:pointer;padding:0}
+.hq-meia.esq{left:0}
+.hq-meia.dir{right:0;width:55%}
+.hq-meia:disabled{cursor:default}
+
+.hq-barra{position:absolute;top:0;left:0;right:0;display:flex;align-items:center;gap:10px;
+  padding:calc(env(safe-area-inset-top) + 6px) 12px 6px;color:#fff}
+.hq-x{border:0;background:rgba(255,255,255,.14);color:#fff;font-size:18px;line-height:1;
+  width:34px;height:34px;border-radius:999px;cursor:pointer}
+.hq-cont{margin-left:auto;font-size:13px;opacity:.8}
+
+.hq-pontos{position:absolute;left:0;right:0;bottom:calc(env(safe-area-inset-bottom) + 10px);
+  display:flex;gap:6px;justify-content:center}
+.hq-ponto{width:6px;height:6px;border-radius:999px;background:rgba(255,255,255,.3)}
+.hq-ponto.atual{background:#fff;transform:scale(1.3)}
+
+/* O cartão: um conceito por tela. Se precisar rolar, são dois cartões. */
+.cartao-aula{border:1px solid var(--line);border-radius:14px;background:var(--panel);
+  padding:18px 16px;margin:10px 0 14px;min-height:190px;box-shadow:var(--shadow)}
+.cartao-aula h3{margin:0 0 10px;font-size:18px;color:var(--brand)}
+.cartao-aula p{margin:0 0 10px;font-size:16px;line-height:1.5}
+.cartao-aula p:last-child{margin-bottom:0}
+.cartao-aula ul,.cartao-aula ol{margin:0 0 10px;padding-left:20px;font-size:16px;line-height:1.5}
+.cartao-aula li{margin-bottom:5px}
+
+.cartao-pontos{display:flex;gap:7px;justify-content:center;margin:0 0 12px}
+.cp-ponto{width:9px;height:9px;border-radius:999px;background:var(--line);cursor:pointer}
+.cp-ponto.lido{background:var(--brand2);opacity:.45}
+.cp-ponto.atual{background:var(--brand);opacity:1;transform:scale(1.25)}
 /* /instalar: passos numerados */
 .inst-lista { list-style: none; padding: 0; margin: 14px 0; display: grid; gap: 12px; }
 .inst-passo { display: flex; gap: 12px; align-items: flex-start; line-height: 1.45; }
@@ -536,3 +583,29 @@ table.matrix tr.sel-row td{background:rgba(123,79,0,.10)}
 .cal-d.geral{justify-content:flex-start;gap:2px;padding-top:3px;min-height:52px;aspect-ratio:auto}
 .cal-chip{font-style:normal;font-size:9px;font-weight:700;line-height:1;padding:2px 3px;border-radius:4px;border:1px solid var(--c);color:var(--c)}
 .cal-chip.dada{background:var(--c);color:#fff}.cal-chip.plan{border-style:dashed}.cal-chip.vazia{opacity:.35}
+
+/* ---------- material: lado da professora ---------- */
+.aula-lanc{display:flex;flex-direction:column;gap:4px;border:1px solid var(--line);border-radius:12px;
+  padding:12px 14px;margin:0 0 10px;background:var(--panel)}
+.aula-lanc .al-top{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.aula-lanc .al-tit{font-size:16px}
+.aula-lanc .btnrow{margin-top:8px}
+.quem-leu{margin-top:10px;border-top:1px solid var(--line);padding-top:10px}
+.quem-leu .lista-simples li{display:flex;justify-content:space-between;gap:10px;align-items:baseline}
+
+/* o acervo é agrupado por assunto, não numerado */
+.acervo-grupo{margin:0 0 14px}
+.acervo-assunto{margin:0 0 8px;font-size:13px;font-weight:800;letter-spacing:.04em;
+  text-transform:uppercase;color:var(--muted)}
+
+/* editor de aula: cada peça é um bloco, para reordenar sem se perder */
+.peca-ed{display:flex;flex-direction:column;gap:6px;border:1px solid var(--line);border-radius:12px;
+  padding:10px 12px;margin:0 0 10px;background:var(--panel)}
+.peca-ed .pe-top{display:flex;gap:6px;align-items:center;justify-content:space-between}
+.peca-ed textarea{min-height:96px}
+.peca-ed .pe-mini{max-height:120px;width:auto;align-self:flex-start;border-radius:8px;
+  border:1px solid var(--line);object-fit:contain;background:#000}
+.peca-ed .note.muito{color:var(--miss)}
+
+/* a porta do aprofundamento é um link: some o sublinhado, fica cartão */
+a.card-perfil{text-decoration:none}

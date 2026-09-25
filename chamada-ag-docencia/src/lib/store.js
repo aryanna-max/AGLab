@@ -1,5 +1,6 @@
 import { supabase } from '../supabaseClient'
 import { SEED } from '../seed'
+import { arquivoParaWebp } from './foto'
 
 const CACHE_TURMAS = 'agc2_turmas_cache'
 const OUTBOX = 'agc2_outbox'
@@ -726,6 +727,148 @@ export async function liberarAuxiliar(turmaId, alunoId) {
 export async function revogarAuxiliar(turmaId) {
   const { error } = await supabase.rpc('revogar_auxiliar', { p_turma_id: turmaId })
   if (error) throw error
+}
+
+/* ---------- aulas (material) ----------
+   Mesmo desenho das missões: cardápio dela (aulas, sem turma) · lançamentos
+   (aula × turma) · leituras dos alunos. O acervo se organiza por assunto — a
+   frente agrupa, o título nomeia —, não por número de aula. */
+export async function listarAulas() {
+  const { data, error } = await supabase.from('aulas').select('*,aula_pecas(id,tipo)').order('arquivada').order('frente').order('titulo')
+  if (error) throw error; return data || []
+}
+export async function lancamentosDeAulasDaTurma(turmaId) {
+  const { data, error } = await supabase.from('aula_lancamentos')
+    .select('*,aulas(titulo,frente,resumo,aula_pecas(id,tipo))')
+    .eq('turma_id', turmaId).order('data', { nullsFirst: false })
+  if (error) throw error; return data || []
+}
+export async function lancarAula(userId, l) {
+  const { data, error } = await supabase.from('aula_lancamentos')
+    .insert({ owner_id: userId, aula_id: l.aula_id, turma_id: l.turma_id, data: l.data || null })
+    .select('*').single()
+  if (error) throw error; return data
+}
+export async function atualizarLancamentoAula(id, campos) {
+  const { error } = await supabase.from('aula_lancamentos').update(campos).eq('id', id); if (error) throw error
+}
+export async function apagarLancamentoAula(id) {
+  const { error } = await supabase.from('aula_lancamentos').delete().eq('id', id); if (error) throw error
+}
+/* Quem leu: uma linha por aluno da turma, inclusive quem não abriu — é isso
+   que a professora quer ver. Vem por RPC para a conta sair pronta do banco. */
+export async function leitoresDaAula(lancamentoId) {
+  const { data, error } = await supabase.rpc('leitores_da_aula', { p_lancamento_id: lancamentoId })
+  if (error) throw error
+  if (!data?.ok) throw new Error(data?.erro || 'Não consegui ler.')
+  return data
+}
+
+/* ---------- editor de aulas (fase 2) ---------- */
+/* A aula sai do SQL e passa a ser escrita no app. Duas regras governam este
+   trecho, e as duas existem por causa de coisa que o aluno já tem no celular. */
+
+const BUCKET_MAT = 'materiais'
+
+export async function aulaCompleta(id) {
+  const { data, error } = await supabase.from('aulas')
+    .select('*,aula_pecas(*)').eq('id', id).single()
+  if (error) throw error
+  const pecas = (data.aula_pecas || []).slice().sort((a, b) => a.ordem - b.ordem)
+  return { ...data, aula_pecas: undefined, pecas }
+}
+
+/* REGRA 1: peça que continua na aula CONSERVA O ID. A leitura do aluno aponta
+   para a peça (aula_leituras.peca_id, com cascade), então apagar e recriar tudo
+   a cada salvamento zeraria o "quem leu" — e ela perderia justamente o que
+   pediu primeiro. Por isso: quem tem id é atualizado, quem não tem é inserido,
+   e só o que ela tirou da lista é apagado. */
+export async function salvarAula(userId, a) {
+  const linha = { owner_id: userId, titulo: (a.titulo || '').trim(), frente: a.frente || 'geral',
+    resumo: (a.resumo || '').trim() || null, arquivada: !!a.arquivada }
+  const q = a.id ? supabase.from('aulas').update(linha).eq('id', a.id) : supabase.from('aulas').insert(linha)
+  const { data: aula, error } = await q.select('*').single()
+  if (error) throw error
+
+  const pecas = a.pecas || []   // todas, inclusive as em branco: o retorno casa índice a índice
+  const { data: antigas, error: e2 } = await supabase.from('aula_pecas').select('id').eq('aula_id', aula.id)
+  if (e2) throw e2
+
+  const ficam = new Set(pecas.filter(temConteudo).map(p => p.id).filter(Boolean))
+  const sobraram = (antigas || []).map(x => x.id).filter(id => !ficam.has(id))
+  if (sobraram.length) {
+    const { error: e3 } = await supabase.from('aula_pecas').delete().in('id', sobraram)
+    if (e3) throw e3
+  }
+
+  /* Devolve as peças com id, na mesma ordem em que ela as vê. Quem salva duas
+     vezes na mesma edição — e o editor salva uma vez só para ter pasta no
+     Storage — precisa disso: sem o id de volta, a segunda gravação inseria os
+     mesmos cartões de novo. */
+  const salvas = []
+  let ordem = 0
+  for (const p of pecas) {
+    // peça que ela abriu e não escreveu não vai ao banco, e não vira erro
+    if (!temConteudo(p)) { salvas.push(null); continue }
+    const texto = (p.tipo === 'cartao' || p.tipo === 'ficha') ? (p.texto_md || '').trim() : null
+    const campos = { owner_id: userId, aula_id: aula.id, tipo: p.tipo, ordem: ordem++,
+      titulo: (p.titulo || '').trim() || null, texto_md: texto,
+      url: texto ? null : (p.url || null), storage_path: texto ? null : (p.storage_path || null),
+      largura: p.largura || null, altura: p.altura || null }
+    const q = p.id
+      ? supabase.from('aula_pecas').update(campos).eq('id', p.id)
+      : supabase.from('aula_pecas').insert(campos)
+    const { data: peca, error: e4 } = await q.select('id').single()
+    if (e4) throw e4
+    salvas.push({ ...p, id: peca.id })
+  }
+  return { ...aula, pecas: salvas }
+}
+
+function temConteudo(p) {
+  if (p.tipo === 'cartao' || p.tipo === 'ficha') return !!(p.texto_md || '').trim()
+  return !!(p.url || p.storage_path)
+}
+
+/* "Do cardápio" no nome, e não é preciosismo: apagarAula() já existe neste
+   arquivo e apaga um dia de CHAMADA, do calendário. São duas coisas com o
+   mesmo nome na boca dela — a aula do dia e a aula do acervo. */
+export async function apagarAulaDoCardapio(id) {
+  const { error } = await supabase.from('aulas').delete().eq('id', id)
+  if (error) throw error
+}
+
+/* REGRA 2: arquivo novo, NOME NOVO. O service worker guarda material por URL,
+   em CacheFirst de 180 dias (vite.config.js, cache 'materiais-aula'). Se o
+   caminho fosse fixo — 'quadro-3.webp' — quem já tivesse aberto a aula
+   continuaria vendo o quadro antigo por meio ano, sem jeito de forçar. Então
+   cada upload sorteia um nome, e o antigo é apagado depois. */
+export async function subirMaterial(userId, aulaId, file) {
+  const ext = file.type === 'application/pdf' ? 'pdf' : 'webp'
+  let corpo = file, largura = null, altura = null
+  if (ext === 'webp') {
+    const w = await arquivoParaWebp(file)
+    corpo = w.blob; largura = w.largura; altura = w.altura
+  }
+  const path = `${userId}/${aulaId || 'sem-aula'}/${sorteio()}.${ext}`
+  const { error } = await supabase.storage.from(BUCKET_MAT)
+    .upload(path, corpo, { contentType: corpo.type || 'application/octet-stream', upsert: false })
+  if (error) throw error
+  const { data } = supabase.storage.from(BUCKET_MAT).getPublicUrl(path)
+  return { storage_path: path, url: data.publicUrl, largura, altura }
+}
+
+/* Falha calada de propósito: se o arquivo velho não sair do Storage, a aula
+   já está salva e certa na tela. Sobra um arquivo órfão, não um erro na cara
+   dela no meio da edição. */
+export async function apagarMaterial(path) {
+  if (!path) return
+  try { await supabase.storage.from(BUCKET_MAT).remove([path]) } catch (e) {}
+}
+
+function sorteio() {
+  if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID()
+  return Math.random().toString(36).slice(2) + Date.now().toString(36)
 }
 
 /* Pioneiros (18/09/2026): automáticos no servidor; ela só vê e pode passar ao próximo */

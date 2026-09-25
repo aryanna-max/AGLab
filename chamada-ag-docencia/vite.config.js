@@ -35,7 +35,8 @@ export default defineConfig({
       workbox: {
         globPatterns: ['**/*.{js,css,html,png,svg,woff2}'],
         // a arte das insígnias (~950 KB) não entra no pacote offline: carrega sob demanda e fica em cache
-        globIgnores: ['**/insignias/**'],
+        // a arte das insígnias e a HQ das aulas ficam fora do pacote: sob demanda, e em cache
+        globIgnores: ['**/insignias/**', '**/aulas/**'],
         // avisos da professora com o app fechado: handlers de push e de toque na notificação
         importScripts: ['push-sw.js'],
         navigateFallback: 'index.html',
@@ -46,6 +47,28 @@ export default defineConfig({
         clientsClaim: true,
         cleanupOutdatedCaches: true,
         runtimeCaching: [
+          {
+            // Material de aula no Storage (fase 2, quando o editor subir arquivo):
+            // pote próprio, e ANTES da regra das fotos. Se dividissem o mesmo cache,
+            // com maxEntries 400, um material acabaria expulsando a foto de um aluno.
+            urlPattern: ({ url }) => url.href.includes('/storage/v1/object/') && url.href.includes('/materiais/'),
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'materiais-aula',
+              expiration: { maxEntries: 300, maxAgeSeconds: 60 * 60 * 24 * 180 },
+              cacheableResponse: { statuses: [0, 200] }
+            }
+          },
+          {
+            // A HQ servida pelo próprio app: fora do pacote offline, em cache ao abrir.
+            urlPattern: ({ url }) => url.pathname.startsWith('/aulas/'),
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'materiais-aula',
+              expiration: { maxEntries: 300, maxAgeSeconds: 60 * 60 * 24 * 180 },
+              cacheableResponse: { statuses: [0, 200] }
+            }
+          },
           {
             // Fotos dos alunos: a URL assinada aponta para um arquivo que não muda,
             // então CacheFirst. É o que garante a foto na tela sem rede, em sala.
