@@ -59,6 +59,15 @@ export function lerHz(s) {
 export const partesHz = v => { const p = String(v || '').trim().split(/[^\d.,]+/).filter(Boolean); return [p[0] || '', p[1] || '', p.slice(2).join('') || ''] }
 export const juntarHz = ([g, m, s]) => (g || m || s) ? `${g || '0'} ${m || '00'} ${s || '00'}` : ''
 
+/* Distância acima disso no campus é vírgula esquecida: "132838" era 132,838 m (25/09, Equipe 3).
+   sugerirVirgula devolve o número com a vírgula nos milímetros, ou null se não for esse caso. */
+export const DH_MAX = 1000   // m
+export function sugerirVirgula(s) {
+  const t = String(s ?? '').trim()
+  return /^\d{4,}$/.test(t) && Number(t) > DH_MAX ? `${t.slice(0, -3)},${t.slice(-3)}` : null
+}
+const avisoDH = (n, l) => { const sug = sugerirVirgula(l.dh); return `Linha ${n}: distância de ${l.dh} m, mais de 1 km — faltou a vírgula?${sug ? ` (${sug} m)` : ''}` }
+
 export const nomeChave = s => String(s || '').trim().toLowerCase()
 const norm360 = a => ((a % 360) + 360) % 360
 
@@ -97,7 +106,8 @@ export function calcularCaderneta(cad, marcos) {
       const az0 = azimute(R.n - E.n, R.e - E.e)
       bloco = { chave: kEst, az0, hz0: hzRe, E }
       out.az = az0
-      if (Number.isFinite(dh)) {
+      if (Number.isFinite(dh) && dh > DH_MAX) problemas.push(avisoDH(n, l))
+      else if (Number.isFinite(dh)) {
         const dhCoord = Math.hypot(R.n - E.n, R.e - E.e)
         conferenciasRe.push({ linha: n, est: E.nome, re: R.nome, dhMedida: dh, dhCoord, dif: dh - dhCoord })
       }
@@ -108,6 +118,7 @@ export function calcularCaderneta(cad, marcos) {
     if (bloco.invalida) { problemas.push(`Linha ${n}: a estação ${est} ficou sem orientação (veja a ré dela).`); return }
     if (!Number.isFinite(hz)) { problemas.push(String(l.hz || '').trim() ? `Linha ${n}: ângulo ilegível ("${l.hz}"). Use graus, minutos e segundos: 123 45 30.` : `Linha ${n}: falta o ângulo horizontal.`); return }
     if (!Number.isFinite(dh) || dh <= 0) { problemas.push(String(l.dh || '').trim() ? `Linha ${n}: distância horizontal ilegível ("${l.dh}").` : `Linha ${n}: falta a distância horizontal.`); return }
+    if (dh > DH_MAX) { problemas.push(avisoDH(n, l)); return }   // não calcula coordenada a quilômetros daqui
     const az = norm360(bloco.az0 + hz - bloco.hz0)
     const N = bloco.E.n + dh * Math.cos(az * Math.PI / 180), Ecalc = bloco.E.e + dh * Math.sin(az * Math.PI / 180)
     Object.assign(out, { az, n: N, e: Ecalc })

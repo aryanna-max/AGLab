@@ -3,7 +3,7 @@
    Monta uma caderneta sintética a partir de coordenadas conhecidas (Hz ao segundo, DH ao mm),
    e confere que o app devolve as coordenadas de volta, mede o fechamento e a conta à mão. */
 import { MARCOS, azimute } from '../src/lib/topo.js'
-import { lerHz, lerNumero, calcularCaderneta, gabarito, sugerirMedalhas, marcosOficiais, partesHz, juntarHz } from '../src/lib/caderneta.js'
+import { lerHz, lerNumero, calcularCaderneta, gabarito, sugerirMedalhas, marcosOficiais, partesHz, juntarHz, sugerirVirgula } from '../src/lib/caderneta.js'
 
 let falhas = 0
 const ok = (cond, msg) => { console.log((cond ? '  ok  ' : '  FALHOU ') + msg); if (!cond) falhas++ }
@@ -87,6 +87,14 @@ const gb = gabarito(cadBranco, marcos, 'M0451A')
 ok(gb.problemas.length === 0 && perto(gb.alvo.n, g.alvo.n, 1e-9) && perto(gb.alvo.e, g.alvo.e, 1e-9), 'ré em branco vale 0° 00\' 00" (mesmo M0451A)')
 const cadVanteBranco = JSON.parse(JSON.stringify(cad)); cadVanteBranco.linhas[2].hz = ''
 ok(calcularCaderneta(cadVanteBranco, marcos).problemas.some(p => p.includes('Linha 3: falta o ângulo')), 'vante em branco continua acusada')
+
+// distância sem vírgula (caso real da Equipe 3, 25/09)
+ok(sugerirVirgula('132838') === '132,838' && sugerirVirgula('43817') === '43,817', 'sugere a vírgula nos milímetros')
+ok(sugerirVirgula('132,838') === null && sugerirVirgula('999') === null && sugerirVirgula('') === null, 'não sugere quando já está certo')
+const cadSemVirgula = JSON.parse(JSON.stringify(cad)); cadSemVirgula.linhas[2].dh = cadSemVirgula.linhas[2].dh.replace('.', '').replace(',', ''); cadSemVirgula.linhas[0].dh = '132838'
+const csv = calcularCaderneta(cadSemVirgula, marcos)
+ok(csv.problemas.some(p => p.includes('Linha 3') && p.includes('faltou a vírgula')) && !csv.pontos.some(p => p.nome === 'M0451A'), 'vante sem vírgula é acusada e não vira coordenada a km')
+ok(csv.problemas.some(p => p.includes('Linha 1') && p.includes('(132,838 m)')) && !csv.conferenciasRe.some(r => r.linha === 1), 'ré sem vírgula é acusada e fica fora da conferência')
 
 // ré que não é ponto conhecido
 const cadRe = { linhas: [{ est: 'M0452', pv: 'X9', hz: '0 00 00', dh: '10' }, { est: 'M0452', pv: 'M0451A', hz: '10 00 00', dh: '20' }], resultado: {} }
