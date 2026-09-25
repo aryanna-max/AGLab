@@ -634,7 +634,7 @@ export default function Aluno() {
   const listaA = aulas.dados?.aulas || []
   const naoLida = listaA.find(a => (a.li || 0) === 0)
   const subAulas = naoLida ? naoLida.titulo
-    : listaA.length ? `${listaA.length} aula(s) · o material fica no celular.` : 'HQ, o assunto e a ficha de campo.'
+    : listaA.length ? `${listaA.length} aula(s) · o material fica no celular.` : 'HQ, notas de aula e ficha de campo.'
 
   /* Destaque da missão aberta (opção A, escolhida por ela em 18/09/2026): cartão dourado no topo com a
      missão de prazo mais próximo que ele ainda não enviou; vermelho com menos de 1 h; some quando envia. */

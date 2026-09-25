@@ -106,6 +106,40 @@ couber e nunca é cortado.
 Navegação por toque nas metades da tela (esquerda volta, direita avança, a
 última fecha); os dois quadros seguintes vão baixando adiante.
 
+### A porta se chama "Notas de aula", e cada tela é uma nota
+
+**Decisão (25/09/2026).** A segunda porta do aluno chamava-se "O assunto" e foi
+trocada por **Notas de aula**; cada tela, antes "cartão", é uma **nota**.
+
+O motivo dela: "HQ se chama HQ" — HQ é gênero, o aluno sabe o contrato antes de
+tocar. "O assunto" é etiqueta de gaveta, não promete nada. E cartão numerado com
+pontinhos lia-se como **cartão de memorização**, que ela não quer como moldura
+didática.
+
+Os critérios que sobreviveram à escolha, e valem para o próximo nome:
+
+1. O nome diz o que o aluno **recebe**, não o que a professora depositou.
+2. Promete um **formato que ele já reconhece** — é o que faz "HQ" funcionar.
+3. Não enquadra o material como treino de memória.
+4. **Não empresta termo técnico que ele ainda não aprendeu.** Foi por isto que
+   "Caminhamento", "Poligonal" e "Levantamento" caíram: dar sentido figurado a
+   um termo antes de ensinar a técnica gasta o termo e cria concepção errada.
+
+"Notas de aula" ganhou por atender os quatro e por um quinto: **credita o texto a
+ela**. Quem escreve notas de aula é a professora, e isso muda como o aluno lê.
+Também considerados: Verbetes, Guia de bolso, Almanaque, Croqui, A caderneta,
+O fio, A explicação. Descartados por puxarem para decoreba ou para PowerPoint:
+Fichário, Resumo, Tópicos.
+
+**O banco não mudou.** `aula_pecas.tipo` continua `'cartao'`, e não há migração
+nisso: a palavra parou de aparecer na tela, é só isso. Se um dia o nome mudar de
+novo, é uma linha em cada tela — de propósito.
+
+**Os pontinhos com marca de lido ficam.** Ela decidiu: retomar de onde parou na
+véspera da prova vale mais que a estética de não parecer baralho. O que ela
+rejeitou foi a moldura de memorização, não o formato de cartão — e essa
+distinção é dela, não minha.
+
 ### Ficha de campo: nem toda aula tem
 
 Ficha responde o que aparece **com o instrumento montado e a mão ocupada**:

@@ -10,7 +10,8 @@ import { FRENTES } from './lib/cardapioMissoes'
 /* Mesma lista das missões, do mesmo lugar: a frente é o assunto na linguagem
    do curso, e não pode divergir entre as duas telas. */
 const NOME_FRENTE = Object.fromEntries(FRENTES)
-const TIPO = { cartao: 'cartões', ficha: 'ficha', hq: 'HQ', pdf: 'PDF' }
+/* o que aparece na tela; no banco o tipo continua 'cartao' */
+const TIPO = { cartao: 'notas', ficha: 'ficha', hq: 'HQ', pdf: 'PDF' }
 const fmtDH = iso => iso ? new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—'
 const fmtD = d => d ? String(d).slice(0, 10).split('-').reverse().slice(0, 2).join('/') : ''
 
@@ -130,7 +131,7 @@ function Lancamento({ l, aberto, onAbrir, recarregar, showToast }) {
 
 /* ---------- quem leu ---------- */
 /* Uma linha por aluno da turma, inclusive quem não abriu — é isso que ela quer ver.
-   Só cartão e ficha contam: abrir a HQ é um toque só, não é leitura concluída. */
+   Só nota e ficha contam: abrir a HQ é um toque só, não é leitura concluída. */
 function QuemLeu({ lancamentoId, showToast }) {
   const [dados, setDados] = useState(null)
   const [erro, setErro] = useState('')
@@ -198,7 +199,7 @@ function Cardapio({ userId, aulas, lancamentos, tid, recarregar, showToast, onLa
       <p className="hint">Por assunto, na ordem do curso. Escrita uma vez, serve todas as turmas — quem nomeia a aula é o título, não um número.</p>
       <div className="btnrow"><button className="btn" onClick={() => setEditando('nova')}>+ Nova aula</button></div>
       {lista.length === 0 && <p className="empty">
-        {verArquivadas ? 'Nenhuma aula arquivada.' : 'Nenhuma aula ainda. Comece por "+ Nova aula": título, assunto e os cartões.'}
+        {verArquivadas ? 'Nenhuma aula arquivada.' : 'Nenhuma aula ainda. Comece por "+ Nova aula": título, assunto e as notas.'}
       </p>}
       {porAssunto(lista, a => a.frente).map(g => <div key={g.chave} className="acervo-grupo">
         <h3 className="acervo-assunto">{NOME_FRENTE[g.chave] || g.chave}</h3>
@@ -232,14 +233,14 @@ function Cardapio({ userId, aulas, lancamentos, tid, recarregar, showToast, onLa
 /* A aula deixa de entrar por SQL. O editor é a mesma gramática do editor de
    missões — título, assunto, uma lista que ela monta e reordena — porque é a
    mesma pessoa operando as duas telas na mesma noite.
-   O que ele NÃO é: um editor de texto. Cartão é três a seis linhas; a caixa
-   tem a altura de um cartão de propósito, e o contador avisa quando o texto
-   passou do que cabe numa tela de celular. Material que não cabe em cartão é
+   O que ele NÃO é: um editor de texto. Uma nota é três a seis linhas; a caixa
+   tem a altura de uma nota de propósito, e o contador avisa quando o texto
+   passou do que cabe numa tela de celular. Material que não cabe numa nota é
    aprofundamento, e aprofundamento é PDF. */
 
-const TIPO_NOME = { cartao: 'Cartão', ficha: 'Ficha de campo', hq: 'Quadro de HQ', pdf: 'PDF' }
-const TIPO_EMOJI = { cartao: '🗂️', ficha: '📋', hq: '💬', pdf: '📄' }
-const LIMITE_CARTAO = 420   // acima disso o cartão já pede rolagem no celular
+const TIPO_NOME = { cartao: 'Nota', ficha: 'Ficha de campo', hq: 'Quadro de HQ', pdf: 'PDF' }
+const TIPO_EMOJI = { cartao: '📝', ficha: '📋', hq: '💬', pdf: '📄' }
+const LIMITE_NOTA = 420   // acima disso a nota já pede rolagem no celular
 const porNome = (x, y) => String(x.name).localeCompare(String(y.name), 'pt-BR', { numeric: true })
 
 function EditorAula({ userId, aulaId, onFechar, showToast }) {
@@ -287,7 +288,7 @@ function EditorAula({ userId, aulaId, onFechar, showToast }) {
   }
 
   const temFicha = a.pecas.some(p => p.tipo === 'ficha')
-  const nCartoes = a.pecas.filter(p => p.tipo === 'cartao').length
+  const nNotas = a.pecas.filter(p => p.tipo === 'cartao').length
 
   /* O arquivo precisa de uma pasta, e a pasta é a aula: se ela ainda não foi
      salva, salva agora. É por isso que o título é pedido antes do upload. */
@@ -378,8 +379,8 @@ function EditorAula({ userId, aulaId, onFechar, showToast }) {
 
       <h3 style={{ marginBottom: 4 }}>As peças</h3>
       <p className="hint" style={{ marginTop: 0 }}>
-        Na ordem em que o aluno recebe: a HQ primeiro, os cartões depois. A ficha, se houver, fica à parte.
-        {nCartoes > 9 && <> Esta aula já tem {nCartoes} cartões — acima de nove costuma ser <b>duas</b> aulas.</>}
+        Na ordem em que o aluno recebe: a HQ primeiro, as notas depois. A ficha, se houver, fica à parte.
+        {nNotas > 9 && <> Esta aula já tem {nNotas} notas — acima de nove costuma ser <b>duas</b> aulas.</>}
       </p>
 
       {a.pecas.length === 0 && <p className="empty">Nenhuma peça ainda.</p>}
@@ -395,14 +396,14 @@ function EditorAula({ userId, aulaId, onFechar, showToast }) {
 
         {(p.tipo === 'cartao' || p.tipo === 'ficha') ? <>
           <input value={p.titulo || ''} onChange={e => setPeca(i, { titulo: e.target.value })}
-            placeholder={p.tipo === 'ficha' ? 'Antes de sair a campo' : 'Título do cartão (opcional)'} />
+            placeholder={p.tipo === 'ficha' ? 'Antes de sair a campo' : 'Título da nota (opcional)'} />
           <textarea rows={5} value={p.texto_md || ''} onChange={e => setPeca(i, { texto_md: e.target.value })}
             placeholder={p.tipo === 'ficha'
               ? '1. Confira o nível da bolha\n2. Meça a altura do instrumento\nTolerância: 2 cm por lance'
               : 'Uma ideia só. **Negrito** com dois asteriscos; lista com traço ou com 1.'} />
-          <span className={'note' + ((p.texto_md || '').length > LIMITE_CARTAO ? ' muito' : '')}>
+          <span className={'note' + ((p.texto_md || '').length > LIMITE_NOTA ? ' muito' : '')}>
             {(p.texto_md || '').length} caracteres
-            {(p.texto_md || '').length > LIMITE_CARTAO && ' · passou do que cabe numa tela; vale quebrar em dois'}
+            {(p.texto_md || '').length > LIMITE_NOTA && ' · passou do que cabe numa tela; vale quebrar em dois'}
           </span>
         </> : <>
           {p.tipo === 'hq' && p.url && <img className="pe-mini" src={p.url} alt="" />}
@@ -423,13 +424,13 @@ function EditorAula({ userId, aulaId, onFechar, showToast }) {
       </div>)}
 
       <div className="btnrow">
-        <button className="btn ghost mini" disabled={busy} onClick={() => setA(x => ({ ...x, pecas: [...x.pecas, { tipo: 'cartao', titulo: '', texto_md: '' }] }))}>+ cartão</button>
+        <button className="btn ghost mini" disabled={busy} onClick={() => setA(x => ({ ...x, pecas: [...x.pecas, { tipo: 'cartao', titulo: '', texto_md: '' }] }))}>+ nota</button>
         {!temFicha && <button className="btn ghost mini" disabled={busy} onClick={() => setA(x => ({ ...x, pecas: [...x.pecas, { tipo: 'ficha', titulo: '', texto_md: '' }] }))}>+ ficha de campo</button>}
         <button className="btn ghost mini" disabled={busy} onClick={() => refHq.current && refHq.current.click()}>+ quadros de HQ</button>
         <button className="btn ghost mini" disabled={busy} onClick={() => refPdf.current && refPdf.current.click()}>+ PDF</button>
         {subindo && <span className="note" style={{ alignSelf: 'center' }}>{subindo}</span>}
       </div>
-      {!temFicha && <p className="note">Aula conceitual não tem ficha — forçar uma faz ela virar resumo dos cartões.</p>}
+      {!temFicha && <p className="note">Aula conceitual não tem ficha — forçar uma faz ela virar resumo das notas.</p>}
 
       <div className="btnrow">
         <button className="btn" onClick={() => salvar()} disabled={busy}>{busy ? 'Salvando…' : 'Salvar'}</button>

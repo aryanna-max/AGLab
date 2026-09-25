@@ -2,7 +2,9 @@ import React, { useEffect, useRef, useState } from 'react'
 import { carregarAula, aulaGuardada, marcarLeitura, fmtData } from './lib/alunoApi'
 
 /* Material de aula do aluno: a HQ, os cartões do assunto e a ficha de campo.
-   Um conceito por tela — o formato é cartão, não documento. A aula que ele já
+   Uma ideia por tela. Na tela do aluno a peça se chama NOTA — "Notas de aula",
+   que é gênero e promete explicação; no banco o tipo continua 'cartao', e não há
+   migração nenhuma nisso. A aula que ele já
    abriu fica no celular, porque material que some sem rede não está à mão. */
 
 const FRENTE = { planimetria: 'Planimetria', altimetria: 'Altimetria', planialtimetria: 'Planialtimetria', geral: 'Geral' }
@@ -108,8 +110,8 @@ function Aula({ ident, online, lancamentoId, onVoltar }) {
           <span className="cp-sub">{hq.length} quadros · comece por aqui</span>
         </button>}
         {cartoes.length > 0 && <button className="card-perfil" onClick={() => setParte('cartoes')}>
-          <span className="cp-emoji">🗂️</span><span className="cp-tit">O assunto</span>
-          <span className="cp-sub">{cartoes.length} cartões{lidos > 0 ? ` · você leu ${lidos}` : ''}</span>
+          <span className="cp-emoji">📝</span><span className="cp-tit">Notas de aula</span>
+          <span className="cp-sub">{cartoes.length} notas{lidos > 0 ? ` · você leu ${lidos}` : ''}</span>
         </button>}
         {ficha && <button className="card-perfil ficha" onClick={() => setParte('ficha')}>
           <span className="cp-emoji">📋</span><span className="cp-tit">Ficha de campo</span>
@@ -183,7 +185,7 @@ function HQ({ quadros, ident, lancamentoId, onVoltar }) {
 }
 
 /* ---------- os cartões: um conceito por tela ---------- */
-function Cartoes({ cartoes, ident, lancamentoId, onVoltar, titulo }) {
+function Cartoes({ cartoes, ident, lancamentoId, onVoltar, titulo, unidade = 'nota' }) {
   // abre onde o aluno parou: o primeiro que ele ainda não leu
   const inicio = Math.max(0, cartoes.findIndex(c => !c.lida))
   const [i, setI] = useState(inicio === -1 ? 0 : inicio)
@@ -202,7 +204,7 @@ function Cartoes({ cartoes, ident, lancamentoId, onVoltar, titulo }) {
   const unico = cartoes.length === 1
   return (
     <div className="panel">
-      <h2 style={{ marginTop: 0 }}>{titulo || 'O assunto'}</h2>
+      <h2 style={{ marginTop: 0 }}>{titulo || 'Notas de aula'}</h2>
       <div className="cartao-aula">
         {atual.titulo && <h3>{atual.titulo}</h3>}
         <Texto md={atual.texto_md} />
@@ -214,7 +216,7 @@ function Cartoes({ cartoes, ident, lancamentoId, onVoltar, titulo }) {
         </div>
         <div className="btnrow">
           <button className="btn ghost" onClick={() => setI(x => Math.max(0, x - 1))} disabled={i === 0}>Anterior</button>
-          <span className="note" style={{ alignSelf: 'center' }}>{i + 1} de {cartoes.length}</span>
+          <span className="note" style={{ alignSelf: 'center' }}>{unidade} {i + 1} de {cartoes.length}</span>
           {i < cartoes.length - 1
             ? <button className="btn" onClick={() => setI(x => x + 1)}>Próximo</button>
             : <button className="btn" onClick={onVoltar}>Terminei</button>}
