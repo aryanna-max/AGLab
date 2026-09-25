@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import * as store from './lib/store'
 import { FRENTES, CARDAPIO_SUGERIDO } from './lib/cardapioMissoes'
 import Avatar from './Avatar.jsx'
+import { GabaritoResumo, GabaritoDetalhe } from './GabaritoCaderneta.jsx'
 
 /* Missões — lado da professora.
    Cardápio: biblioteca dela, sem turma. Lançar: escolhe a missão, qualquer turma, prazo
@@ -103,6 +104,13 @@ function EditorMissao({ userId, inicial, onFechar, showToast }) {
           <select value={m.frente} onChange={e => set('frente', e.target.value)}>{FRENTES.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></div>
       </div>
       <label className="chk-inline" style={{ marginTop: 10 }}><input type="checkbox" checked={!!m.equipe} onChange={e => set('equipe', e.target.checked)} /> Missão em equipe (etapas e entrega são da equipe; o nível vale para todos)</label>
+      <label className="chk-inline" style={{ marginTop: 10 }}><input type="checkbox" checked={!!m.caderneta} onChange={e => set('caderneta', e.target.checked ? { alvo: m.caderneta?.alvo || 'M0451A' } : null)} /> 📒 Caderneta de estação total (irradiação) e cálculo das coordenadas à mão</label>
+      {m.caderneta && <div style={{ marginLeft: 26 }}>
+        <div className="row" style={{ alignItems: 'flex-end' }}>
+          <div style={{ flex: 0, minWidth: 180 }}><label className="fld">Ponto a determinar</label><input value={m.caderneta.alvo || ''} maxLength={20} onChange={e => set('caderneta', { alvo: e.target.value })} placeholder="M0451A" /></div>
+        </div>
+        <p className="note">O aluno anota estação, ponto visado, ângulo horizontal e distância horizontal (a primeira visada de cada estação é a ré), e depois digita as coordenadas que calculou do ponto e do marco de controle. Você recebe o gabarito refeito pela caderneta de cada equipe.</p>
+      </div>}
       <label className="fld">O que é a missão</label>
       <textarea rows={3} value={m.descricao || ''} onChange={e => set('descricao', e.target.value)} placeholder="Contexto e objetivo, em linguagem direta." />
       <label className="fld">Etapas (o aluno marca cada uma, e fica gravado)</label>
@@ -143,6 +151,7 @@ function Lancar({ userId, missao, turmas, tid, showToast, onFechar }) {
   const [hora, setHora] = useState('23:59')
   const [ranking, setRanking] = useState(true)
   const [emEquipe, setEmEquipe] = useState(!!missao.equipe)
+  const [livres, setLivres] = useState(3)          // 0 = você forma; N = os alunos se escolhem em N equipes
   const [avisar, setAvisar] = useState(true)
   const [textoAviso, setTextoAviso] = useState('')
   const [busy, setBusy] = useState(false)
@@ -154,7 +163,7 @@ function Lancar({ userId, missao, turmas, tid, showToast, onFechar }) {
     if (!prazo) { showToast('Defina o prazo'); return }
     setBusy(true)
     try {
-      const lanc = await store.lancarMissao(userId, { missao_id: missao.id, turma_id: turmaId, prazo_tipo: tipo, prazo_em: prazo, mostrar_ranking: ranking, em_equipe: emEquipe })
+      const lanc = await store.lancarMissao(userId, { missao_id: missao.id, turma_id: turmaId, prazo_tipo: tipo, prazo_em: prazo, mostrar_ranking: ranking, em_equipe: emEquipe, equipes_livres: livres || null })
       let extra = ''
       if (avisar) {
         try {
@@ -165,7 +174,7 @@ function Lancar({ userId, missao, turmas, tid, showToast, onFechar }) {
           if (a) extra = ` · aviso em ${a.aceitos} celular(es)`
         } catch (e) { extra = ' · o aviso no celular falhou' }
       }
-      showToast((emEquipe ? 'Missão lançada. Agora forme as equipes.' : 'Missão lançada') + extra); onFechar(true)
+      showToast((emEquipe ? (livres ? `Missão lançada. A turma forma ${livres} equipes entre os presentes.` : 'Missão lançada. Agora forme as equipes.') : 'Missão lançada') + extra); onFechar(true)
     } catch (e) { showToast('Erro: ' + e.message) } finally { setBusy(false) }
   }
   return (
@@ -183,7 +192,17 @@ function Lancar({ userId, missao, turmas, tid, showToast, onFechar }) {
         <div><label className="fld">Data</label><input type="date" value={data} onChange={e => setData(e.target.value)} /></div>
         <div><label className="fld">Hora</label><input type="time" value={hora} onChange={e => setHora(e.target.value)} /></div>
       </div>}
-      <label className="chk-inline" style={{ marginTop: 10 }}><input type="checkbox" checked={emEquipe} onChange={e => setEmEquipe(e.target.checked)} /> em equipe (você forma as equipes depois de lançar)</label>
+      <label className="chk-inline" style={{ marginTop: 10 }}><input type="checkbox" checked={emEquipe} onChange={e => setEmEquipe(e.target.checked)} /> em equipe</label>
+      {emEquipe && <div style={{ marginLeft: 26 }}>
+        <div className="btnrow" style={{ marginTop: 4 }}>
+          <button className={'btn ghost mini' + (livres ? ' on' : '')} onClick={() => setLivres(livres || 3)}>Os alunos se escolhem entre os presentes</button>
+          <button className={'btn ghost mini' + (!livres ? ' on' : '')} onClick={() => setLivres(0)}>Eu formo as equipes</button>
+        </div>
+        {livres > 0 && <div className="row" style={{ alignItems: 'center' }}>
+          <div style={{ flex: 0, minWidth: 90 }}><input type="number" min={1} max={12} value={livres} onChange={e => setLivres(Math.max(1, Math.min(12, Number(e.target.value) || 1)))} /></div>
+          <div style={{ flex: 1 }}><p className="note" style={{ margin: 0 }}>equipes. Quem já foi escolhido fica travado para os outros; trocar de equipe é com você.</p></div>
+        </div>}
+      </div>}
       <label className="chk-inline" style={{ marginTop: 10 }}><input type="checkbox" checked={ranking} onChange={e => setRanking(e.target.checked)} /> mostrar ranking desta missão para a turma</label>
       <label className="chk-inline" style={{ marginTop: 10 }}><input type="checkbox" checked={avisar} onChange={e => setAvisar(e.target.checked)} /> 🔔 avisar a turma no celular</label>
       {avisar && <div style={{ marginLeft: 26 }}>
@@ -287,6 +306,8 @@ function Entregas({ userId, lanc, turma, entregas, showToast, onVoltar, recarreg
       <h2 style={{ marginTop: 6 }}>{lanc.missoes?.titulo}</h2>
       <p className="hint">Prazo {fmtDH(lanc.prazo_em)} · {aberta ? 'aberta' : 'encerrada'} · {entregas.filter(e => e.enviada_em).length} de {turma.alunos.length} enviaram</p>
       <AcoesLancamento lanc={lanc} aberta={aberta} showToast={showToast} onVoltar={onVoltar} />
+      {lanc.missoes?.caderneta && <GabaritoResumo alvo={lanc.missoes.caderneta.alvo} unidades={turma.alunos.filter(a => porAluno[a.id]).map(a => ({ id: a.id, nome: a.nome, entrega: porAluno[a.id], alunoIds: [a.id] }))}
+        aplicar={(u, nivel) => store.avaliarEntrega(userId, lanc.id, u.id, { nivel }).then(recarregar)} />}
       <ul className="people entregas">
         {ordem.map(a => { const e = porAluno[a.id]; const r = rascunho[a.id] ?? e?.devolutiva ?? ''
           const nFeitas = Object.keys(e?.etapas_feitas || {}).length
@@ -297,6 +318,7 @@ function Entregas({ userId, lanc, turma, entregas, showToast, onVoltar, recarreg
               <span className={'tag ' + (e?.status === 'aceita' ? 'P' : e?.status === 'refazer' ? 'F' : '')}>{e?.status || '—'}</span>
             </div>
             {e?.texto && <p className="ent-texto">{e.texto}</p>}
+            {lanc.missoes?.caderneta && <GabaritoDetalhe entrega={e} alvo={lanc.missoes.caderneta.alvo} />}
             <div className="row ent-acoes">
               <div style={{ flex: 0, minWidth: 130 }}><select value={e?.nivel || ''} onChange={ev => salvar(a, { nivel: ev.target.value || null })}>{NIVEIS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></div>
               <div style={{ flex: 1, minWidth: 180 }}><input value={r} onChange={ev => setRascunho(x => ({ ...x, [a.id]: ev.target.value }))} onBlur={() => { if (r !== (e?.devolutiva || '')) salvar(a, { devolutiva: r }) }} placeholder="Devolutiva (salva ao sair do campo)" /></div>
@@ -337,7 +359,14 @@ function EntregasEquipe({ userId, lanc, turma, entregas, showToast, onVoltar, re
   const alunoPorId = useMemo(() => Object.fromEntries(turma.alunos.map(a => [a.id, a])), [turma])
   const porAluno = useMemo(() => { const m = {}; entregas.forEach(e => { m[e.aluno_id] = e }); return m }, [entregas])
   const carregarEquipes = useCallback(() => store.equipesDoLancamento(lanc.id).then(eqs => { setEquipes(eqs); return eqs }).catch(e => { showToast('Erro: ' + e.message); return null }), [lanc.id, showToast])
-  useEffect(() => { carregarEquipes().then(eqs => { if (eqs && !eqs.length) setFormando(true) }) }, [carregarEquipes])
+  useEffect(() => { carregarEquipes().then(eqs => { if (eqs && !eqs.length && !lanc.equipes_livres) setFormando(true) }) }, [carregarEquipes])   // eslint-disable-line react-hooks/exhaustive-deps
+  // com os alunos escolhendo, a lista muda sozinha: confere junto com as entregas
+  useEffect(() => { if (lanc.equipes_livres) carregarEquipes() }, [entregas])   // eslint-disable-line react-hooks/exhaustive-deps
+  const cadCfg = lanc.missoes?.caderneta || null
+  async function mudarLivres(n) {
+    try { await store.atualizarLancamento(lanc.id, { equipes_livres: n }); showToast(n ? `Os alunos se escolhem em ${n} equipes` : 'Você forma as equipes'); onVoltar() }
+    catch (e) { showToast('Erro: ' + e.message) }
+  }
 
   const etapas = lanc.missoes?.etapas || []
   const aberta = !lanc.encerrado && new Date(lanc.prazo_em) > new Date()
@@ -350,6 +379,9 @@ function EntregasEquipe({ userId, lanc, turma, entregas, showToast, onVoltar, re
   // a entrega da equipe é a linha mais adiantada entre os membros (o servidor grava em todos)
   const entregaDa = eq => eq.membros.map(m => porAluno[m.aluno_id]).filter(Boolean).sort((a, b) => (b.enviada_em || '').localeCompare(a.enviada_em || ''))[0]
   const enviadas = equipes.filter(eq => entregaDa(eq)?.enviada_em).length
+  // caderneta da equipe: a mais recente entre os membros (quem entrou depois pode não ter a cópia)
+  const entregaCad = eq => { const e = entregaDa(eq); const c = eq.membros.map(m => porAluno[m.aluno_id]).filter(x => x?.caderneta_em).sort((a, b) => b.caderneta_em.localeCompare(a.caderneta_em))[0]
+    return e || c ? { ...(e || {}), caderneta: c?.caderneta || e?.caderneta || null } : null }
 
   async function avaliarEquipe(eq, campos) {
     try { await store.avaliarVarios(userId, lanc.id, eq.membros.map(m => m.aluno_id), campos); showToast('Salvo para a equipe toda'); recarregar() }
@@ -365,8 +397,16 @@ function EntregasEquipe({ userId, lanc, turma, entregas, showToast, onVoltar, re
       <div className="btnrow" style={{ marginTop: 0 }}><button className="btn ghost mini" onClick={onVoltar}>↩ Lançadas</button></div>
       <h2 style={{ marginTop: 6 }}><span className="tag equipe" style={{ marginRight: 6, verticalAlign: 'middle' }}>equipe</span>{lanc.missoes?.titulo}</h2>
       <p className="hint">Prazo {fmtDH(lanc.prazo_em)} · {aberta ? 'aberta' : 'encerrada'} · {enviadas} de {equipes.length} equipe(s) enviaram</p>
-      <AcoesLancamento lanc={lanc} aberta={aberta} showToast={showToast} onVoltar={onVoltar} extra={<button className="btn mini" onClick={() => setFormando(true)}>Formar equipes</button>} />
+      <AcoesLancamento lanc={lanc} aberta={aberta} showToast={showToast} onVoltar={onVoltar} extra={<>
+        <button className="btn mini" onClick={() => setFormando(true)}>{lanc.equipes_livres ? 'Ajustar equipes' : 'Formar equipes'}</button>
+        {lanc.equipes_livres
+          ? <button className="btn ghost mini" onClick={() => mudarLivres(null)}>Parar a escolha pelos alunos</button>
+          : <button className="btn ghost mini" onClick={() => { const n = Number(prompt('Quantas equipes? Os alunos se escolhem entre os presentes.', '3')); if (n > 0) mudarLivres(Math.min(12, Math.round(n))) }}>Deixar os alunos se escolherem</button>}
+      </>} />
+      {lanc.equipes_livres && <p className="note">👥 Os alunos se escolhem entre os presentes, em até <b>{lanc.equipes_livres}</b> equipes. Quem já foi escolhido fica travado para os outros. Para trocar alguém, use <b>Ajustar equipes</b>.</p>}
       {semEquipe.length > 0 && <p className="note" style={{ color: 'var(--miss)' }}>Sem equipe ({semEquipe.length}): {semEquipe.map(a => a.nome.trim().split(' ').slice(0, 2).join(' ')).join(', ')}. Quem está sem equipe não consegue marcar etapas nem enviar.</p>}
+      {cadCfg && equipes.length > 0 && <GabaritoResumo alvo={cadCfg.alvo} unidades={equipes.map(eq => ({ id: eq.id, nome: eq.nome, entrega: entregaCad(eq), alunoIds: eq.membros.map(m => m.aluno_id) }))}
+        aplicar={(u, nivel) => store.avaliarVarios(userId, lanc.id, u.alunoIds, { nivel }).then(recarregar)} />}
       <ul className="people entregas">
         {equipes.map(eq => {
           const e = entregaDa(eq); const r = rascunho[eq.id] ?? e?.devolutiva ?? ''
@@ -381,7 +421,9 @@ function EntregasEquipe({ userId, lanc, turma, entregas, showToast, onVoltar, re
             <ul className="eq-membros" style={{ margin: '6px 0' }}>
               {eq.membros.map(m => <li key={m.aluno_id}><Avatar a={alunoPorId[m.aluno_id] || { nome: nome[m.aluno_id] }} tam="mini" /><span style={{ flex: 1, minWidth: 0 }}>{e?.enviada_em && m.aluno_id === e.enviada_por ? '📱 ' : ''}{nome[m.aluno_id] || '?'}</span><span className="fn">{[e?.enviada_em && m.aluno_id === e.enviada_por ? 'enviou' : '', misto ? porAluno[m.aluno_id]?.nivel : ''].filter(Boolean).join(' · ')}</span></li>)}
             </ul>
-            {e?.texto && <p className="ent-texto">{e.texto}</p>}
+            {e?.texto && !cadCfg && <p className="ent-texto">{e.texto}</p>}
+            {cadCfg && <GabaritoDetalhe entrega={entregaCad(eq)} alvo={cadCfg.alvo} />}
+            {cadCfg && e?.texto && (e.texto.split('\nObservações: ')[1] || '') && <p className="ent-texto">Observações: {e.texto.split('\nObservações: ')[1]}</p>}
             <div className="row ent-acoes">
               <div style={{ flex: 0, minWidth: 130 }}><select value={misto ? '' : (e?.nivel || '')} onChange={ev => avaliarEquipe(eq, { nivel: ev.target.value || null })}>{NIVEIS.map(([k, l]) => <option key={k} value={k}>{k === '' && misto ? 'misto' : l}</option>)}</select></div>
               <div style={{ flex: 1, minWidth: 180 }}><input value={r} onChange={ev => setRascunho(x => ({ ...x, [eq.id]: ev.target.value }))} onBlur={() => { if (r !== (e?.devolutiva || '')) avaliarEquipe(eq, { devolutiva: r }) }} placeholder="Devolutiva para a equipe (salva ao sair do campo)" /></div>
