@@ -175,7 +175,7 @@ function SeletorPonto({ valor, onChange, opcoes, disabled, placeholder }) {
    continua sendo à mão. Marco oficial em verde, ré tracejada, vante em azul, alvo em losango. */
 /* camadas: [{ calc, cor, rotulo }] — várias equipes no mesmo desenho (tela da professora).
    Sem camadas, desenha só a caderneta `calc`, nas cores da legenda (tela do aluno). */
-export function CroquiCaderneta({ calc, marcos, alvo, camadas, titulo = 'Croqui da caderneta' }) {
+export function CroquiCaderneta({ calc, marcos, alvo, camadas, media, titulo = 'Croqui da caderneta' }) {
   const d = useMemo(() => {
     const cams = camadas || [{ calc, cor: null }]
     const conh = Object.fromEntries(marcos.map(x => [nomeChave(x.nome), x]))
@@ -196,7 +196,7 @@ export function CroquiCaderneta({ calc, marcos, alvo, camadas, titulo = 'Croqui 
     const marcosUsados = [...usados].map(k => conh[k]).filter(Boolean)
     // o marco antigo que o alvo substitui (M0451 de 2023): cinza, ligado ao alvo calculado
     const antigo = marcoAntigoDo(alvo)
-    const pts = [...marcosUsados, ...novosTodos, ...vantes.map(v => v[1]), ...(antigo ? [antigo] : [])]
+    const pts = [...marcosUsados, ...novosTodos, ...vantes.map(v => v[1]), ...(antigo ? [antigo] : []), ...(media ? [media] : [])]
     if (pts.length < 2) return null
     const minN = Math.min(...pts.map(p => p.n)), maxN = Math.max(...pts.map(p => p.n)), minE = Math.min(...pts.map(p => p.e)), maxE = Math.max(...pts.map(p => p.e))
     const span = Math.max(maxN - minN, maxE - minE, 20), S = 300, pad = 30, k = (S - 2 * pad) / span
@@ -205,7 +205,7 @@ export function CroquiCaderneta({ calc, marcos, alvo, camadas, titulo = 'Croqui 
     const X = e => pad + offX + (e - minE) * k, Y = n => S - pad - offY - (n - minN) * k
     const escala = [5, 10, 20, 50, 100, 200].find(v => v * k >= 40) || 200
     return { S, X, Y, re, vantes, marcosUsados, novos: novosTodos, escala, k, antigo, alvoCalc, varias: cams.length > 1 }
-  }, [calc, marcos, alvo, camadas])
+  }, [calc, marcos, alvo, camadas, media])
   if (!d) return <p className="note">O croqui aparece quando houver uma estação e uma ré com marcos conhecidos.</p>
   const kAlvo = nomeChave(alvo)
   return <>
@@ -222,6 +222,9 @@ export function CroquiCaderneta({ calc, marcos, alvo, camadas, titulo = 'Croqui 
         const rotular = !d.varias || !eAlvo || d.novos.findIndex(q => nomeChave(q.nome) === kAlvo) === i
         return <g key={p.nome + i}>{eAlvo ? <rect x={x - 6} y={y - 6} width="12" height="12" transform={`rotate(45 ${x} ${y})`} className="cq-alvo" style={st} /> : <circle cx={x} cy={y} r="5" className="poli-v" style={st} />}
           {rotular && <text x={x + 9} y={eAlvo && d.antigo ? y + 5 : y - 7} className="radar-lab">{p.nome}</text>}</g> })}
+      {media && (() => { const x = d.X(media.e), y = d.Y(media.n)
+        return <g className="cq-media"><circle cx={x} cy={y} r="8" /><line x1={x - 11} y1={y} x2={x + 11} y2={y} /><line x1={x} y1={y - 11} x2={x} y2={y + 11} />
+          <text x={x + 12} y={y + 20} className="radar-lab">média</text></g> })()}
       <text x="8" y="16" className="radar-lab">N ↑</text>
       <line x1={d.S - 12 - d.escala * d.k} y1={d.S - 12} x2={d.S - 12} y2={d.S - 12} className="cq-escala" />
       <text x={d.S - 12} y={d.S - 17} textAnchor="end" className="radar-lab">{d.escala} m</text>

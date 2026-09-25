@@ -20,7 +20,7 @@ function cad(erroCampo, erroConta) {
 }
 export const CAD_EQ1 = cad(0, 0)
 export const CAD_EQ2 = cad(0.04, 0)
-export const CAD_EQ3 = cad(0, 0.30)
+export const CAD_EQ3 = (() => { const c = cad(0, 0.30); c.linhas[2].dh = (Number(c.linhas[2].dh.replace(',', '.')) + 1.5).toFixed(3).replace('.', ','); return c })()   // M0451A 1,5 m fora: dá para ver no croqui
 export const CAD_PARCIAL = { linhas: [{ est: 'M0452', pv: 'M0455', hz: '0 00 00', dh: '99,98' }, { est: 'M0452', pv: 'M0451A', hz: '', dh: '' }], resultado: { alvo: { n: '', e: '' }, controle: { marco: '', n: '', e: '' } } }
 
 // caderneta real de uma equipe (25/09): M0455 com ré no M0454, controle no P1, D1 e M0451A

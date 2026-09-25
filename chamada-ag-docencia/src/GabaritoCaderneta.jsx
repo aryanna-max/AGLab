@@ -22,11 +22,15 @@ export function GabaritoResumo({ unidades, alvo, aplicar }) {
   }), [unidades, marcos, alvo])
   const sug = useMemo(() => sugerirMedalhas(linhas), [linhas])
   const [busy, setBusy] = useState(false)
+  // croqui das equipes: cada uma liga e desliga; a cor é fixa pela posição na lista
+  const [ocultas, setOcultas] = useState(() => new Set())
+  const alternar = id => setOcultas(o => { const n = new Set(o); n.has(id) ? n.delete(id) : n.add(id); return n })
+  const comGab = linhas.map((l, i) => ({ ...l, cor: CORES_EQ[i % CORES_EQ.length] })).filter(l => l.gab)
+  const visiveis = comGab.filter(l => !ocultas.has(l.id))
+  const alvosVis = visiveis.filter(l => l.gab.alvo).map(l => ({ nome: l.nome, cor: l.cor, p: l.gab.alvo }))
+  const mediaVis = alvosVis.length ? { n: alvosVis.reduce((s, a) => s + a.p.n, 0) / alvosVis.length, e: alvosVis.reduce((s, a) => s + a.p.e, 0) / alvosVis.length } : null
+  const espalhoVis = alvosVis.length > 1 ? Math.max(...alvosVis.flatMap((a, i) => alvosVis.slice(i + 1).map(b => Math.hypot(a.p.n - b.p.n, a.p.e - b.p.e)))) : null
 
-  // concordância entre as equipes no ponto novo: quanto os M0451A recalculados distam entre si
-  const alvos = linhas.map(l => l.gab?.alvo).filter(Boolean)
-  const espalho = alvos.length > 1 ? Math.max(...alvos.flatMap((a, i) => alvos.slice(i + 1).map(b => Math.hypot(a.n - b.n, a.e - b.e)))) : null
-  const media = alvos.length ? { n: alvos.reduce((s, a) => s + a.n, 0) / alvos.length, e: alvos.reduce((s, a) => s + a.e, 0) / alvos.length } : null
   const comSugestao = linhas.filter(l => sug[l.id]?.nivel)
 
   async function aplicarTudo() {
@@ -53,9 +57,12 @@ export function GabaritoResumo({ unidades, alvo, aplicar }) {
             <td className={!g?.contaCtrl ? '' : g.contaCtrl.dist <= TOL_CALCULO ? 'P' : 'F'}>{g?.contaCtrl ? fmtCm(g.contaCtrl.dist) : '—'}</td>
             <td>{s?.nivel && <b>{NIVEL[s.nivel]} </b>}<span className="m">{s?.motivo}</span></td>
           </tr> })}</tbody></table></div>
-      <CroquiCaderneta titulo="Croqui das equipes" marcos={marcos} alvo={alvo}
-        camadas={linhas.filter(l => l.gab).map((l, i) => ({ calc: l.gab.calc, cor: CORES_EQ[i % CORES_EQ.length], rotulo: l.nome }))} />
-      {espalho != null && <p className="note">{alvo} pelas cadernetas: média N {fmtM(media.n)} · E {fmtM(media.e)} · as equipes diferem entre si em até <b>{fmtCm(espalho)}</b>.</p>}
+      <div className="cq-equipes">{comGab.map(l => <button key={l.id} type="button" className={'btn ghost mini' + (ocultas.has(l.id) ? '' : ' on')} onClick={() => alternar(l.id)}>
+        <b style={{ color: ocultas.has(l.id) ? 'var(--muted)' : l.cor }}>●</b> {l.nome}</button>)}</div>
+      {visiveis.length ? <CroquiCaderneta titulo="Croqui das equipes" marcos={marcos} alvo={alvo} media={alvosVis.length > 1 ? mediaVis : null}
+        camadas={visiveis.map(l => ({ calc: l.gab.calc, cor: l.cor, rotulo: l.nome }))} /> : <p className="note">Todas as equipes estão desligadas: toque numa para desenhar.</p>}
+      {mediaVis && <p className="note">{alvosVis.length > 1 ? <><b>Média do {alvo} entre as {alvosVis.length} equipes ligadas:</b> N {fmtM(mediaVis.n)} · E {fmtM(mediaVis.e)}. Maior diferença entre elas: <b>{fmtCm(espalhoVis)}</b>. Até a média: {alvosVis.map(a => <span key={a.nome} style={{ whiteSpace: 'nowrap' }}><b style={{ color: a.cor }}>●</b> {a.nome} {fmtCm(Math.hypot(a.p.n - mediaVis.n, a.p.e - mediaVis.e))} </span>)}.</>
+        : <>Só uma equipe ligada com o {alvo}: N {fmtM(mediaVis.n)} · E {fmtM(mediaVis.e)}. Ligue outra para ver a média.</>} Média simples, sem peso; a média acurada (pesada pelo controle) está na aba Análise.</p>}
       <p className="note">Critério (não é ranking: todas podem levar ouro): 🥇 fechou num marco de controle a até {fmtCm(MEDALHA_OURO)} e a conta à mão confere · 🥈 fechou a até {fmtCm(MEDALHA_PRATA)}, ou a até {fmtCm(MEDALHA_OURO)} com a conta errada (aí cabe <b>Refazer</b>) · 🥉 caderneta completa e {alvo} calculado, sem controle ou acima de {fmtCm(MEDALHA_PRATA)}. O controle vale em qualquer etapa; a posição dele entra na devolutiva, não na medalha. Sem envio, sem medalha.</p>
       {comSugestao.length > 0 && <div className="btnrow"><button className="btn" disabled={busy} onClick={aplicarTudo}>{busy ? 'Aplicando…' : 'Aplicar medalhas sugeridas'}</button></div>}
     </div>
