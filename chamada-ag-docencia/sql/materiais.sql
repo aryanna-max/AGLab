@@ -18,8 +18,11 @@
 -- NADA de dado de aluno neste bucket. Foto e selfie continuam em 'fotos', que
 -- é privado e assinado.
 
+-- 25 MB: o quadro de HQ sai daqui com 60-120 KB, mas o PDF de aprofundamento
+-- vem de PowerPoint e passa de 5 MB sem esforço. Teto que recusa o arquivo dela
+-- no meio da edição é pior que arquivo grande.
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
-values ('materiais', 'materiais', true, 5242880,
+values ('materiais', 'materiais', true, 26214400,
         array['image/webp', 'image/jpeg', 'image/png', 'application/pdf'])
 on conflict (id) do update
   set public = true,

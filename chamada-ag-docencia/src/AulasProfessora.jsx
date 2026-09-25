@@ -326,7 +326,7 @@ function EditorAula({ userId, aulaId, onFechar, showToast }) {
           setA(x => ({ ...x, pecas: [...x.pecas, { tipo, titulo: '', ...arquivo }] }))
         }
       }
-      showToast(feitos > 1 ? `${feitos} quadros no lugar` : 'Arquivo no lugar')
+      showToast(feitos > 1 ? `${feitos} ${tipo === 'hq' ? 'quadros' : 'arquivos'} no lugar` : 'Arquivo no lugar')
     } catch (e) {
       showToast(feitos ? `Subiu ${feitos} de ${lista.length}. Erro no resto: ${e.message}` : 'Erro: ' + e.message)
     } finally { setBusy(false); setSubindo('') }
@@ -442,7 +442,7 @@ function EditorAula({ userId, aulaId, onFechar, showToast }) {
           multiple nos quadros: ela escolhe os oito de uma vez, e a ordem sai do nome */}
       <input ref={refHq} type="file" accept="image/*" multiple hidden
         onChange={ev => { const f = ev.target.files; ev.target.value = ''; subir('hq', f) }} />
-      <input ref={refPdf} type="file" accept="application/pdf" hidden
+      <input ref={refPdf} type="file" accept="application/pdf" multiple hidden
         onChange={ev => { const f = ev.target.files; ev.target.value = ''; subir('pdf', f) }} />
       <input ref={refTroca} type="file" hidden
         onChange={ev => {
