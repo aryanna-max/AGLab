@@ -339,6 +339,9 @@ function AcoesLancamento({ lanc, aberta, showToast, onVoltar, extra }) {
       {extra}
       {aberta && <button className="btn ghost mini" onClick={async () => { await store.atualizarLancamento(lanc.id, { encerrado: true }); showToast('Missão encerrada'); onVoltar() }}>Encerrar agora</button>}
       {!aberta && <button className="btn ghost mini" onClick={async () => { const d = new Date(); d.setDate(d.getDate() + 2); await store.atualizarLancamento(lanc.id, { encerrado: false, prazo_em: d.toISOString() }); showToast('Prazo reaberto por 2 dias'); onVoltar() }}>Reabrir por 2 dias</button>}
+      {lanc.missoes?.caderneta && <button className={'btn mini' + (lanc.gabarito_liberado ? '' : ' ghost')} title="Cada equipe vê o gabarito da própria caderneta, só depois de enviar (e não em Refazer)."
+        onClick={async () => { await store.atualizarLancamento(lanc.id, { gabarito_liberado: !lanc.gabarito_liberado }); showToast(lanc.gabarito_liberado ? 'Gabarito recolhido' : 'Gabarito liberado para quem já enviou'); onVoltar() }}>
+        {lanc.gabarito_liberado ? '📖 Gabarito liberado · recolher' : '📖 Liberar gabarito (para quem enviou)'}</button>}
       <button className="btn ghost mini" onClick={async () => { await store.atualizarLancamento(lanc.id, { mostrar_ranking: !lanc.mostrar_ranking }); showToast(lanc.mostrar_ranking ? 'Ranking oculto para a turma' : 'Ranking visível'); onVoltar() }}>{lanc.mostrar_ranking ? 'Ocultar ranking' : 'Mostrar ranking'}</button>
       <button className="btn danger mini" onClick={async () => { if (!confirm('Apagar este lançamento e as entregas dele?')) return; await store.apagarLancamento(lanc.id); showToast('Lançamento apagado'); onVoltar() }}>Apagar lançamento</button>
     </div>

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { fmtPrazo, marcarEtapa, enviarMissao, salvarRascunho, marcarVista, missaoVista } from './lib/alunoApi'
 import Avatar from './Avatar.jsx'
-import { EscolherEquipe, PainelCaderneta, useCaderneta } from './CadernetaAluno.jsx'
+import { EscolherEquipe, PainelCaderneta, useCaderneta, GabaritoAluno } from './CadernetaAluno.jsx'
 import { resumoTexto } from './lib/caderneta'
 
 /* Missões do aluno: as que a professora lançou para a turma dele, com prazo,
@@ -178,6 +178,7 @@ function Detalhe({ m, ident, online, agora, onVoltar, recarregar }) {
         <p className="note">Cada etapa marcada fica gravada no servidor na hora.</p>
       </div>}
 
+      {cfgCad && m.gabarito_liberado && m.minha?.enviada_em && status !== 'refazer' && m.minha?.caderneta && <GabaritoAluno m={m} />}
       {cfgCad && !semEquipe && <PainelCaderneta m={m} cadHook={cadHook} podeEditar={podeEditar} />}
 
       {m.medalha && <MedalhaAuto m={m} />}

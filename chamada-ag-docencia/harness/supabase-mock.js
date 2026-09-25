@@ -1,5 +1,5 @@
 // supabase falso para o harness: RPCs do aluno devolvem dados de exemplo
-import { CAD_PARCIAL, CAD_REAL } from './caderneta-mock.js'
+import { CAD_PARCIAL, CAD_REAL, CAD_EQ2 } from './caderneta-mock.js'
 const agora = Date.now()
 const iso = ms => new Date(ms).toISOString()
 const RPC = {
@@ -9,7 +9,8 @@ const RPC = {
   minhas_missoes: { ok: true, funcoes_ja_exercidas: ['Anotador'], semestre: { podio: [{ nome: 'Alice', avatar: 'lumi', pontos: 6 }, { nome: 'Bruno', avatar: 'teo', pontos: 4 }, { nome: 'Carla', avatar: 'vertice', pontos: 3 }], minha_posicao: 2, meus_pontos: 4, total: 19 },
     missoes: [
       { lancamento_id: 'lcad', titulo: 'Transporte de Coordenadas', frente: 'planialtimetria', descricao: 'COM A ESTAÇÃO TOTAL: leve coordenada até o M0451A e feche num marco conhecido.', etapas: ['Ocupar marco conhecido', 'Ré em outro marco conhecido', 'Visar o M0451A', 'Fechar num marco de controle'], entrega: 'Caderneta e cálculo do M0451A', niveis: { ouro: 'Menor erro no controle', prata: 'Segundo menor', bronze: 'Terceiro' }, caderneta: { alvo: 'M0451A' }, prazo_tipo: 'data', prazo_em: iso(agora + 6 * 86400000), aberta: true, em_equipe: true, equipes_livres: 3, mostrar_ranking: true,
-        minha: { status: 'em_andamento', etapas_feitas: { 0: 1 }, caderneta: location.search.includes('real') ? CAD_REAL : CAD_PARCIAL, caderneta_em: iso(agora - 120000), caderneta_por: 'Bruno' },
+        gabarito_liberado: location.search.includes('gab'),
+        minha: { status: location.search.includes('gab') ? 'enviada' : 'em_andamento', enviada_em: location.search.includes('gab') ? iso(agora - 600000) : null, etapas_feitas: { 0: 1 }, caderneta: location.search.includes('gab') ? CAD_EQ2 : location.search.includes('real') ? CAD_REAL : CAD_PARCIAL, caderneta_em: iso(agora - 120000), caderneta_por: 'Bruno' },
         equipe: location.search.includes('semequipe') ? null : { nome: 'Equipe 2', membros: [{ nome: 'Alice', avatar: 'lumi', eu: true }, { nome: 'Bruno', avatar: 'teo', eu: false }] } },
       { lancamento_id: 'l0', titulo: 'Caderneta de nivelamento', frente: 'altimetria', descricao: 'Nivelamento geométrico com fechamento.', etapas: ['Nivelar o instrumento', 'Ré e vante', 'Cotas', 'Fechamento'], funcoes: ['Operador do nível', 'Porta-mira', 'Anotador', 'Calculista'], entrega: 'Caderneta e erro de fechamento.', niveis: { bronze: 'Completa', prata: 'Na tolerância', ouro: 'Metade da tolerância' }, prazo_tipo: 'aula', prazo_em: iso(agora + 90 * 60000), aberta: true, em_equipe: true, mostrar_ranking: true,
         minha: { status: 'enviada', etapas_feitas: { 0: 1, 1: 1 }, enviada_em: iso(agora - 60000), enviada_por: 'Bruno', texto: 'Erro de 4 mm.' },
