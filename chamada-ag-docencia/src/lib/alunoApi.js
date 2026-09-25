@@ -137,6 +137,29 @@ export async function salvarRascunho(ident, lancamentoId, texto) {
   if (!data?.ok) throw new Error(data?.erro || 'Não consegui salvar.')
   return data
 }
+/* Equipes que os alunos formam: a lista de equipes e de presentes (com quem já foi escolhido)
+   e o pedido de entrada, que o servidor trava — quem já está numa equipe não entra em outra. */
+export async function escolhaDeEquipe(ident, lancamentoId) {
+  const { data, error } = await supabase.rpc('escolha_de_equipe', { ...idArgs(ident), p_lancamento_id: lancamentoId })
+  if (error) throw error
+  if (!data?.ok) throw new Error(data?.erro || 'Não consegui carregar as equipes.')
+  return data
+}
+export async function entrarEmEquipe(ident, lancamentoId, equipe, colegas) {
+  const { data, error } = await supabase.rpc('entrar_em_equipe', { ...idArgs(ident), p_lancamento_id: lancamentoId, p_equipe: equipe || null, p_colegas: colegas || [] })
+  if (error) throw error
+  if (!data?.ok) throw new Error(data?.erro || 'Não consegui entrar na equipe.')
+  return data
+}
+/* Caderneta da equipe. base = o caderneta_em que este celular carregou; se um colega salvou
+   depois, volta { conflito: true, caderneta, em, por } em vez de sobrescrever. */
+export async function salvarCaderneta(ident, lancamentoId, caderneta, base) {
+  const { data, error } = await supabase.rpc('salvar_caderneta_missao', { ...idArgs(ident), p_lancamento_id: lancamentoId, p_caderneta: caderneta, p_base: base || null })
+  if (error) throw error
+  if (!data?.ok && !data?.conflito) throw new Error(data?.erro || 'Não consegui salvar a caderneta.')
+  return data
+}
+
 export async function enviarMissao(ident, lancamentoId, texto) {
   const { data, error } = await supabase.rpc('enviar_missao', { ...idArgs(ident), p_lancamento_id: lancamentoId, p_texto: texto })
   if (error) throw error

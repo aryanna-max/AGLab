@@ -543,14 +543,15 @@ export async function salvarMissao(userId, m) {
   const linha = { owner_id: userId, titulo: m.titulo.trim(), frente: m.frente || 'geral', descricao: m.descricao || null,
     etapas: (m.etapas || []).map(e => String(e).trim()).filter(Boolean), entrega: m.entrega || null, niveis: m.niveis || {}, arquivada: !!m.arquivada,
     equipe: !!m.equipe, funcoes: (m.funcoes || []).map(f => String(f).trim()).filter(Boolean),
-    campos: (m.campos || []).map(c => typeof c === 'string' ? c.trim() : c).filter(c => typeof c === 'string' ? c : c?.rotulo) }
+    campos: (m.campos || []).map(c => typeof c === 'string' ? c.trim() : c).filter(c => typeof c === 'string' ? c : c?.rotulo),
+    caderneta: m.caderneta && m.caderneta.alvo?.trim() ? { alvo: m.caderneta.alvo.trim() } : null }
   const q = m.id ? supabase.from('missoes').update(linha).eq('id', m.id) : supabase.from('missoes').insert(linha)
   const { data, error } = await q.select('*').single()
   if (error) throw error; return data
 }
 export async function apagarMissao(id) { const { error } = await supabase.from('missoes').delete().eq('id', id); if (error) throw error }
 export async function importarCardapio(userId, lista) {
-  const linhas = lista.map(m => ({ owner_id: userId, titulo: m.titulo, frente: m.frente, descricao: m.descricao, etapas: m.etapas, entrega: m.entrega, niveis: m.niveis, equipe: !!m.equipe, funcoes: m.funcoes || [], campos: m.campos || [] }))
+  const linhas = lista.map(m => ({ owner_id: userId, titulo: m.titulo, frente: m.frente, descricao: m.descricao, etapas: m.etapas, entrega: m.entrega, niveis: m.niveis, equipe: !!m.equipe, funcoes: m.funcoes || [], campos: m.campos || [], caderneta: m.caderneta || null }))
   const { error } = await supabase.from('missoes').insert(linhas)
   if (error) throw error
 }
@@ -564,11 +565,12 @@ export async function janelaDeHoje(turmaId) {
 }
 export async function lancarMissao(userId, l) {
   const { data, error } = await supabase.from('missao_lancamentos').insert({ owner_id: userId, missao_id: l.missao_id, turma_id: l.turma_id,
-    prazo_tipo: l.prazo_tipo, prazo_em: l.prazo_em, mostrar_ranking: l.mostrar_ranking !== false, em_equipe: !!l.em_equipe }).select('*').single()
+    prazo_tipo: l.prazo_tipo, prazo_em: l.prazo_em, mostrar_ranking: l.mostrar_ranking !== false, em_equipe: !!l.em_equipe,
+    equipes_livres: l.em_equipe && l.equipes_livres ? l.equipes_livres : null }).select('*').single()
   if (error) throw error; return data
 }
 export async function lancamentosDaTurma(turmaId) {
-  const { data, error } = await supabase.from('missao_lancamentos').select('*,missoes(titulo,frente,etapas,niveis,entrega,equipe,funcoes)')
+  const { data, error } = await supabase.from('missao_lancamentos').select('*,missoes(titulo,frente,etapas,niveis,entrega,equipe,funcoes,caderneta)')
     .eq('turma_id', turmaId).order('criado_em', { ascending: false })
   if (error) throw error; return data || []
 }

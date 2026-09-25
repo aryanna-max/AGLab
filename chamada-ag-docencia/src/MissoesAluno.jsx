@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react'
 import { fmtPrazo, marcarEtapa, enviarMissao, salvarRascunho, marcarVista, missaoVista } from './lib/alunoApi'
 import Avatar from './Avatar.jsx'
+import { EscolherEquipe, PainelCaderneta, useCaderneta } from './CadernetaAluno.jsx'
+import { resumoTexto } from './lib/caderneta'
 
 /* Missões do aluno: as que a professora lançou para a turma dele, com prazo,
    etapas (gravadas na hora), entrega, nível alcançado, devolutiva e ranking. */
@@ -96,7 +98,10 @@ function Detalhe({ m, ident, online, agora, onVoltar, recarregar }) {
   const guardar = t => { try { localStorage.setItem(kRasc, JSON.stringify({ texto: t, em: new Date().toISOString() })) } catch (e) {} }
   const setTexto = t => { setTextoRaw(t); guardar(t); setSalvoEm(null) }
   const setResp = f => setRespRaw(r => { const n = typeof f === 'function' ? f(r) : f; guardar(juntarCampos(campos, n)); setSalvoEm(null); return n })
-  const textoFinal = campos.length ? juntarCampos(campos, resp) : texto
+  // missão com caderneta: a caderneta é da equipe e sincroniza sozinha; a caixa de texto vira "observações"
+  const cfgCad = m.caderneta || null
+  const cadHook = useCaderneta(m, ident, online)
+  const textoFinal = cfgCad ? resumoTexto(cadHook.cad, cfgCad.alvo || 'ponto novo', texto) : campos.length ? juntarCampos(campos, resp) : texto
   const vazios = campos.filter((c, i) => !String(resp.v[i] || '').trim()).length
   const setV = (i, val) => setResp(r => ({ ...r, v: campos.map((_, j) => j === i ? val : (r.v[j] || '')) }))
   const [busy, setBusy] = useState(false)
@@ -126,7 +131,7 @@ function Detalhe({ m, ident, online, agora, onVoltar, recarregar }) {
   async function salvar() {
     if (!online) { setMsg({ tipo: 'err', t: 'Sem rede: as respostas ficaram guardadas neste celular. Salve de novo quando tiver sinal.' }); return }
     setBusy(true); setMsg(null)
-    try { await salvarRascunho(ident, m.lancamento_id, textoFinal); setSalvoEm(new Date()) }
+    try { if (cfgCad && cadHook.sujo) await cadHook.salvar(); await salvarRascunho(ident, m.lancamento_id, textoFinal); setSalvoEm(new Date()) }
     catch (e) { setMsg({ tipo: 'err', t: e.message }) } finally { setBusy(false) }
   }
   async function enviar() {
@@ -138,6 +143,8 @@ function Detalhe({ m, ident, online, agora, onVoltar, recarregar }) {
     if (!m.em_equipe && vazios > 0 && !confirm(`Faltam ${vazios} resposta(s). Enviar assim mesmo?`)) return
     setBusy(true); setMsg(null)
     try {
+      // a caderneta sobe antes do envio: é ela que a professora confere
+      if (cfgCad && cadHook.sujo && !(await cadHook.salvar())) { setMsg({ tipo: 'err', t: 'A caderneta não foi salva (veja o aviso nela). Resolva e envie de novo.' }); return }
       const r = await enviarMissao(ident, m.lancamento_id, textoFinal)
       try { localStorage.removeItem(kRasc) } catch (e) {}
       setMsg(r.fora_do_prazo ? { tipo: 'dup', t: 'Enviada fora do prazo. Ficou registrada e a professora decide.' } : { tipo: 'ok', t: m.em_equipe ? 'Envio oficial da equipe registrado.' : 'Missão enviada.' })
@@ -157,8 +164,9 @@ function Detalhe({ m, ident, online, agora, onVoltar, recarregar }) {
       </div>
 
       {m.em_equipe && (semEquipe
-        ? <div className="panel"><h2 style={{ marginTop: 0 }}>Missão em equipe</h2><p className="note">A professora ainda não colocou você numa equipe. Quando ela formar as equipes, a sua aparece aqui.</p></div>
-        : <Equipe m={m} />)}
+        ? m.equipes_livres ? <EscolherEquipe m={m} ident={ident} online={online} recarregar={recarregar} />
+          : <div className="panel"><h2 style={{ marginTop: 0 }}>Missão em equipe</h2><p className="note">A professora ainda não colocou você numa equipe. Quando ela formar as equipes, a sua aparece aqui.</p></div>
+        : <Equipe m={m} extra={m.equipes_livres && podeEditar ? <EscolherEquipe m={m} ident={ident} online={online} recarregar={recarregar} jaNaEquipe /> : null} />)}
 
       {etapas.length > 0 && <div className="panel">
         <h2 style={{ marginTop: 0 }}>Etapas · {nFeitas}/{etapas.length}</h2>
@@ -169,6 +177,8 @@ function Detalhe({ m, ident, online, agora, onVoltar, recarregar }) {
         </ul>
         <p className="note">Cada etapa marcada fica gravada no servidor na hora.</p>
       </div>}
+
+      {cfgCad && !semEquipe && <PainelCaderneta m={m} cadHook={cadHook} podeEditar={podeEditar} />}
 
       {m.medalha && <MedalhaAuto m={m} />}
 
@@ -200,6 +210,10 @@ function Detalhe({ m, ident, online, agora, onVoltar, recarregar }) {
             <label className="fld">Observações (opcional)</label>
             <textarea value={resp.obs} onChange={e => setResp(r => ({ ...r, obs: e.target.value }))} rows={2} placeholder="Algo que aconteceu em campo, nomes dos pins que você usou…" />
             <p className="note">💾 <b>Salvar</b> guarda as respostas para continuar depois, até em outro celular. A professora só vê quando você toca em <b>Enviar</b>.</p>
+          </> : cfgCad ? <>
+            <label className="fld">Observações (opcional)</label>
+            <textarea value={texto} onChange={e => setTexto(e.target.value)} rows={2} placeholder="Algo que aconteceu em campo: estação refeita, prisma trocado, visada difícil…" />
+            <p className="note">O envio leva a caderneta e as coordenadas calculadas (seções 1 e 2).</p>
           </> : <textarea value={texto} onChange={e => setTexto(e.target.value)} rows={4} placeholder="Resultados, observações, nomes dos pins e poligonais que você usou…" />}
           <div className="btnrow">
             <button className="btn ghost" onClick={salvar} disabled={busy || !online}>💾 Salvar</button>
@@ -237,7 +251,7 @@ function MedalhaAuto({ m }) {
 }
 
 /* A professora forma a equipe. Não há funções definidas: o aluno vê quem está com ele e quem fez o envio oficial. */
-function Equipe({ m }) {
+function Equipe({ m, extra }) {
   const eq = m.equipe
   return (
     <div className="panel">
@@ -247,6 +261,7 @@ function Equipe({ m }) {
           return <li key={i} className={x.eu ? 'eu' : ''}><Avatar nome={x.nome} avatar={x.avatar} tam="mini" /><span style={{ flex: 1, minWidth: 0 }}>{enviou ? '📱 ' : ''}{x.nome}{x.eu ? ' (você)' : ''}</span>{enviou && <span className="fn">enviou</span>}</li> })}
       </ul>
       <p className="note">Sem funções definidas: dividam a atividade entre vocês. Todos os celulares registram; só um envia a missão.</p>
+      {extra}
     </div>
   )
 }
