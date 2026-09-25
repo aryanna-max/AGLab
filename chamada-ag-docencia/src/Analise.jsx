@@ -78,7 +78,8 @@ function estatErro(erros) {
 /* ---------- Ponto novo pela estação total (Transporte de Coordenadas, 25/09/2026) ----------
    As cadernetas das equipes dão o M0451A a centímetros. Daqui sai: a média acurada (ponderada
    pelo fechamento de cada equipe no controle), quanto as equipes concordam, quanto o marco andou
-   desde 2023, e — pela primeira vez com verdade independente no M0451 — o erro real do GPS dos
+   desde 2023, e o erro do GPS dos celulares ali contra essa referência. NÃO é coordenada oficial
+   (decisão dela, 25/09: "os alunos erram mais") — serve às análises, nunca vira marco cadastrado. O
    celulares ali, com as mesmas contas do card de RMSE. */
 const RAIO_ALVO = 15
 function AlvoEstacaoTotal({ pins, t }) {
@@ -143,10 +144,10 @@ function AlvoEstacaoTotal({ pins, t }) {
           <div className="scrollx"><table className="matrix"><thead><tr><th className="nm">ocupações válidas a até {RAIO_ALVO} m</th><th>RMSE_h</th><th>viés (ΔN · ΔE)</th><th>desvio</th><th>95% (NSSDA)</th><th>p90 real</th></tr></thead>
             <tbody><tr><td className="nm">{est.n}{perto.length > validos.length ? ` (${perto.length - validos.length} descartada(s))` : ''}</td><td><b>{fm(est.rmseH, 1)} m</b></td>
               <td>{fm(est.vies, 1)} m ({est.viesN >= 0 ? '+' : ''}{fm(est.viesN, 1)} · {est.viesE >= 0 ? '+' : ''}{fm(est.viesE, 1)})</td><td>{fm(est.sd, 1)} m</td><td>{fm(est.ce95, 1)} m</td><td>{fm(est.p90emp, 1)} m</td></tr></tbody></table></div>
-          <p className="note">Agora há verdade independente no {alvo}: a estação total, a centímetros. {est.vies > est.sd ? <>O <b>viés</b> pesa mais que a dispersão: os celulares erram todos para o mesmo lado ali (efeito de prédio, árvore, multicaminho), e a média de muitos pins não corrige isso.</> : <>A <b>dispersão</b> pesa mais que o viés: cada pin erra para um lado, e a média de vários pins se aproxima do ponto.</>} São os pins do período escolhido no topo.</p>
+          <p className="note">A referência aqui é a média acurada das equipes: centímetros de estação total contra metros de celular, então ela serve para medir o GPS, mesmo não sendo oficial. {est.vies > est.sd ? <>O <b>viés</b> pesa mais que a dispersão: os celulares erram todos para o mesmo lado ali (efeito de prédio, árvore, multicaminho), e a média de muitos pins não corrige isso.</> : <>A <b>dispersão</b> pesa mais que o viés: cada pin erra para um lado, e a média de vários pins se aproxima do ponto.</>} São os pins do período escolhido no topo.</p>
         </> : <p className="note">Nenhuma ocupação válida a até {RAIO_ALVO} m do {alvo} no período escolhido.</p>}
         {provisoria && <p className="note" style={{ color: 'var(--miss)' }}>Nenhuma equipe fechou num marco conhecido: a referência é a média simples, sem medida de qualidade.</p>}
-        <p className="note">Quando a missão encerrar, a média acurada pode virar marco cadastrado ({alvo}, na aba Minha posição). Antes disso não: marco conhecido deixa de ser ponto novo na caderneta e muda o gabarito das equipes.</p>
+        <p className="note"><b>Referência de análise, não coordenada oficial.</b> O {alvo} medido pela turma não vira marco cadastrado: a coordenada oficial só com levantamento de referência (RTK ou estação com controle profissional). Até lá, o M0451 continua marcado como deslocado.</p>
       </div>
     )
   })

@@ -101,18 +101,24 @@ const cadRe = { linhas: [{ est: 'M0452', pv: 'X9', hz: '0 00 00', dh: '10' }, { 
 const gr = calcularCaderneta(cadRe, marcos)
 ok(gr.problemas.some(p => p.includes('ré X9')), 'ré sem coordenada é apontada')
 
-// medalhas: menor fechamento ganha; conta errada fica fora; empate vai para quem enviou primeiro
+// medalhas por critério: ouro ≤ 5 cm com a conta certa; prata ≤ 10 cm (ou ≤ 5 cm com a conta errada); bronze sem controle
+const cad7 = JSON.parse(JSON.stringify(cad)); cad7.linhas[4].dh = (Number(cad7.linhas[4].dh) + 0.07).toFixed(3)
+const g70 = gabarito(cad7, marcos, 'M0451A'); cad7.resultado.controle.n = g70.ctrl.n.toFixed(3); cad7.resultado.controle.e = g70.ctrl.e.toFixed(3)
+const g7 = gabarito(cad7, marcos, 'M0451A')
+const cadSemC = JSON.parse(JSON.stringify(cad)); cadSemC.linhas = cadSemC.linhas.slice(0, 3); cadSemC.resultado.controle = { marco: '', n: '', e: '' }
+const gS = gabarito(cadSemC, marcos, 'M0451A')
 const sug = sugerirMedalhas([
-  { id: 'A', enviadaEm: '2026-10-02T15:00:00Z', gab: gc },    // 5 cm
-  { id: 'B', enviadaEm: '2026-10-02T16:00:00Z', gab: g },     // ~0
-  { id: 'C', enviadaEm: '2026-10-02T14:00:00Z', gab: gt },    // conta errada
-  { id: 'D', enviadaEm: null, gab: g }
-])
-ok(sug.B.nivel === 'ouro' && sug.A.nivel === 'prata', 'ouro para o menor fechamento, prata para o seguinte')
-ok(sug.C.nivel === null && sug.C.motivo.includes('conta'), 'conta errada não entra no pódio')
-ok(sug.D.nivel === null && sug.D.motivo === 'não enviou', 'quem não enviou fica fora')
-const emp = sugerirMedalhas([{ id: 'X', enviadaEm: '2026-10-02T16:00:00Z', gab: g }, { id: 'Y', enviadaEm: '2026-10-02T15:00:00Z', gab: g }])
-ok(emp.Y.nivel === 'ouro' && emp.X.nivel === 'prata', 'empate: quem enviou primeiro fica à frente')
+  { id: 'A', enviadaEm: '2026-10-02T15:00:00Z', gab: g },     // ~0, conta certa
+  { id: 'B', enviadaEm: '2026-10-02T16:00:00Z', gab: g7 },    // 7 cm, conta certa
+  { id: 'C', enviadaEm: '2026-10-02T14:00:00Z', gab: gt },    // ~0, conta errada no alvo
+  { id: 'D', enviadaEm: '2026-10-02T14:00:00Z', gab: gS },    // sem controle
+  { id: 'E', enviadaEm: null, gab: g },
+  { id: 'F', enviadaEm: '2026-10-02T14:00:00Z', gab: g }])    // outra equipe perfeita: também ouro
+ok(sug.A.nivel === 'ouro' && sug.F.nivel === 'ouro', 'critério: duas equipes podem levar ouro')
+ok(sug.B.nivel === 'prata' && sug.B.motivo.includes('7 cm'), 'controle a 7 cm = prata')
+ok(sug.C.nivel === 'prata' && sug.C.motivo.includes('conta não confere'), 'controle ≤ 5 cm com a conta errada = prata')
+ok(sug.D.nivel === 'bronze' && sug.D.motivo === 'sem controle', 'sem controle = bronze')
+ok(sug.E.nivel === null && sug.E.motivo === 'não enviou', 'quem não enviou fica sem medalha')
 
 // ---------- média acurada do alvo ----------
 ok(marcoAntigoDo('M0451A')?.nome === 'M0451' && marcoAntigoDo('E1') === null, 'o antigo do M0451A é o M0451 deslocado')

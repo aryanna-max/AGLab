@@ -155,20 +155,25 @@ export function gabarito(cad, marcos, alvoNome) {
   return { calc, alvo, ctrl, digAlvo, digCtrl, contaAlvo, contaCtrl, calculoConfere, fechamento: ctrl ? ctrl.erro : null, problemas }
 }
 
-/* Medalhas sugeridas entre as unidades (equipes ou alunos) que enviaram.
-   Ordem: menor erro de fechamento no controle; empate (até 1 mm) → quem enviou primeiro.
-   Só entra no pódio quem tem fechamento e a conta à mão conferindo com a caderneta —
-   medalha não premia conta errada que por acaso chegou perto. */
+/* Medalhas por CRITÉRIO, não por ranking (decisão dela, 25/09/2026). O controle podia ficar
+   em qualquer etapa da atividade, então a posição dele não tira ponto; o que conta é ter controle,
+   quanto fechou e se a conta à mão bate com a caderneta. Todas as equipes podem levar ouro.
+     🥇 ouro   — fechou num marco conhecido a até 5 cm, e a conta confere
+     🥈 prata  — fechou a até 10 cm (ou a até 5 cm com a conta errada — aí cabe Refazer)
+     🥉 bronze — caderneta completa e alvo calculado, sem controle ou acima de 10 cm
+   Sem envio, ou sem chegar ao alvo, fica sem medalha. */
+export const MEDALHA_OURO = 0.05, MEDALHA_PRATA = 0.10   // m
+const cm = v => (v * 100).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + ' cm'
+export function nivelPorCriterio(g) {
+  if (!g || !g.alvo || !g.digAlvo) return { nivel: null, motivo: 'não chegou ao alvo ou não digitou o cálculo' }
+  const f = g.fechamento
+  if (f != null && f <= MEDALHA_OURO && g.calculoConfere) return { nivel: 'ouro', motivo: `controle a ${cm(f)}, conta confere` }
+  if (f != null && f <= MEDALHA_PRATA) return { nivel: 'prata', motivo: g.calculoConfere ? `controle a ${cm(f)}` : `controle a ${cm(f)}, mas a conta não confere` }
+  return { nivel: 'bronze', motivo: f == null ? 'sem controle' : `controle a ${cm(f)}, acima de 10 cm` }
+}
 export function sugerirMedalhas(unidades) {
-  const NIV = ['ouro', 'prata', 'bronze']
-  const aptas = unidades.filter(u => u.enviadaEm && u.gab && u.gab.fechamento != null && u.gab.calculoConfere)
-    .sort((a, b) => (Math.round(a.gab.fechamento * 1000) - Math.round(b.gab.fechamento * 1000)) || String(a.enviadaEm).localeCompare(String(b.enviadaEm)))
   const sug = {}
-  aptas.forEach((u, i) => { sug[u.id] = { nivel: NIV[i] || null, pos: i + 1 } })
-  unidades.forEach(u => {
-    if (sug[u.id]) return
-    sug[u.id] = { nivel: null, motivo: !u.enviadaEm ? 'não enviou' : !u.gab || u.gab.fechamento == null ? 'sem fechamento no controle' : 'a conta à mão não confere com a caderneta' }
-  })
+  unidades.forEach(u => { sug[u.id] = !u.enviadaEm ? { nivel: null, motivo: 'não enviou' } : nivelPorCriterio(u.gab) })
   return sug
 }
 
