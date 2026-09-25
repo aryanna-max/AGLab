@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { escolhaDeEquipe, entrarEmEquipe, salvarCaderneta } from './lib/alunoApi'
-import { caderVazia, calcularCaderneta, lerHz, lerNumero, nomeChave, fmtM, marcosOficiais, partesHz, juntarHz } from './lib/caderneta'
+import { caderVazia, calcularCaderneta, lerHz, lerNumero, nomeChave, fmtM, marcosOficiais, partesHz, juntarHz, DH_MAX, sugerirVirgula } from './lib/caderneta'
 import Avatar from './Avatar.jsx'
 
 /* Missão com caderneta de estação total (Transporte de Coordenadas) e equipes que os
@@ -206,7 +206,7 @@ export function PainelCaderneta({ m, cadHook, podeEditar }) {
         <div className="btnrow"><button className="btn mini" onClick={usarDaEquipe}>Usar a de {conflito.por || 'meu colega'}</button><button className="btn ghost mini" onClick={manterMinha}>Manter a deste celular</button></div>
       </div>}
       <div className="cad-lista">
-        {linhas.map((l, i) => { const info = calc.linhas.find(x => x.i === i); const hzRuim = String(l.hz || '').trim() && !Number.isFinite(lerHz(l.hz)); const dhRuim = String(l.dh || '').trim() && !Number.isFinite(lerNumero(l.dh))
+        {linhas.map((l, i) => { const info = calc.linhas.find(x => x.i === i); const hzRuim = String(l.hz || '').trim() && !Number.isFinite(lerHz(l.hz)); const dhRuim = String(l.dh || '').trim() && !Number.isFinite(lerNumero(l.dh)); const dhGrande = lerNumero(l.dh) > DH_MAX; const sugDH = sugerirVirgula(l.dh)
           return <div key={i} className="cad-linha">
             <div className="cad-cab"><span className="cad-n">{i + 1}</span>{info?.papel === 're' && <span className="tag re">ré</span>}{info?.papel === 'vante' && <span className="tag">vante</span>}
               {podeEditar && <button className="btn ghost mini cad-x" title="Apagar esta visada" onClick={() => { if (!(l.est || l.pv || l.hz || l.dh) || confirm(`Apagar a visada ${i + 1}?`)) tirarLinha(i) }}>✕</button>}</div>
@@ -214,11 +214,13 @@ export function PainelCaderneta({ m, cadHook, podeEditar }) {
               <div><label className="fld">Estação</label><SeletorPonto valor={l.est} opcoes={opcoes} disabled={!podeEditar} placeholder="—" onChange={v => setLinha(i, 'est', v)} /></div>
               <div><label className="fld">Ponto visado</label><SeletorPonto valor={l.pv} opcoes={opcoes} disabled={!podeEditar} placeholder="—" onChange={v => setLinha(i, 'pv', v)} /></div>
               <div><label className="fld">Âng. horizontal</label><CaixasHz valor={l.hz} re={info?.papel === 're'} disabled={!podeEditar} ruim={hzRuim} onChange={v => setLinha(i, 'hz', v)} /></div>
-              <div><label className="fld">Dist. horizontal (m)</label><input inputMode="decimal" value={l.dh || ''} disabled={!podeEditar} placeholder="0,000" className={dhRuim ? 'ruim' : ''} onChange={e => setLinha(i, 'dh', e.target.value)} /></div>
+              <div><label className="fld">Dist. horizontal (m)</label><input inputMode="decimal" value={l.dh || ''} disabled={!podeEditar} placeholder="0,000" className={dhRuim || dhGrande ? 'ruim' : ''} onChange={e => setLinha(i, 'dh', e.target.value)} /></div>
             </div>
             {info?.papel === 're' && !String(l.hz || '').trim() && <p className="note" style={{ margin: '4px 0 0' }}>Ré com ângulo em branco = zerada (0° 00' 00").</p>}
             {hzRuim && <p className="note cad-aviso">Ângulo inválido: graus inteiros de 0 a 359, minutos de 0 a 59, segundos de 0 a 59 (com vírgula, se tiver décimo). Sem ponto nos graus.</p>}
             {dhRuim && <p className="note cad-aviso">Distância ilegível: só o número, em metros (12,345).</p>}
+            {dhGrande && <div className="cad-aviso-virgula"><p className="note cad-aviso">Faltou a vírgula? {l.dh} m é mais de 1 km.{sugDH ? <> Deve ser <b>{sugDH} m</b>.</> : ''}</p>
+              {sugDH && podeEditar && <button className="btn mini" onClick={() => setLinha(i, 'dh', sugDH)}>Corrigir para {sugDH}</button>}</div>}
           </div> })}
       </div>
       {podeEditar && <div className="btnrow"><button className="btn ghost" onClick={novaLinha}>+ visada</button></div>}
