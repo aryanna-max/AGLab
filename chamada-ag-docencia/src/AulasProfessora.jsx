@@ -287,6 +287,7 @@ function EditorAula({ userId, aulaId, onFechar, showToast }) {
     setA(x => ({ ...x, pecas: x.pecas.filter((_, j) => j !== i) }))
   }
 
+  const temTitulo = !!(a.titulo || '').trim()
   const temFicha = a.pecas.some(p => p.tipo === 'ficha')
   const nNotas = a.pecas.filter(p => p.tipo === 'cartao').length
 
@@ -426,10 +427,13 @@ function EditorAula({ userId, aulaId, onFechar, showToast }) {
       <div className="btnrow">
         <button className="btn ghost mini" disabled={busy} onClick={() => setA(x => ({ ...x, pecas: [...x.pecas, { tipo: 'cartao', titulo: '', texto_md: '' }] }))}>+ nota</button>
         {!temFicha && <button className="btn ghost mini" disabled={busy} onClick={() => setA(x => ({ ...x, pecas: [...x.pecas, { tipo: 'ficha', titulo: '', texto_md: '' }] }))}>+ ficha de campo</button>}
-        <button className="btn ghost mini" disabled={busy} onClick={() => refHq.current && refHq.current.click()}>+ quadros de HQ</button>
-        <button className="btn ghost mini" disabled={busy} onClick={() => refPdf.current && refPdf.current.click()}>+ PDF</button>
+        <button className="btn ghost mini" disabled={busy || !temTitulo} onClick={() => refHq.current && refHq.current.click()}>+ quadros de HQ</button>
+        <button className="btn ghost mini" disabled={busy || !temTitulo} onClick={() => refPdf.current && refPdf.current.click()}>+ PDF</button>
         {subindo && <span className="note" style={{ alignSelf: 'center' }}>{subindo}</span>}
       </div>
+      {/* arquivo precisa da pasta, e a pasta é a aula: sem título não há onde
+          guardar. Desabilitado e dito aqui, em vez de um toast que ela não vê. */}
+      {!temTitulo && <p className="note">Dê um título à aula para poder subir quadros e PDF.</p>}
       {!temFicha && <p className="note">Aula conceitual não tem ficha — forçar uma faz ela virar resumo das notas.</p>}
 
       <div className="btnrow">
@@ -439,17 +443,24 @@ function EditorAula({ userId, aulaId, onFechar, showToast }) {
         {a.id && <button className="btn danger mini" onClick={apagar} disabled={busy}>Apagar</button>}
       </div>
 
-      {/* escondidos, acionados pelos botões acima — mesmo jeito da foto do aluno.
-          multiple nos quadros: ela escolhe os oito de uma vez, e a ordem sai do nome */}
+      {/* Escondidos, acionados pelos botões acima. multiple nos quadros: ela escolhe
+          os oito de uma vez, e a ordem sai do nome.
+
+          ATENÇÃO ao Array.from antes do value = ''. ev.target.files é uma FileList
+          VIVA, ligada ao input: limpar o input esvazia a lista que você guardou, e
+          o upload sai com zero arquivo — sem erro, sem aviso, nada na tela. Foi
+          exatamente o que aconteceu na primeira vez que ela usou o editor. O
+          value = '' tem de ficar, senão escolher o mesmo arquivo de novo não
+          dispara onChange; então a ordem é: materializar, limpar, subir. */}
       <input ref={refHq} type="file" accept="image/*" multiple hidden
-        onChange={ev => { const f = ev.target.files; ev.target.value = ''; subir('hq', f) }} />
+        onChange={ev => { const f = Array.from(ev.target.files || []); ev.target.value = ''; subir('hq', f) }} />
       <input ref={refPdf} type="file" accept="application/pdf" multiple hidden
-        onChange={ev => { const f = ev.target.files; ev.target.value = ''; subir('pdf', f) }} />
+        onChange={ev => { const f = Array.from(ev.target.files || []); ev.target.value = ''; subir('pdf', f) }} />
       <input ref={refTroca} type="file" hidden
         onChange={ev => {
-          const f = ev.target.files, i = trocando.current
+          const f = Array.from(ev.target.files || []), i = trocando.current
           ev.target.value = ''; trocando.current = null
-          if (f && f[0] && i !== null && a.pecas[i]) subir(a.pecas[i].tipo, f, i)
+          if (f.length && i !== null && a.pecas[i]) subir(a.pecas[i].tipo, f, i)
         }} />
     </div>
   )

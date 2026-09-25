@@ -196,6 +196,18 @@ vizinhança, diga no nome de qual das duas se trata.
   O aluno não lê tabela nenhuma hoje, e isso não muda.
 - Imagem sempre WebP, largura 1280. Original `.docx`/`.pptx` fica como anexo só
   da professora — ela continua editando na fonte.
+- **`ev.target.files` é uma FileList VIVA.** `input.value = ''` esvazia a lista
+  que você acabou de guardar: `const f = ev.target.files; ev.target.value = ''`
+  entrega **zero arquivo**, sem erro e sem aviso. Foi assim que o editor engoliu
+  os oito quadros na primeira vez que ela usou (25/09/2026) — ela escolheu as
+  imagens e nada apareceu, nem na criação nem para o aluno. A ordem é
+  `Array.from` primeiro, limpar depois: `const f = Array.from(ev.target.files ||
+  [])`. O `value = ''` tem de ficar, senão escolher o mesmo arquivo de novo não
+  dispara `onChange`. Provado no navegador: guardando a FileList, 0 arquivos;
+  materializando antes, 2.
+- **Botão que pode não fazer nada é defeito, não aviso.** O upload exige título
+  (é a pasta no Storage), e isso era só um toast — fácil de não ver no celular.
+  Agora o botão fica desabilitado com a razão escrita embaixo.
 
 ### O custo real, para não haver surpresa
 
