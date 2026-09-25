@@ -1,5 +1,8 @@
 import React, { useMemo, useState } from 'react'
 import { gabarito, sugerirMedalhas, marcosOficiais, fmtM, fmtCm, fmtAz, TOL_CALCULO, TOL_FECHAMENTO } from './lib/caderneta'
+import { CroquiCaderneta } from './CadernetaAluno.jsx'
+
+const CORES_EQ = ['#E8590C', '#1C7ED6', '#AE3EC9', '#2B8A3E', '#C2255C', '#0B7285']
 
 /* Gabarito da caderneta — só a professora vê.
    O app refaz a conta de cada equipe a partir da própria caderneta dela e separa:
@@ -12,7 +15,7 @@ const fmtDH = iso => iso ? new Date(iso).toLocaleString('pt-BR', { day: '2-digit
 
 // unidades: [{ id, nome, entrega, alunoIds }] — equipes ou alunos
 export function GabaritoResumo({ unidades, alvo, aplicar }) {
-  const marcos = useMemo(() => marcosOficiais(), [])
+  const marcos = marcosOficiais()   // sem memo fixo: marco cadastrado (P1) pode chegar depois
   const linhas = useMemo(() => unidades.map(u => {
     const cad = u.entrega?.caderneta
     return { ...u, enviadaEm: u.entrega?.enviada_em || null, gab: cad ? gabarito(cad, marcos, alvo) : null }
@@ -50,6 +53,8 @@ export function GabaritoResumo({ unidades, alvo, aplicar }) {
             <td className={!g?.contaCtrl ? '' : g.contaCtrl.dist <= TOL_CALCULO ? 'P' : 'F'}>{g?.contaCtrl ? fmtCm(g.contaCtrl.dist) : '—'}</td>
             <td>{s?.nivel ? <b>{NIVEL[s.nivel]}</b> : <span className="m">{s?.motivo}</span>}</td>
           </tr> })}</tbody></table></div>
+      <CroquiCaderneta titulo="Croqui das equipes" marcos={marcos} alvo={alvo}
+        camadas={linhas.filter(l => l.gab).map((l, i) => ({ calc: l.gab.calc, cor: CORES_EQ[i % CORES_EQ.length], rotulo: l.nome }))} />
       {espalho != null && <p className="note">{alvo} pelas cadernetas: média N {fmtM(media.n)} · E {fmtM(media.e)} · as equipes diferem entre si em até <b>{fmtCm(espalho)}</b>.</p>}
       <p className="note">Ordem da sugestão: menor fechamento primeiro; empate (até 1 mm), quem enviou antes. Fica de fora quem não enviou, quem não fechou num marco conhecido e quem tem a conta à mão diferente da caderneta (aí cabe <b>Refazer</b>). Fechamento acima de {fmtCm(TOL_FECHAMENTO)} aparece em vermelho: a caderneta não fechou bem no campo.</p>
       {comSugestao.length > 0 && <div className="btnrow"><button className="btn" disabled={busy} onClick={aplicarTudo}>{busy ? 'Aplicando…' : 'Aplicar medalhas sugeridas'}</button></div>}
@@ -60,7 +65,7 @@ export function GabaritoResumo({ unidades, alvo, aplicar }) {
 /* Detalhe de uma equipe: cada visada refeita, os pontos novos, a conferência da ré e os problemas. */
 export function GabaritoDetalhe({ entrega, alvo }) {
   const [aberto, setAberto] = useState(false)
-  const marcos = useMemo(() => marcosOficiais(), [])
+  const marcos = marcosOficiais()   // sem memo fixo: marco cadastrado (P1) pode chegar depois
   const g = useMemo(() => entrega?.caderneta ? gabarito(entrega.caderneta, marcos, alvo) : null, [entrega, marcos, alvo])
   if (!g) return null
   const linhas = entrega.caderneta.linhas || []

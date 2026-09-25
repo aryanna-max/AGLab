@@ -3,6 +3,7 @@ import * as store from './lib/store'
 import { PERC, paraUTM25S, deUTM25S, metros } from './lib/geo'
 import { MARCOS, marcoPorNome, marcoComparavel, calcularPoligonal, ordenarPorAngulo, grausDMS, rumo } from './lib/topo'
 import Avatar from './Avatar.jsx'
+import { determinacoesDoAlvo, mediaAcurada, marcoAntigoDo, marcosOficiais, fmtCm, SIGMA_MIN } from './lib/caderneta'
 
 /* Análise — a mesa de trabalho da professora, pensada para o computador.
    Tudo o que os alunos da turma mandaram: leituras (chamada e ambientes),
@@ -72,6 +73,83 @@ function estatErro(erros) {
   const raios = erros.map(e => Math.hypot(e.dN, e.dE)).sort((a, b) => a - b)
   const p90emp = raios[Math.min(n - 1, Math.floor(0.9 * (n - 1)))]
   return { n, rmseN, rmseE, rmseH, viesN, viesE, vies, sd: Math.sqrt(variancia), ce90: K90 * rmseH, ce95: K95 * rmseH, p90emp, medRaio: raios[n >> 1] }
+}
+
+/* ---------- Ponto novo pela estação total (Transporte de Coordenadas, 25/09/2026) ----------
+   As cadernetas das equipes dão o M0451A a centímetros. Daqui sai: a média acurada (ponderada
+   pelo fechamento de cada equipe no controle), quanto as equipes concordam, quanto o marco andou
+   desde 2023, e — pela primeira vez com verdade independente no M0451 — o erro real do GPS dos
+   celulares ali, com as mesmas contas do card de RMSE. */
+const RAIO_ALVO = 15
+function AlvoEstacaoTotal({ pins, t }) {
+  const [grupos, setGrupos] = useState(null)
+  useEffect(() => {
+    if (!t) return
+    let vivo = true
+    ;(async () => {
+      try {
+        const [lancs, ents] = await Promise.all([store.lancamentosDaTurma(t.id), store.entregasDaTurma(t.id)])
+        const porAlvo = {}
+        for (const l of lancs.filter(x => x.missoes?.caderneta?.alvo)) {
+          const eqs = l.em_equipe ? await store.equipesDoLancamento(l.id).catch(() => []) : []
+          const eqDe = {}; eqs.forEach(eq => eq.membros.forEach(m => { eqDe[m.aluno_id] = eq }))
+          const un = {}
+          ents.filter(e => e.lancamento_id === l.id && e.caderneta).forEach(e => {
+            const eq = eqDe[e.aluno_id], k = eq ? eq.id : e.aluno_id
+            if (!un[k] || (e.caderneta_em || '') > (un[k].em || '')) un[k] = { rotulo: eq ? eq.nome : ((t.alunos || []).find(a => a.id === e.aluno_id)?.nome || 'aluno').split(' ')[0], cad: e.caderneta, em: e.caderneta_em, enviada: !!e.enviada_em }
+          })
+          const alvo = l.missoes.caderneta.alvo
+          ;(porAlvo[alvo] = porAlvo[alvo] || []).push(...Object.values(un))
+        }
+        if (vivo) setGrupos(porAlvo)
+      } catch (e) { if (vivo) setGrupos({}) }
+    })()
+    return () => { vivo = false }
+  }, [t])
+  if (!grupos) return null
+  const marcos = marcosOficiais()
+  return Object.entries(grupos).map(([alvo, unidades]) => {
+    const dets = determinacoesDoAlvo(unidades, marcos, alvo).sort((a, b) => a.rotulo.localeCompare(b.rotulo))
+    if (!dets.length) return null
+    const md = mediaAcurada(dets)
+    const ref = md.ponderada || md.simples, provisoria = !md.ponderada
+    const antigo = marcoAntigoDo(alvo)
+    const desloc = antigo ? { d: Math.hypot(ref.n - antigo.n, ref.e - antigo.e), az: (Math.atan2(ref.e - antigo.e, ref.n - antigo.n) * 180 / Math.PI + 360) % 360 } : null
+    const estim = antigo?.estimativa ? Math.hypot(antigo.estimativa.n - ref.n, antigo.estimativa.e - ref.e) : null
+    // GPS dos celulares no ponto novo: ocupações válidas a até RAIO_ALVO da média
+    const perto = pins.filter(p => p.utm_n != null && Math.hypot(p.utm_n - ref.n, p.utm_e - ref.e) <= RAIO_ALVO)
+    const validos = perto.filter(ocupacaoValida)
+    const est = estatErro(validos.map(p => ({ dN: p.utm_n - ref.n, dE: p.utm_e - ref.e })))
+    const fm = (v, k = 2) => v == null ? '—' : metros(v, k)
+    return (
+      <div className="panel" key={alvo}>
+        <h2>📐 {alvo} pela estação total</h2>
+        <p className="hint">Cada equipe é uma determinação independente do {alvo}, refeita pela própria caderneta. A <b>média acurada</b> pondera por 1/σ², com σ = fechamento da equipe no marco de controle (mínimo {fmtCm(SIGMA_MIN)}); quem não fechou num marco conhecido fica de fora dela e entra só na média simples.</p>
+        <div className="scrollx"><table className="matrix"><thead><tr><th className="nm">Equipe</th><th>N (m)</th><th>E (m)</th><th>controle</th><th>até a média acurada</th></tr></thead>
+          <tbody>{dets.map(d => <tr key={d.rotulo}>
+            <td className="nm">{d.rotulo}{d.enviada ? '' : <span className="m"> · anotando</span>}</td>
+            <td>{d.n.toFixed(3)}</td><td>{d.e.toFixed(3)}</td>
+            <td className={d.fechamento == null ? 'F' : d.fechamento <= 0.10 ? 'P' : 'F'}>{d.fechamento == null ? 'sem controle' : `${fmtCm(d.fechamento)} no ${d.controle} · ${d.controleDepois ? 'depois' : 'antes'} do alvo`}</td>
+            <td>{fmtCm(Math.hypot(d.n - ref.n, d.e - ref.e))}</td></tr>)}</tbody></table></div>
+        <div className="count-strip" style={{ marginTop: 10 }}>
+          <div className="c ok"><div className="n" style={{ fontSize: 15 }}>{ref.n.toFixed(3)}<br />{ref.e.toFixed(3)}</div><div className="l">{provisoria ? 'média simples (ninguém fechou)' : `média acurada · ± ${fmtCm(md.ponderada.sigma)} · ${md.ponderada.n_det} equipe(s)`}</div></div>
+          {md.espalho != null && <div className={'c' + (md.espalho > 0.10 ? ' miss' : '')}><div className="n">{fmtCm(md.espalho)}</div><div className="l">maior diferença entre equipes</div></div>}
+          {desloc && <div className="c"><div className="n">{fm(desloc.d)} m</div><div className="l">o marco andou desde 2023 · Az {grausDMS(desloc.az)} ({rumo(desloc.az)})</div></div>}
+        </div>
+        {md.ponderada && md.simples && md.n_det > md.ponderada.n_det && <p className="note">Média simples de todas as {md.n_det} equipes: N {md.simples.n.toFixed(3)} · E {md.simples.e.toFixed(3)} ({fmtCm(Math.hypot(md.simples.n - ref.n, md.simples.e - ref.e))} da acurada). A diferença é o peso das equipes sem controle.</p>}
+        {estim != null && <p className="note">A estimativa pelos celulares (mediana de 16 ocupações, 12/09: N {antigo.estimativa.n.toFixed(2)} · E {antigo.estimativa.e.toFixed(2)}) ficou a <b>{fm(estim)} m</b> do {alvo} medido. Dentro do ±{metros(antigo.estimativa.sigma, 1)} m que ela declarava.</p>}
+        <h3 style={{ margin: '14px 0 4px' }}>GPS dos celulares no {alvo}</h3>
+        {est ? <>
+          <div className="scrollx"><table className="matrix"><thead><tr><th className="nm">ocupações válidas a até {RAIO_ALVO} m</th><th>RMSE_h</th><th>viés (ΔN · ΔE)</th><th>desvio</th><th>95% (NSSDA)</th><th>p90 real</th></tr></thead>
+            <tbody><tr><td className="nm">{est.n}{perto.length > validos.length ? ` (${perto.length - validos.length} descartada(s))` : ''}</td><td><b>{fm(est.rmseH, 1)} m</b></td>
+              <td>{fm(est.vies, 1)} m ({est.viesN >= 0 ? '+' : ''}{fm(est.viesN, 1)} · {est.viesE >= 0 ? '+' : ''}{fm(est.viesE, 1)})</td><td>{fm(est.sd, 1)} m</td><td>{fm(est.ce95, 1)} m</td><td>{fm(est.p90emp, 1)} m</td></tr></tbody></table></div>
+          <p className="note">Agora há verdade independente no {alvo}: a estação total, a centímetros. {est.vies > est.sd ? <>O <b>viés</b> pesa mais que a dispersão: os celulares erram todos para o mesmo lado ali (efeito de prédio, árvore, multicaminho), e a média de muitos pins não corrige isso.</> : <>A <b>dispersão</b> pesa mais que o viés: cada pin erra para um lado, e a média de vários pins se aproxima do ponto.</>} São os pins do período escolhido no topo.</p>
+        </> : <p className="note">Nenhuma ocupação válida a até {RAIO_ALVO} m do {alvo} no período escolhido.</p>}
+        {provisoria && <p className="note" style={{ color: 'var(--miss)' }}>Nenhuma equipe fechou num marco conhecido: a referência é a média simples, sem medida de qualidade.</p>}
+        <p className="note">Quando a missão encerrar, a média acurada pode virar marco cadastrado ({alvo}, na aba Minha posição). Antes disso não: marco conhecido deixa de ser ponto novo na caderneta e muda o gabarito das equipes.</p>
+      </div>
+    )
+  })
 }
 
 function AcuraciaMarcos({ pins, t, alunosIdx }) {
@@ -537,6 +615,7 @@ export default function Analise({ tid, turmas, online, showToast }) {
       </div>
 
       <AcuraciaMarcos pins={pins} t={t} alunosIdx={alunosIdx} />
+      <AlvoEstacaoTotal pins={pins} t={t} />
 
       <div className="panel">
         <h2>Poligonais ({polis.length})</h2>

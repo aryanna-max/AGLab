@@ -3,7 +3,7 @@
    Monta uma caderneta sintética a partir de coordenadas conhecidas (Hz ao segundo, DH ao mm),
    e confere que o app devolve as coordenadas de volta, mede o fechamento e a conta à mão. */
 import { MARCOS, azimute } from '../src/lib/topo.js'
-import { lerHz, lerNumero, calcularCaderneta, gabarito, sugerirMedalhas, marcosOficiais, partesHz, juntarHz, sugerirVirgula } from '../src/lib/caderneta.js'
+import { lerHz, lerNumero, calcularCaderneta, gabarito, sugerirMedalhas, marcosOficiais, partesHz, juntarHz, sugerirVirgula, marcoAntigoDo, determinacoesDoAlvo, mediaAcurada } from '../src/lib/caderneta.js'
 
 let falhas = 0
 const ok = (cond, msg) => { console.log((cond ? '  ok  ' : '  FALHOU ') + msg); if (!cond) falhas++ }
@@ -113,6 +113,15 @@ ok(sug.C.nivel === null && sug.C.motivo.includes('conta'), 'conta errada não en
 ok(sug.D.nivel === null && sug.D.motivo === 'não enviou', 'quem não enviou fica fora')
 const emp = sugerirMedalhas([{ id: 'X', enviadaEm: '2026-10-02T16:00:00Z', gab: g }, { id: 'Y', enviadaEm: '2026-10-02T15:00:00Z', gab: g }])
 ok(emp.Y.nivel === 'ouro' && emp.X.nivel === 'prata', 'empate: quem enviou primeiro fica à frente')
+
+// ---------- média acurada do alvo ----------
+ok(marcoAntigoDo('M0451A')?.nome === 'M0451' && marcoAntigoDo('E1') === null, 'o antigo do M0451A é o M0451 deslocado')
+const detsT = determinacoesDoAlvo([{ rotulo: 'A', cad, enviada: true }, { rotulo: 'B', cad: cadCampo }, { rotulo: 'C', cad: cadRe }], marcos, 'M0451A')
+ok(detsT.length === 2 && detsT[0].controleDepois === true && detsT[0].controle === 'M0453', 'determinações: só quem chegou ao alvo; controle depois do alvo reconhecido')
+const semCtrl = JSON.parse(JSON.stringify(cad)); semCtrl.linhas = semCtrl.linhas.slice(0, 3); semCtrl.linhas[2].dh = (Number(semCtrl.linhas[2].dh) + 0.5).toFixed(3)
+const dm = mediaAcurada(determinacoesDoAlvo([{ rotulo: 'A', cad }, { rotulo: 'X', cad: semCtrl }], marcos, 'M0451A'))
+ok(dm.ponderada && dm.ponderada.n_det === 1 && perto(dm.ponderada.n, ALVO.n, 0.003), 'média acurada ignora quem não tem controle')
+ok(dm.simples && Math.hypot(dm.simples.n - ALVO.n, dm.simples.e - ALVO.e) > 0.2 && perto(dm.espalho, 0.5, 0.01), 'média simples e espalhamento mostram a equipe sem controle')
 
 console.log(falhas ? `\n${falhas} FALHA(S)` : '\nTudo certo.')
 process.exit(falhas ? 1 : 0)
