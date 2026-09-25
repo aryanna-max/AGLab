@@ -1,5 +1,5 @@
 // supabase falso para o harness: RPCs do aluno devolvem dados de exemplo
-import { CAD_PARCIAL } from './caderneta-mock.js'
+import { CAD_PARCIAL, CAD_REAL } from './caderneta-mock.js'
 const agora = Date.now()
 const iso = ms => new Date(ms).toISOString()
 const RPC = {
@@ -9,7 +9,7 @@ const RPC = {
   minhas_missoes: { ok: true, funcoes_ja_exercidas: ['Anotador'], semestre: { podio: [{ nome: 'Alice', avatar: 'lumi', pontos: 6 }, { nome: 'Bruno', avatar: 'teo', pontos: 4 }, { nome: 'Carla', avatar: 'vertice', pontos: 3 }], minha_posicao: 2, meus_pontos: 4, total: 19 },
     missoes: [
       { lancamento_id: 'lcad', titulo: 'Transporte de Coordenadas', frente: 'planialtimetria', descricao: 'COM A ESTAÇÃO TOTAL: leve coordenada até o M0451A e feche num marco conhecido.', etapas: ['Ocupar marco conhecido', 'Ré em outro marco conhecido', 'Visar o M0451A', 'Fechar num marco de controle'], entrega: 'Caderneta e cálculo do M0451A', niveis: { ouro: 'Menor erro no controle', prata: 'Segundo menor', bronze: 'Terceiro' }, caderneta: { alvo: 'M0451A' }, prazo_tipo: 'data', prazo_em: iso(agora + 6 * 86400000), aberta: true, em_equipe: true, equipes_livres: 3, mostrar_ranking: true,
-        minha: { status: 'em_andamento', etapas_feitas: { 0: 1 }, caderneta: CAD_PARCIAL, caderneta_em: iso(agora - 120000), caderneta_por: 'Bruno' },
+        minha: { status: 'em_andamento', etapas_feitas: { 0: 1 }, caderneta: location.search.includes('real') ? CAD_REAL : CAD_PARCIAL, caderneta_em: iso(agora - 120000), caderneta_por: 'Bruno' },
         equipe: location.search.includes('semequipe') ? null : { nome: 'Equipe 2', membros: [{ nome: 'Alice', avatar: 'lumi', eu: true }, { nome: 'Bruno', avatar: 'teo', eu: false }] } },
       { lancamento_id: 'l0', titulo: 'Caderneta de nivelamento', frente: 'altimetria', descricao: 'Nivelamento geométrico com fechamento.', etapas: ['Nivelar o instrumento', 'Ré e vante', 'Cotas', 'Fechamento'], funcoes: ['Operador do nível', 'Porta-mira', 'Anotador', 'Calculista'], entrega: 'Caderneta e erro de fechamento.', niveis: { bronze: 'Completa', prata: 'Na tolerância', ouro: 'Metade da tolerância' }, prazo_tipo: 'aula', prazo_em: iso(agora + 90 * 60000), aberta: true, em_equipe: true, mostrar_ranking: true,
         minha: { status: 'enviada', etapas_feitas: { 0: 1, 1: 1 }, enviada_em: iso(agora - 60000), enviada_por: 'Bruno', texto: 'Erro de 4 mm.' },
@@ -40,6 +40,7 @@ RPC.escolha_de_equipe = { ok: true, n: 3, minha: location.search.includes('semeq
   equipes: [{ nome: 'Equipe 1', membros: [{ nome: 'Carla' }, { nome: 'Davi' }], enviou: false }, { nome: 'Equipe 2', membros: [{ nome: 'Bruno' }], enviou: false }, { nome: 'Equipe 3', membros: [], enviou: false }],
   presentes: [{ id: 'x', nome: 'Alice Souza', eu: true, equipe: null }, { id: 'b', nome: 'Bruno Lima', avatar: 'teo', equipe: 'Equipe 2' }, { id: 'c', nome: 'Carla Dias', equipe: 'Equipe 1' },
     { id: 'd', nome: 'Davi Rocha', equipe: 'Equipe 1' }, { id: 'e', nome: 'Elisa Prado', equipe: null }, { id: 'f', nome: 'Fábio Nunes', equipe: null }] }
+RPC.marcos_publicos = [{ nome: 'P1', n: 9108626.155, e: 285047.773, sigma: 0.02, tipo: 'marco', nota: 'perto do lago' }]
 RPC.salvar_caderneta_missao = { ok: true, em: iso(agora) }
 RPC.salvar_avatar = { ok: true, avatar: 'navi', avatar_em: iso(agora), proxima_em: iso(agora + 7 * 86400000) }
 

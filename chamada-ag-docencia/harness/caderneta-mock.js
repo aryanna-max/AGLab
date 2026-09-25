@@ -22,3 +22,9 @@ export const CAD_EQ1 = cad(0, 0)
 export const CAD_EQ2 = cad(0.04, 0)
 export const CAD_EQ3 = cad(0, 0.30)
 export const CAD_PARCIAL = { linhas: [{ est: 'M0452', pv: 'M0455', hz: '0 00 00', dh: '99,98' }, { est: 'M0452', pv: 'M0451A', hz: '', dh: '' }], resultado: { alvo: { n: '', e: '' }, controle: { marco: '', n: '', e: '' } } }
+
+// caderneta real de uma equipe (25/09): M0455 com ré no M0454, controle no P1, D1 e M0451A
+export const CAD_REAL = { linhas: [
+  { dh: '76,086', hz: `0°00'00"`, pv: 'M0454', est: 'M0455' }, { dh: '41,591', hz: `273°42'43"`, pv: 'P1', est: 'M0455' },
+  { dh: '46,039', hz: `156°28'32"`, pv: 'D1', est: 'M0455' }, { dh: '46,017', hz: `0°00'00"`, pv: 'M0455', est: 'D1' },
+  { dh: '54,355', hz: `153°52'28"`, pv: 'M0451A', est: 'D1' }], resultado: { alvo: { n: '', e: '' }, controle: { marco: '', n: '', e: '' } } }

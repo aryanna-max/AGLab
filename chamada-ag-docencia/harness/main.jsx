@@ -4,6 +4,11 @@ import '../src/styles.css'
 import { MainParaTeste as Main } from '../src/App.jsx'
 import Aluno from '../src/Aluno.jsx'
 import Instalar from '../src/Instalar.jsx'
+import { supabase } from './supabase-mock.js'
+import { mesclarMarcos } from '../src/lib/topo'
+
+// como o main.jsx de verdade: os marcos cadastrados entram na lista (o P1, no mock)
+supabase.rpc('marcos_publicos').then(({ data }) => { if (Array.isArray(data)) mesclarMarcos(data) })
 
 // Mostra o erro no topo da página, com as linhas do stack que apontam para o nosso código.
 window.addEventListener('error', e => {
