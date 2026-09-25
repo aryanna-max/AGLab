@@ -54,6 +54,11 @@ export function lerHz(s) {
   return G + M / 60 + S / 3600
 }
 
+/* Ângulo em três caixas na tela, gravado como texto "g m s" (o formato do campo único
+   que veio antes): partesHz separa para as caixas, juntarHz monta de volta. */
+export const partesHz = v => { const p = String(v || '').trim().split(/[^\d.,]+/).filter(Boolean); return [p[0] || '', p[1] || '', p.slice(2).join('') || ''] }
+export const juntarHz = ([g, m, s]) => (g || m || s) ? `${g || '0'} ${m || '00'} ${s || '00'}` : ''
+
 export const nomeChave = s => String(s || '').trim().toLowerCase()
 const norm360 = a => ((a % 360) + 360) % 360
 
@@ -86,9 +91,11 @@ export function calcularCaderneta(cad, marcos) {
       bloco = { chave: kEst, invalida: true }
       if (!E) { problemas.push(`Linha ${n}: a estação ${est} não tem coordenada (não é marco conhecido nem foi calculada antes).`); return }
       if (!R) { problemas.push(`Linha ${n}: a ré ${pv} não tem coordenada. A primeira visada de cada estação é a ré, e ela precisa ser um ponto já conhecido.`); return }
-      if (!Number.isFinite(hz)) { problemas.push(String(l.hz || '').trim() ? `Linha ${n}: ângulo da ré ilegível ("${l.hz}"). Use graus, minutos e segundos: 0 00 00.` : `Linha ${n}: falta o ângulo da ré (quem zera na ré anota 0 00 00).`); return }
+      // ré em branco = zerada na ré (0° 00' 00"): é o costume em campo, e a turma anota assim
+      const hzRe = String(l.hz || '').trim() ? hz : 0
+      if (!Number.isFinite(hzRe)) { problemas.push(`Linha ${n}: ângulo da ré ilegível ("${l.hz}"). Use graus, minutos e segundos; em branco vale 0° 00' 00".`); return }
       const az0 = azimute(R.n - E.n, R.e - E.e)
-      bloco = { chave: kEst, az0, hz0: hz, E }
+      bloco = { chave: kEst, az0, hz0: hzRe, E }
       out.az = az0
       if (Number.isFinite(dh)) {
         const dhCoord = Math.hypot(R.n - E.n, R.e - E.e)
@@ -162,8 +169,9 @@ export const fmtAz = a => Number.isFinite(a) ? grausDMS(a) : '—'
 export function resumoTexto(cad, alvoNome, obs) {
   const ls = (cad?.linhas || []).filter(l => l.est || l.pv || l.hz || l.dh)
   const r = cad?.resultado || {}
+  const re = ls.map((l, i) => i === 0 || nomeChave(ls[i - 1].est) !== nomeChave(l.est))   // primeira visada da estação
   const t = ['Caderneta (estação · ponto visado · Hz · DH):',
-    ...ls.map((l, i) => `${i + 1}. ${l.est || '?'} → ${l.pv || '?'} · ${l.hz || '?'} · ${l.dh || '?'} m`),
+    ...ls.map((l, i) => `${i + 1}. ${l.est || '?'} → ${l.pv || '?'} · ${l.hz || (re[i] ? '0 00 00 (ré)' : '?')} · ${l.dh || '?'} m`),
     `${alvoNome}: N ${r.alvo?.n || '?'} · E ${r.alvo?.e || '?'}`,
     `Controle ${r.controle?.marco || '?'}: N ${r.controle?.n || '?'} · E ${r.controle?.e || '?'}`]
   if ((obs || '').trim()) t.push('Observações: ' + obs.trim())
