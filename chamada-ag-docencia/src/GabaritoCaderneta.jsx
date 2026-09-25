@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react'
-import { gabarito, sugerirMedalhas, marcosOficiais, fmtM, fmtCm, fmtAz, TOL_CALCULO, TOL_FECHAMENTO } from './lib/caderneta'
+import { gabarito, sugerirMedalhas, marcosOficiais, fmtM, fmtCm, fmtAz, TOL_CALCULO, TOL_FECHAMENTO, MEDALHA_OURO, MEDALHA_PRATA } from './lib/caderneta'
 import { CroquiCaderneta } from './CadernetaAluno.jsx'
 
 const CORES_EQ = ['#E8590C', '#1C7ED6', '#AE3EC9', '#2B8A3E', '#C2255C', '#0B7285']
@@ -8,7 +8,7 @@ const CORES_EQ = ['#E8590C', '#1C7ED6', '#AE3EC9', '#2B8A3E', '#C2255C', '#0B728
    O app refaz a conta de cada equipe a partir da própria caderneta dela e separa:
    · CAMPO: o fechamento no marco de controle (calculado pela caderneta × oficial);
    · CONTA: o que a equipe digitou × o que a caderneta dela dá.
-   A sugestão de medalha ordena pelo fechamento, entre quem enviou e acertou a conta. */
+   A sugestão de medalha é por critério (sugerirMedalhas): todas as equipes podem levar ouro. */
 
 const NIVEL = { ouro: '🥇 Ouro', prata: '🥈 Prata', bronze: '🥉 Bronze' }
 const fmtDH = iso => iso ? new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—'
@@ -51,12 +51,12 @@ export function GabaritoResumo({ unidades, alvo, aplicar }) {
             <td className={fech == null ? '' : fech <= TOL_FECHAMENTO ? 'P' : 'F'}>{fech == null ? '—' : fmtCm(fech)}{g?.ctrl ? <span className="m"> {g.ctrl.nome}</span> : ''}</td>
             <td className={!g?.contaAlvo ? '' : g.contaAlvo.dist <= TOL_CALCULO ? 'P' : 'F'}>{g?.contaAlvo ? fmtCm(g.contaAlvo.dist) : '—'}</td>
             <td className={!g?.contaCtrl ? '' : g.contaCtrl.dist <= TOL_CALCULO ? 'P' : 'F'}>{g?.contaCtrl ? fmtCm(g.contaCtrl.dist) : '—'}</td>
-            <td>{s?.nivel ? <b>{NIVEL[s.nivel]}</b> : <span className="m">{s?.motivo}</span>}</td>
+            <td>{s?.nivel && <b>{NIVEL[s.nivel]} </b>}<span className="m">{s?.motivo}</span></td>
           </tr> })}</tbody></table></div>
       <CroquiCaderneta titulo="Croqui das equipes" marcos={marcos} alvo={alvo}
         camadas={linhas.filter(l => l.gab).map((l, i) => ({ calc: l.gab.calc, cor: CORES_EQ[i % CORES_EQ.length], rotulo: l.nome }))} />
       {espalho != null && <p className="note">{alvo} pelas cadernetas: média N {fmtM(media.n)} · E {fmtM(media.e)} · as equipes diferem entre si em até <b>{fmtCm(espalho)}</b>.</p>}
-      <p className="note">Ordem da sugestão: menor fechamento primeiro; empate (até 1 mm), quem enviou antes. Fica de fora quem não enviou, quem não fechou num marco conhecido e quem tem a conta à mão diferente da caderneta (aí cabe <b>Refazer</b>). Fechamento acima de {fmtCm(TOL_FECHAMENTO)} aparece em vermelho: a caderneta não fechou bem no campo.</p>
+      <p className="note">Critério (não é ranking: todas podem levar ouro): 🥇 fechou num marco de controle a até {fmtCm(MEDALHA_OURO)} e a conta à mão confere · 🥈 fechou a até {fmtCm(MEDALHA_PRATA)}, ou a até {fmtCm(MEDALHA_OURO)} com a conta errada (aí cabe <b>Refazer</b>) · 🥉 caderneta completa e {alvo} calculado, sem controle ou acima de {fmtCm(MEDALHA_PRATA)}. O controle vale em qualquer etapa; a posição dele entra na devolutiva, não na medalha. Sem envio, sem medalha.</p>
       {comSugestao.length > 0 && <div className="btnrow"><button className="btn" disabled={busy} onClick={aplicarTudo}>{busy ? 'Aplicando…' : 'Aplicar medalhas sugeridas'}</button></div>}
     </div>
   )

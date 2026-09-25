@@ -215,3 +215,46 @@ Não é técnico, é de autoria: quatro páginas corridas viram sete cartões, e
 quebra não se automatiza bem. É trabalho de uma vez por aula — e que melhora o
 material fora do app também: o que cabe em sete cartões é o que se sabe explicar
 em sete ideias.
+
+## Missão com caderneta de estação total (Transporte de Coordenadas)
+
+**Decisões de 25/09/2026**, tomadas com a missão rodando em aula.
+
+### Medalhas por critério, não por ranking
+
+O controle (vante num marco conhecido) podia ficar **em qualquer etapa** da
+atividade — regra dela. Por isso a posição do controle **não tira ponto**; ela
+entra na devolutiva ("controle antes do ponto novo confere a estação, não a
+cadeia que vem depois"). O que decide a medalha (`sugerirMedalhas` em
+`lib/caderneta.js`):
+
+- 🥇 fechou num marco conhecido a até **5 cm** e a conta à mão confere;
+- 🥈 fechou a até **10 cm** (ou a até 5 cm com a conta errada — cabe Refazer);
+- 🥉 caderneta completa e alvo calculado, sem controle ou acima de 10 cm.
+
+Todas as equipes podem levar ouro. A primeira versão ordenava pelo fechamento
+e dava ouro/prata/bronze por posição; ela questionou ("não sei se é a melhor
+forma de distribuir as medalhas") justamente porque o controle podia estar em
+qualquer etapa, e aprovou este critério no lugar.
+
+### O M0451A dos alunos NÃO é coordenada oficial
+
+"Os alunos erram mais" — palavra dela. A média acurada das cadernetas
+(ponderada pelo fechamento de cada equipe) aparece na aba Análise e serve para
+**medir o GPS dos celulares** (centímetros contra metros), mas **nunca vira
+marco cadastrado** e não substitui o M0451, que continua `deslocado` até um
+levantamento de referência. Não ofereça cadastrar o M0451A na tela.
+
+Consequência técnica, para não esquecer: se um dia o alvo virar marco
+cadastrado, a caderneta passa a tratá-lo como controle, não como ponto novo, e
+o gabarito das equipes muda.
+
+### Caderneta: o que a turma faz em campo e o app aceita
+
+- Ângulo em três caixas (° ' "), como no visor; grava o texto `g m s`.
+- **Ré em branco = zerada** (0° 00' 00"): é como eles anotam.
+- Distância acima de 1 km é vírgula esquecida (`132838` → `132,838`): aviso com
+  correção num toque, e o gabarito não calcula coordenada a quilômetros.
+- Marco que não está na lista (o P1 do lago) entra pela tela Marcos cadastrados;
+  a lista da caderneta é relida a cada desenho, então o marco novo aparece sem
+  republicar o app.
