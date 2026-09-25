@@ -170,10 +170,56 @@ function SeletorPonto({ valor, onChange, opcoes, disabled, placeholder }) {
   </select>
 }
 
+/* Croqui da caderneta (pedido dela, 25/09): o mesmo desenho em SVG da poligonal, embaixo da
+   caderneta. Mostra a geometria — estações, ré, vantes, pontos novos — e nenhum número: a conta
+   continua sendo à mão. Marco oficial em verde, ré tracejada, vante em azul, alvo em losango. */
+export function CroquiCaderneta({ calc, marcos, alvo }) {
+  const d = useMemo(() => {
+    const conh = Object.fromEntries(marcos.map(x => [nomeChave(x.nome), x]))
+    const novos = Object.fromEntries(calc.pontos.map(p => [nomeChave(p.nome), p]))
+    const pos = k => conh[k] || novos[k] || null
+    const re = [], vantes = [], usados = new Set()
+    calc.linhas.forEach(l => {
+      const kE = nomeChave(l.est), kP = nomeChave(l.pv), E = pos(kE); if (!E) return
+      usados.add(kE)
+      if (l.papel === 're' && conh[kP]) { re.push([E, conh[kP]]); usados.add(kP) }
+      if (l.papel === 'vante' && l.n != null) { vantes.push([E, { n: l.n, e: l.e }]); if (conh[kP]) usados.add(kP) }
+    })
+    const marcosUsados = [...usados].map(k => conh[k]).filter(Boolean)
+    const pts = [...marcosUsados, ...calc.pontos, ...vantes.map(v => v[1])]
+    if (pts.length < 2) return null
+    const minN = Math.min(...pts.map(p => p.n)), maxN = Math.max(...pts.map(p => p.n)), minE = Math.min(...pts.map(p => p.e)), maxE = Math.max(...pts.map(p => p.e))
+    const span = Math.max(maxN - minN, maxE - minE, 20), S = 300, pad = 30, k = (S - 2 * pad) / span
+    // centraliza o desenho no quadro
+    const offX = (S - 2 * pad - (maxE - minE) * k) / 2, offY = (S - 2 * pad - (maxN - minN) * k) / 2
+    const X = e => pad + offX + (e - minE) * k, Y = n => S - pad - offY - (n - minN) * k
+    const escala = [5, 10, 20, 50, 100, 200].find(v => v * k >= 40) || 200
+    return { S, X, Y, re, vantes, marcosUsados, novos: calc.pontos, escala, k }
+  }, [calc, marcos])
+  if (!d) return <p className="note">O croqui aparece quando houver uma estação e uma ré com marcos conhecidos.</p>
+  const kAlvo = nomeChave(alvo)
+  return <>
+    <label className="fld">Croqui da caderneta</label>
+    <svg viewBox={`0 0 ${d.S} ${d.S}`} className="poli-svg cad-croqui" aria-label="croqui das visadas">
+      {d.re.map(([a, b], i) => <line key={'r' + i} x1={d.X(a.e)} y1={d.Y(a.n)} x2={d.X(b.e)} y2={d.Y(b.n)} className="cq-re" />)}
+      {d.vantes.map(([a, b], i) => <line key={'v' + i} x1={d.X(a.e)} y1={d.Y(a.n)} x2={d.X(b.e)} y2={d.Y(b.n)} className="cq-vante" />)}
+      {d.marcosUsados.map(p => <g key={p.nome}><circle cx={d.X(p.e)} cy={d.Y(p.n)} r="5" className="poli-marco" /><text x={d.X(p.e) + 7} y={d.Y(p.n) - 6} className="radar-lab">{p.nome}</text></g>)}
+      {d.novos.map(p => { const x = d.X(p.e), y = d.Y(p.n), eAlvo = nomeChave(p.nome) === kAlvo
+        return <g key={p.nome}>{eAlvo ? <rect x={x - 6} y={y - 6} width="12" height="12" transform={`rotate(45 ${x} ${y})`} className="cq-alvo" /> : <circle cx={x} cy={y} r="5" className="poli-v" />}
+          <text x={x + 8} y={y - 7} className="radar-lab">{p.nome}</text></g> })}
+      <text x="8" y="16" className="radar-lab">N ↑</text>
+      <line x1={d.S - 12 - d.escala * d.k} y1={d.S - 12} x2={d.S - 12} y2={d.S - 12} className="cq-escala" />
+      <text x={d.S - 12} y={d.S - 17} textAnchor="end" className="radar-lab">{d.escala} m</text>
+    </svg>
+    <p className="note">● verde: marco oficial · ◆ {alvo} · ● azul: ponto novo · tracejado: ré · linha azul: vante. O desenho sai das visadas de vocês: se um ponto aparecer fora do lugar, confiram o ângulo e a distância daquela linha.</p>
+  </>
+}
+
 export function PainelCaderneta({ m, cadHook, podeEditar }) {
   const { cad, setCad, sujo, salvar, salvando, conflito, usarDaEquipe, manterMinha, msg, porUltimo } = cadHook
   const alvo = m.caderneta?.alvo || 'ponto novo'
-  const marcos = useMemo(() => marcosOficiais(), [])
+  // sem memo fixo: os marcos cadastrados (ex.: P1) chegam do servidor depois que a tela abre
+  const marcos = marcosOficiais()
   const nomesMarcos = marcos.map(x => x.nome)
   const linhas = cad.linhas?.length ? cad.linhas : caderVazia().linhas
   const res = cad.resultado || caderVazia().resultado
@@ -228,6 +274,7 @@ export function PainelCaderneta({ m, cadHook, podeEditar }) {
       <p className="note">{salvando ? 'Salvando…' : sujo ? '✎ Alterações ainda não salvas (salva sozinho em alguns segundos).' : cadHook.base ? `✓ Salva para a equipe${porUltimo ? ` · último a salvar: ${porUltimo}` : ''}.` : 'Nada anotado ainda.'} Todos os celulares da equipe veem a mesma caderneta; anotem em um só por vez.</p>
       {podeEditar && sujo && <div className="btnrow" style={{ marginTop: 0 }}><button className="btn ghost mini" disabled={salvando} onClick={() => salvar()}>💾 Salvar agora</button></div>}
       {msg && <div className={'flash ' + msg.tipo} style={{ textAlign: 'left' }}>{msg.t}</div>}
+      <CroquiCaderneta calc={calc} marcos={marcos} alvo={alvo} />
     </div>
 
     <div className="panel">
