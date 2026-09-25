@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { escolhaDeEquipe, entrarEmEquipe, salvarCaderneta } from './lib/alunoApi'
-import { caderVazia, calcularCaderneta, lerHz, lerNumero, nomeChave, fmtM, marcosOficiais, partesHz, juntarHz, DH_MAX, sugerirVirgula, marcoAntigoDo } from './lib/caderneta'
+import { caderVazia, calcularCaderneta, lerHz, lerNumero, nomeChave, fmtM, fmtCm, marcosOficiais, partesHz, juntarHz, DH_MAX, sugerirVirgula, marcoAntigoDo, gabarito, TOL_CALCULO } from './lib/caderneta'
 import Avatar from './Avatar.jsx'
 
 /* Missão com caderneta de estação total (Transporte de Coordenadas) e equipes que os
@@ -316,4 +316,35 @@ export function PainelCaderneta({ m, cadHook, podeEditar }) {
       <p className="note">No controle vale a coordenada que <b>vocês calcularam</b> pela caderneta, não a oficial: é a diferença entre as duas que mostra se o levantamento fechou.</p>
     </div>
   </>
+}
+
+/* Gabarito para a equipe (pedido dela, 25/09: "só para quem já enviou"). Aparece quando a
+   professora libera E a equipe já enviou (e não está em Refazer). É a caderneta da própria
+   equipe refeita pelo app: nada das outras equipes aparece aqui. */
+export function GabaritoAluno({ m }) {
+  const alvo = m.caderneta?.alvo || 'ponto novo'
+  const marcos = marcosOficiais()
+  const g = gabarito(m.minha?.caderneta, marcos, alvo)
+  const lin = (rotulo, a, b, dif, ok) => <tr><td>{rotulo}</td><td>{a ? fmtM(a.n) : '—'}</td><td>{a ? fmtM(a.e) : '—'}</td>
+    <td className={ok == null ? '' : ok ? 'P' : 'F'}>{dif != null ? fmtCm(dif) : ''}</td></tr>
+  return (
+    <div className="panel">
+      <h2 style={{ marginTop: 0 }}>📖 Gabarito da sua equipe</h2>
+      <p className="hint">A professora liberou. É a caderneta de vocês refeita pelo app: compare com o que vocês calcularam à mão. Até {fmtCm(TOL_CALCULO)} de diferença é arredondamento.</p>
+      <div className="scrollx"><table className="aloc cad-coord"><thead><tr><th></th><th>N (m)</th><th>E (m)</th><th>dif.</th></tr></thead><tbody>
+        {lin(`${alvo} · pela caderneta`, g.alvo)}
+        {lin(`${alvo} · vocês digitaram`, g.digAlvo, null, g.contaAlvo?.dist, g.contaAlvo ? g.contaAlvo.dist <= TOL_CALCULO : null)}
+        {g.ctrl && <>
+          {lin(`${g.ctrl.nome} · oficial`, g.ctrl.oficial)}
+          {lin(`${g.ctrl.nome} · pela caderneta`, g.ctrl, null, g.fechamento, g.fechamento <= 0.10)}
+          {lin(`${g.ctrl.nome} · vocês digitaram`, g.digCtrl, null, g.contaCtrl?.dist, g.contaCtrl ? g.contaCtrl.dist <= TOL_CALCULO : null)}
+        </>}
+      </tbody></table></div>
+      {g.ctrl ? <p className="note"><b>Fechamento no {g.ctrl.nome}: {fmtCm(g.fechamento)}</b> (ΔN {fmtCm(g.ctrl.dn)} · ΔE {fmtCm(g.ctrl.de)}). É o erro do campo: onde a caderneta de vocês chegou × a coordenada oficial do marco.</p>
+        : <p className="note"><b>Sem controle:</b> nenhum marco conhecido foi visado como vante, então não há como saber o erro do campo.</p>}
+      <p className="note">A <b>diferença</b> nas linhas "vocês digitaram" é o erro da conta à mão: o que vocês calcularam × o que a caderneta dá.</p>
+      {g.calc.conferenciasRe.length > 0 && <p className="note">Conferência da ré (distância medida × distância pelas coordenadas): {g.calc.conferenciasRe.map(r => `${r.est} → ${r.re}: ${fmtCm(r.dif)}`).join(' · ')}</p>}
+      {g.problemas.length > 0 && <ul className="cad-problemas">{g.problemas.map((p, i) => <li key={i}>{p}</li>)}</ul>}
+    </div>
+  )
 }
