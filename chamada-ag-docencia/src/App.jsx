@@ -346,7 +346,7 @@ function TurmasFotos({ tid, turmas, refresh, showToast, online }) {
     <>
       <div className="panel">
         <h2>Fotos dos alunos</h2>
-        <p className="hint">A foto aparece na lista e no radar. O aluno tira a própria selfie no app dele (chega aqui sozinha) e, depois de enviada, não consegue trocar — use <b>Liberar nova selfie</b> se precisar. Você também pode tirar ou escolher uma imagem.</p>
+        <p className="hint">A foto aparece na lista e no radar. O aluno tira a própria selfie no app dele (chega aqui sozinha) e pode trocá-la quando quiser — a nova sempre substitui a anterior. Você também pode tirar ou escolher uma imagem.</p>
         <ul className="people" style={{ maxHeight: 420 }}>
           {t?.alunos.map(a =>
             <li key={a.id}>
@@ -355,10 +355,6 @@ function TurmasFotos({ tid, turmas, refresh, showToast, online }) {
                 <button className="btn ghost mini" onClick={() => setSelfie(a)}>Selfie</button>
                 <button className="btn ghost mini" onClick={() => pickFile(a.id)}>Arquivo</button>
                 {a.foto_path && <button className="btn danger mini" onClick={() => saveFoto(a.id, '')}>Remover</button>}
-                {a.foto_data && <button className="btn ghost mini" title="A selfie enviada pelo aluno fica travada. Isto apaga a atual e deixa ele mandar outra." onClick={async () => {
-                  if (!confirm(`Apagar a selfie de ${a.nome} e liberar uma nova?`)) return
-                  try { await store.liberarSelfie(a.id); showToast('Selfie liberada: o aluno pode enviar outra'); refresh() } catch (e) { showToast('Erro: ' + e.message) }
-                }}>Liberar nova selfie</button>}
               </span>
             </li>)}
         </ul>
@@ -711,7 +707,7 @@ function ColetaTurma({ userId, tid, turmas, online, showToast }) {
     // alerta antes de fechar (regra dela, 18/09/2026): quem ficou "a conferir" e ainda não tem presença marcada
     const comPresenca = new Set(linhas.filter(l => l.presenca_marcada).map(l => l.aluno_id))
     const pend = {}
-    linhas.filter(l => ehChamada(l) && aConferirRaio(l) && !comPresenca.has(l.aluno_id)).forEach(l => {
+    linhas.filter(l => ehChamada(l) && (aConferirRaio(l) || mesmoAparelho(l)) && !comPresenca.has(l.aluno_id)).forEach(l => {
       const p = pend[l.aluno_id] || (pend[l.aluno_id] = { nome: l.alunos?.nome || '—', limite: false })
       if (l.extra?.no_limite) p.limite = true
     })
@@ -734,6 +730,9 @@ function ColetaTurma({ userId, tid, turmas, online, showToast }) {
   const presentesColeta = new Set(linhas.filter(l => l.presenca_marcada).map(l => l.aluno_id)).size
   const ehChamada = l => !!(l.extra && l.extra.chamada)
   const registrosForaJanela = linhas.filter(l => ehChamada(l) && !l.presenca_marcada)
+  // mesmo celular registrando chamada de dois alunos no dia: os dois ficam a conferir
+  const mesmoAparelho = l => l.extra?.motivo === 'mesmo_aparelho'
+  const statusChamada = l => l.presenca_marcada ? 'marcada' : mesmoAparelho(l) ? 'a conferir · mesmo celular' : aConferirRaio(l) ? 'a conferir ⚠' : 'fora da janela'
   // subiu da fila: capturado bem antes de o servidor receber
   const atrasada = l => l.capturado_em && (new Date(l.criado_em) - new Date(l.capturado_em)) > 3 * 60 * 1000
   // o campus inteiro cabe em ~250 m da PERC; acima disso a leitura veio de fora
@@ -752,7 +751,8 @@ function ColetaTurma({ userId, tid, turmas, online, showToast }) {
     const add = (l, motivo) => { const k = chave(l) + motivo; if (!vistos.has(k)) { vistos.add(k); out.push({ l, motivo }) } }
     const mesmaPos = {}
     linhas.filter(ehChamada).forEach(l => {
-      if (aConferirRaio(l)) add(l, l.extra.dist_ref_m == null ? 'sem posição para conferir'
+      if (mesmoAparelho(l)) add(l, 'mesmo celular de ' + (l.extra.aparelho_com || ['outro aluno']).join(', '))
+      else if (aConferirRaio(l)) add(l, l.extra.dist_ref_m == null ? 'sem posição para conferir'
         : l.extra.no_limite ? `no limite do GPS: ${metros(l.extra.dist_ref_m, 1)} m (raio ${metros(l.extra.raio_m, 0)} m, ±${metros(l.acuracia_m, 1)} m) — provável presente`
         : `longe da referência: ${metros(l.extra.dist_ref_m, 0)} m (raio ${metros(l.extra.raio_m, 0)} m)`)
       if ((l.extra?.n_leituras || 0) >= 5 && l.extra?.espalhamento_m === 0) add(l, 'posição idêntica em todas as leituras (GPS falso?)')
@@ -829,7 +829,11 @@ function ColetaTurma({ userId, tid, turmas, online, showToast }) {
           {sessao.chamada_id && <> O registro de cada aluno já marcou presença na chamada de hoje.</>}</p>
 
         {registrosForaJanela.length > 0 && <p className="note" style={{ color: 'var(--miss)' }}>
-          <b>{registrosForaJanela.length}</b> registro(s) chegaram fora da janela e <b>não</b> marcaram presença. Quem decide é você, na aba Chamada.
+          <b>{registrosForaJanela.length}</b> registro(s) <b>não</b> marcaram presença (fora da janela ou a conferir). Quem decide é você, na aba Chamada.
+        </p>}
+        {linhas.some(mesmoAparelho) && <p className="note" style={{ color: 'var(--miss)' }}>
+          Um mesmo celular registrou chamada de mais de um aluno hoje: {[...new Set(linhas.filter(mesmoAparelho).map(l => l.alunos?.nome).filter(Boolean))].join(', ')}.
+          Nenhum deles ficou com presença automática — confira quem estava na sala.
         </p>}
         <p className="note" style={{ marginTop: 10 }}>
           Presença na sala (sem QR): a até <b>{sessao.raio_m || 50} m</b> de {sessao.ref_lat != null ? <b>onde você abriu a sessão</b> : <b>o marco M0452</b>}.
@@ -863,8 +867,8 @@ function ColetaTurma({ userId, tid, turmas, online, showToast }) {
             <td title={atrasada(l) ? 'subiu da fila em ' + new Date(l.criado_em).toLocaleString('pt-BR') : ''}>
               {new Date(l.capturado_em || l.criado_em).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}{atrasada(l) ? ' ⏳' : ''}
             </td>
-            <td className={!ehChamada(l) ? '' : l.presenca_marcada ? 'P' : 'F'}>
-              {!ehChamada(l) ? '—' : l.presenca_marcada ? 'marcada' : aConferirRaio(l) ? 'a conferir ⚠' : 'fora da janela'}
+            <td className={!ehChamada(l) ? '' : l.presenca_marcada ? 'P' : 'F'} title={mesmoAparelho(l) && l.extra?.aparelho_com ? 'mesmo celular de: ' + l.extra.aparelho_com.join(', ') : ''}>
+              {!ehChamada(l) ? '—' : statusChamada(l)}
             </td>
           </tr>)}
         </tbody></table>

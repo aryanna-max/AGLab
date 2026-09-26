@@ -12,7 +12,7 @@ import { useHistoricoPresenca, useMissoes, useInsignias, useAulas, useAvisosAlun
 import InsigniasAluno, { Vitrine, CartaoInsignia } from './InsigniasAluno.jsx'
 import { POR_CHAVE, semAlarde } from './lib/insignias'
 import { prepararSom, tocarAviso } from './lib/som'
-import { EH_COMPUTADOR } from './lib/aparelho'
+import { EH_COMPUTADOR, aparelhoId } from './lib/aparelho'
 import { estadoAvisos, ativarAvisosAluno, sincronizarAvisosAluno, TEXTO_ESTADO } from './lib/avisos'
 import Avatar from './Avatar.jsx'
 import MeuAvatar from './MeuAvatar.jsx'
@@ -78,7 +78,8 @@ function contextoDoAparelho() {
     tipo_conexao: c && c.effectiveType ? c.effectiveType : null,
     downlink_mbps: c && typeof c.downlink === 'number' ? c.downlink : null,
     rtt_ms: c && typeof c.rtt === 'number' ? c.rtt : null,
-    app_versao: typeof __BUILD_ID__ !== 'undefined' ? __BUILD_ID__ : null
+    app_versao: typeof __BUILD_ID__ !== 'undefined' ? __BUILD_ID__ : null,
+    aparelho_id: aparelhoId()
   }
 }
 
@@ -726,6 +727,7 @@ export default function Aluno() {
           : aConferir
           ? <><h2 style={{ marginTop: 0 }}>Registrado.</h2>
               <p className="hint">A professora vai conferir a sua presença. Se o GPS estava ruim, dá para enviar de novo com o céu mais aberto.</p>
+              <p className="note">Confira se o nome no topo é o seu: {ident?.nome || ident?.matricula}. Se não for, volte e toque em <b>trocar</b>.</p>
               <div className="btnrow" style={{ justifyContent: 'center' }}>
                 <button className="btn" onClick={() => { setAConferir(false); enviarPresenca() }} disabled={!pos || enviando}>Enviar de novo</button>
                 <button className="btn ghost" onClick={voltarHome}>Voltar</button>
