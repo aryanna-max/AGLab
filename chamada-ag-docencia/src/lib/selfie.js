@@ -4,8 +4,7 @@ import { useEffect, useState } from 'react'
 
    Uma cópia só, neste arquivo: MinhaFoto grava aqui quando o aluno envia, e o app grava
    aqui o que o servidor devolve em validar_sessao — o aluno que trocou de celular ou
-   reinstalou recupera a própria cara sem ter que mandar outra (e não pode: a selfie é
-   uma só, e só a professora libera uma nova).
+   reinstalou recupera a própria cara sem ter que mandar outra.
 
    Daí ela sai para as telas do aluno como avatar: cabeçalho e coleção de insígnias.
    O aparelho guarda só a selfie de quem está identificado nele — nunca a dos colegas. */
@@ -24,10 +23,13 @@ export function gravarSelfie(v) {
 export const selfieDe = ident => { const s = lerSelfie(); return s && ident && s.alunoId === ident.alunoId ? s : null }
 export const minhaSelfie = ident => selfieDe(ident)?.src || ''
 
-/* Guarda a selfie que veio do servidor, se este aparelho ainda não tem a dele.
-   Nasce como "enviada": é a que já está no banco, e o app não vai mandar de novo. */
+/* Guarda a selfie que veio do servidor. Nasce como "enviada": é a que já está no banco.
+   Troca a guardada quando o aluno a substituiu em outro celular; uma nova ainda
+   "a enviar" neste aparelho não é tocada — ela vai substituir a do banco. */
 export function guardarSelfieDoServidor(ident, src) {
-  if (!src || !ident?.alunoId || minhaSelfie(ident)) return false
+  if (!src || !ident?.alunoId) return false
+  const s = selfieDe(ident)
+  if (s && (!s.enviada || s.src === src)) return false
   gravarSelfie({ alunoId: ident.alunoId, src, enviada: true, em: new Date().toISOString() })
   return true
 }

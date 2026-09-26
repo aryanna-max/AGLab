@@ -346,7 +346,7 @@ function TurmasFotos({ tid, turmas, refresh, showToast, online }) {
     <>
       <div className="panel">
         <h2>Fotos dos alunos</h2>
-        <p className="hint">A foto aparece na lista e no radar. O aluno tira a própria selfie no app dele (chega aqui sozinha) e, depois de enviada, não consegue trocar — use <b>Liberar nova selfie</b> se precisar. Você também pode tirar ou escolher uma imagem.</p>
+        <p className="hint">A foto aparece na lista e no radar. O aluno tira a própria selfie no app dele (chega aqui sozinha) e pode trocá-la quando quiser — a nova sempre substitui a anterior. Você também pode tirar ou escolher uma imagem.</p>
         <ul className="people" style={{ maxHeight: 420 }}>
           {t?.alunos.map(a =>
             <li key={a.id}>
@@ -355,10 +355,6 @@ function TurmasFotos({ tid, turmas, refresh, showToast, online }) {
                 <button className="btn ghost mini" onClick={() => setSelfie(a)}>Selfie</button>
                 <button className="btn ghost mini" onClick={() => pickFile(a.id)}>Arquivo</button>
                 {a.foto_path && <button className="btn danger mini" onClick={() => saveFoto(a.id, '')}>Remover</button>}
-                {a.foto_data && <button className="btn ghost mini" title="A selfie enviada pelo aluno fica travada. Isto apaga a atual e deixa ele mandar outra." onClick={async () => {
-                  if (!confirm(`Apagar a selfie de ${a.nome} e liberar uma nova?`)) return
-                  try { await store.liberarSelfie(a.id); showToast('Selfie liberada: o aluno pode enviar outra'); refresh() } catch (e) { showToast('Erro: ' + e.message) }
-                }}>Liberar nova selfie</button>}
               </span>
             </li>)}
         </ul>

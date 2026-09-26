@@ -163,7 +163,6 @@ export const ehDiaDeAula = () => true
 export const lancamentosDeAulasDaTurma = especificos['lancamentosDeAulasDaTurma'] || (async () => null)
 export const lancarAula = especificos['lancarAula'] || (async () => null)
 export const leitoresDaAula = especificos['leitoresDaAula'] || (async () => null)
-export const liberarSelfie = especificos['liberarSelfie'] || (async () => null)
 export const listarAulas = especificos['listarAulas'] || (async () => null)
 export const mudarDataAula = especificos['mudarDataAula'] || (async () => null)
 export const pioneirosDaTurma = especificos['pioneirosDaTurma'] || (async () => null)
