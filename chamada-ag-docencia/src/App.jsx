@@ -2,29 +2,26 @@ import React, { useEffect, useRef, useState, useCallback } from 'react'
 import { supabase } from './supabaseClient'
 import * as store from './lib/store'
 import { qrDataUrl, QR_PREFIX } from './lib/qr'
-import { PERC, M0452, paraUTM25S, distanciaUTM, grausMinSeg, metros, vezesPiorQuePerc } from './lib/geo'
+import { PERC, M0452, paraUTM25S, distanciaUTM, grausMinSeg, metros, vezesPiorQuePerc, altitudes } from './lib/geo'
 import { irParaAluno } from './Escolha.jsx'
 import Radar from './Radar.jsx'
+import MapaAlunos from './MapaAlunos.jsx'
 import Analise from './Analise.jsx'
 import MissoesProfessora from './MissoesProfessora.jsx'
+import AulasProfessora from './AulasProfessora.jsx'
 import AvisosProfessora from './AvisosProfessora.jsx'
 import InsigniasProfessora from './InsigniasProfessora.jsx'
+import Aulas from './Aulas.jsx'
 import { EH_COMPUTADOR } from './lib/aparelho'
 import { baixarCartao, compartilharCartao } from './lib/cartao'
 import Orbe from './Orbe.jsx'
 import { MARCOS, mesclarMarcos } from './lib/topo'
+import Avatar from './Avatar.jsx'
 
 /* ---------- utils ---------- */
 const todayISO = () => { const d = new Date(); const m = String(d.getMonth() + 1).padStart(2, '0'); const dd = String(d.getDate()).padStart(2, '0'); return `${d.getFullYear()}-${m}-${dd}` }
 const fmtDate = iso => { if (!iso) return ''; const p = iso.split('-'); return p.length === 3 ? `${p[2]}/${p[1]}` : iso }
 const K_TURMA = 'agc2_turma_prof'
-const initials = n => { const p = String(n || '').trim().split(/\s+/); return ((p[0]?.[0] || '') + (p.length > 1 ? p[p.length - 1][0] : '')).toUpperCase() || '?' }
-
-function Avatar({ a, big }) {
-  const cls = big ? 'confirm-photo' : 'avatar'
-  return <span className={cls}>{a.foto ? <img src={a.foto} alt="" /> : initials(a.nome)}</span>
-}
-
 /* ---------- LOGIN ---------- */
 function Login() {
   const [modo, setModo] = useState('entrar')
@@ -100,6 +97,8 @@ function Main({ session }) {
   const setTid = useCallback(id => { setTidRaw(id); try { localStorage.setItem(K_TURMA, id) } catch (e) {} }, [])
   useEffect(() => { if (turmas.length && !turmas.some(t => t.id === tid)) setTid(turmas[0].id) }, [turmas, tid, setTid])
   const turma = turmas.find(t => t.id === tid)
+  const [versaoAulas, setVersaoAulas] = useState(0)
+  const [dataChamada, setDataChamada] = useState(null)   // dia escolhido na aba Aulas para abrir a chamada
 
   const showToast = useCallback(msg => {
     setToast(msg); if (toastT.current) clearTimeout(toastT.current)
@@ -146,26 +145,28 @@ function Main({ session }) {
         <select value={tid} onChange={e => setTid(e.target.value)}>{turmas.map(x => <option key={x.id} value={x.id}>{x.nome}</option>)}</select>
         {turma && <span className="tb-n">{turma.alunos.length} alunos</span>}
         {turma && <button className="btn mini" onClick={() => setTab('avisos')} title="Aviso no celular dos alunos, mesmo com o app fechado">🔔 Avisar turma</button>}
+        {turma && <button className="btn mini ghost" onClick={() => setTab('mapa')} title="Quem está com o Orbe aberto agora, no mapa">🗺️ Mapa</button>}
         {EH_COMPUTADOR && <span className="badge" title="Neste aparelho a localização vem do Wi-Fi/IP e não vale como dado. A sua posição oficial é a do celular.">💻 computador</span>}
       </div>}
 
       <nav className="tabs">
-        {[['chamada', 'Chamada'], ['missoes', 'Missões'], ['insignias', 'Insígnias'], ['avisos', 'Avisos'], ['analise', 'Análise'], ['radar', 'Radar'], ['conferir', 'Conferir faltantes'], ['resumo', 'Resumo / Exportar'], ['posicao', 'Minha posição'], ['turmas', 'Turmas & Fotos']].map(([k, l]) =>
-          <button key={k} className={tab === k ? 'active' : ''} onClick={() => setTab(k)}>{l}</button>)}
+        {[['chamada', 'Chamada'], ['aulas', '📅 Aulas e frequência'], ['material', '📚 Material'], ['missoes', 'Missões'], ['insignias', 'Insígnias'], ['avisos', 'Avisos'], ['analise', 'Análise'], ['radar', 'Radar'], ['mapa', '🗺️ Mapa'], ['posicao', 'Minha posição'], ['turmas', 'Turmas & Fotos']].map(([k, l]) =>
+          <button key={k} className={tab === k ? 'active' : ''} onClick={() => { setDataChamada(null); setTab(k) }}>{l}</button>)}
       </nav>
 
       {loading ? <div className="spin">Carregando turmas…</div> :
         turmas.length === 0 ? <SeedPanel userId={userId} onDone={refresh} showToast={showToast} /> :
           !turma ? <div className="spin">Escolhendo a turma…</div> :
           <>
-            {tab === 'chamada' && <><ColetaTurma userId={userId} tid={tid} turmas={turmas} online={online} showToast={showToast} /><AuxiliarDoDia tid={tid} turmas={turmas} online={online} showToast={showToast} /><Chamada userId={userId} tid={tid} turmas={turmas} online={online} setPending={setPending} showToast={showToast} goConferir={() => setTab('conferir')} /></>}
+            {tab === 'chamada' && <><ColetaTurma userId={userId} tid={tid} turmas={turmas} online={online} showToast={showToast} /><AuxiliarDoDia tid={tid} turmas={turmas} online={online} showToast={showToast} /><Chamada key={dataChamada || 'hoje'} dataInicial={dataChamada} userId={userId} tid={tid} turmas={turmas} online={online} setPending={setPending} showToast={showToast} goAulas={() => setTab('aulas')} /></>}
+            {tab === 'aulas' && <><Aulas userId={userId} tid={tid} setTid={setTid} turmas={turmas} online={online} showToast={showToast} refresh={refresh} abrirChamada={d => { setDataChamada(d); setTab('chamada') }} onMudou={() => setVersaoAulas(v => v + 1)} /><Resumo key={tid + ':' + versaoAulas} tid={tid} turmas={turmas} showToast={showToast} /></>}
             {tab === 'insignias' && <InsigniasProfessora userId={userId} tid={tid} turmas={turmas} online={online} showToast={showToast} />}
             {tab === 'avisos' && <AvisosProfessora userId={userId} tid={tid} turmas={turmas} online={online} showToast={showToast} />}
+            {tab === 'material' && <AulasProfessora userId={userId} tid={tid} turmas={turmas} online={online} showToast={showToast} />}
             {tab === 'missoes' && <MissoesProfessora userId={userId} tid={tid} turmas={turmas} online={online} showToast={showToast} />}
             {tab === 'analise' && <Analise tid={tid} turmas={turmas} online={online} showToast={showToast} />}
+            {tab === 'mapa' && <MapaAlunos tid={tid} turmas={turmas} online={online} />}
             {tab === 'radar' && <Radar userId={userId} tid={tid} turmas={turmas} online={online} showToast={showToast} ehComputador={EH_COMPUTADOR} />}
-            {tab === 'conferir' && <Conferir userId={userId} tid={tid} turmas={turmas} online={online} setPending={setPending} showToast={showToast} />}
-            {tab === 'resumo' && <Resumo tid={tid} turmas={turmas} showToast={showToast} />}
             {tab === 'posicao' && (EH_COMPUTADOR ? <PosicaoComputador /> : <Posicao userId={userId} online={online} showToast={showToast} />)}
             {tab === 'turmas' && <><GerenciarTurmas userId={userId} tid={tid} turmas={turmas} refresh={refresh} showToast={showToast} online={online} /><TurmasFotos tid={tid} turmas={turmas} refresh={refresh} showToast={showToast} online={online} /></>}
           </>}
@@ -563,10 +564,10 @@ function Posicao({ userId, online, showToast }) {
             por gravidade não se nivela com GNSS.
           </p>}
 
-          {pos.altitude_m != null && <p className="note">
-            Altitude <b>{metros(pos.altitude_m, 1)} m</b> — é <b>elipsoidal</b>, não a altitude do mar.
-            Para virar ortométrica falta a ondulação geoidal (MAPGEO2015); no campus ela é de cerca de −5,56 m.
-          </p>}
+{(() => { const al = altitudes(pos.altitude_m); return al && <p className="note">
+            Altitude elipsoidal (h) <b>{metros(al.h, 1)} m</b> · altitude ortométrica (H) <b>{metros(al.H, 1)} m</b>.
+            H = h − N, com N = −5,56 m no campus. O seu celular entregou a {al.veio}; a outra foi calculada.
+          </p> })()}
 
           <div className="perc-box">
             <div className="pb-tit">Referência: {PERC.nome}</div>
@@ -630,8 +631,11 @@ function ColetaTurma({ userId, tid, turmas, online, showToast }) {
   const [codigo, setCodigo] = useState('')
   const [tempo, setTempo] = useState('ensolarado')
   const [local, setLocal] = useState('sala')
-  const [hIni, setHIni] = useState('12:50')
-  const [hFim, setHFim] = useState('17:40')
+  // janela da presença sai do horário da turma (F32RC é de manhã: 07:45–11:50); sem horário, a tarde de sempre
+  const horarioDe = id => { const m = (turmas.find(x => x.id === id)?.horario || '').match(/(\d{2}:\d{2})\D+(\d{2}:\d{2})/); return m ? [m[1], m[2]] : ['12:50', '17:40'] }
+  const [hIni, setHIni] = useState(() => horarioDe(tid)[0])
+  const [hFim, setHFim] = useState(() => horarioDe(tid)[1])
+  useEffect(() => { const [i, f] = horarioDe(tid); setHIni(i); setHFim(f) }, [tid, turmas.find(x => x.id === tid)?.horario])
   const [sessao, setSessao] = useState(null)
   const [linhas, setLinhas] = useState([])
   const [busy, setBusy] = useState(false)
@@ -660,11 +664,31 @@ function ColetaTurma({ userId, tid, turmas, online, showToast }) {
   useEffect(() => {
     if (!sessao?.id || !online) return
     let vivo = true
-    const puxa = () => store.leiturasDaSessao(sessao.id).then(d => vivo && setLinhas(d)).catch(() => {})
+    // só as de hoje (meia-noite local): a mesma sessão reaberta na semana seguinte não mistura as aulas
+    const puxa = () => { const h = new Date(); h.setHours(0, 0, 0, 0); return store.leiturasDaSessao(sessao.id, h.toISOString()).then(d => vivo && setLinhas(d)).catch(() => {}) }
     puxa()
     const it = setInterval(puxa, 5000)
     return () => { vivo = false; clearInterval(it) }
   }, [sessao, online])
+
+  /* Regra dela (18/09/2026): o centro do raio da presença "na sala" é o celular dela onde a sessão
+     foi aberta. No computador a posição é do Wi-Fi/IP e não vale — fica o M0452 (servidor). */
+  function posicaoParaReferencia() {
+    if (EH_COMPUTADOR || !navigator.geolocation) return Promise.resolve(null)
+    return new Promise(res => navigator.geolocation.getCurrentPosition(
+      p => res({ lat: p.coords.latitude, lon: p.coords.longitude, acc: p.coords.accuracy }),
+      () => res(null), { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 }))
+  }
+  async function refazerReferencia() {
+    if (!sessao) return
+    setBusy(true)
+    try {
+      const ref = await posicaoParaReferencia()
+      if (!ref) { showToast(EH_COMPUTADOR ? 'No computador a posição não vale: faça isso pelo celular' : 'Não consegui a sua posição'); return }
+      setSessao(await store.definirReferencia(sessao.id, ref))
+      showToast(`Referência da presença: sua posição agora (±${Math.round(ref.acc)} m)`)
+    } catch (e) { showToast('Erro: ' + e.message) } finally { setBusy(false) }
+  }
 
   async function abrir() {
     if (!tid) { showToast('Selecione a turma'); return }
@@ -675,14 +699,27 @@ function ColetaTurma({ userId, tid, turmas, online, showToast }) {
       const hoje = todayISO()
       const ini = new Date(hoje + 'T' + hIni + ':00'), fim = new Date(hoje + 'T' + hFim + ':00')
       if (!(fim > ini)) { showToast('A janela precisa terminar depois de começar'); setBusy(false); return }
-      setSessao(await store.abrirSessao(userId, tid, codigo.trim(), t?.nome || null, tempo, ini.toISOString(), fim.toISOString(), local))
-      showToast('Aula aberta — o mesmo código serve toda semana')
+      const ref = await posicaoParaReferencia()
+      setSessao(await store.abrirSessao(userId, tid, codigo.trim(), t?.nome || null, tempo, ini.toISOString(), fim.toISOString(), local, ref))
+      showToast(ref ? `Aula aberta — referência da presença: sua posição (±${Math.round(ref.acc)} m)` : 'Aula aberta — referência da presença: marco M0452')
     } catch (e) {
       showToast('Erro: ' + e.message)
     } finally { setBusy(false) }
   }
   async function fechar() {
     if (!sessao) return
+    // alerta antes de fechar (regra dela, 18/09/2026): quem ficou "a conferir" e ainda não tem presença marcada
+    const comPresenca = new Set(linhas.filter(l => l.presenca_marcada).map(l => l.aluno_id))
+    const pend = {}
+    linhas.filter(l => ehChamada(l) && (aConferirRaio(l) || mesmoAparelho(l)) && !comPresenca.has(l.aluno_id)).forEach(l => {
+      const p = pend[l.aluno_id] || (pend[l.aluno_id] = { nome: l.alunos?.nome || '—', limite: false })
+      if (l.extra?.no_limite) p.limite = true
+    })
+    const lista = Object.values(pend)
+    const NL = String.fromCharCode(10)
+    if (lista.length && !confirm(`Antes de encerrar: ${lista.length} aluno(s) a conferir, sem presença marcada:` + NL + NL
+      + lista.map(p => '• ' + p.nome + (p.limite ? ' — no limite do GPS, provável presente' : '')).join(NL)
+      + NL + NL + 'Marque na aba Chamada quem estava na aula. Encerrar mesmo assim?')) return
     try { await store.fecharSessao(sessao.id); setSessao({ ...sessao, aberta: false }); showToast('Sessão encerrada') }
     catch (e) { showToast('Erro ao encerrar') }
   }
@@ -699,12 +736,39 @@ function ColetaTurma({ userId, tid, turmas, online, showToast }) {
   const registrosForaJanela = linhas.filter(l => ehChamada(l) && !l.presenca_marcada)
   // mesmo celular registrando chamada de dois alunos no dia: os dois ficam a conferir
   const mesmoAparelho = l => l.extra?.motivo === 'mesmo_aparelho'
-  const statusChamada = l => l.presenca_marcada ? 'marcada' : mesmoAparelho(l) ? 'a conferir · mesmo celular' : l.extra?.sem_qr ? 'a conferir' : 'fora da janela'
+  const statusChamada = l => l.presenca_marcada ? 'marcada' : mesmoAparelho(l) ? 'a conferir · mesmo celular' : aConferirRaio(l) ? 'a conferir ⚠' : 'fora da janela'
   // subiu da fila: capturado bem antes de o servidor receber
   const atrasada = l => l.capturado_em && (new Date(l.criado_em) - new Date(l.capturado_em)) > 3 * 60 * 1000
   // o campus inteiro cabe em ~250 m da PERC; acima disso a leitura veio de fora
   const LONGE_M = 400
   const foraDoCampus = l => l.dist_perc_m != null && l.dist_perc_m > LONGE_M
+  /* Casos suspeitos (pedido dela, 18/09/2026). Nada disso dá falta sozinho: é a lista do que
+     ela confere antes de fechar a chamada.
+     - presença sem QR longe da referência do dia (acima do raio da sessão)
+     - GPS falso provável: 5+ leituras na ocupação com espalhamento zero, ou acurácia < 1 m
+     - dois alunos com a mesma posição até o centímetro (um celular marcando por dois)
+     - leitura longe do campus */
+  const aConferirRaio = l => !!(l.extra?.sem_qr && !l.presenca_marcada)
+  const suspeitos = (() => {
+    const out = [], chave = l => `${l.aluno_id}`
+    const vistos = new Set()
+    const add = (l, motivo) => { const k = chave(l) + motivo; if (!vistos.has(k)) { vistos.add(k); out.push({ l, motivo }) } }
+    const mesmaPos = {}
+    linhas.filter(ehChamada).forEach(l => {
+      if (mesmoAparelho(l)) add(l, 'mesmo celular de ' + (l.extra.aparelho_com || ['outro aluno']).join(', '))
+      else if (aConferirRaio(l)) add(l, l.extra.dist_ref_m == null ? 'sem posição para conferir'
+        : l.extra.no_limite ? `no limite do GPS: ${metros(l.extra.dist_ref_m, 1)} m (raio ${metros(l.extra.raio_m, 0)} m, ±${metros(l.acuracia_m, 1)} m) — provável presente`
+        : `longe da referência: ${metros(l.extra.dist_ref_m, 0)} m (raio ${metros(l.extra.raio_m, 0)} m)`)
+      if ((l.extra?.n_leituras || 0) >= 5 && l.extra?.espalhamento_m === 0) add(l, 'posição idêntica em todas as leituras (GPS falso?)')
+      if (l.acuracia_m != null && l.acuracia_m < 1) add(l, `acurácia de ${metros(l.acuracia_m, 1)} m, rara em celular (GPS falso?)`)
+      if (foraDoCampus(l)) add(l, 'leitura longe do campus')
+      if (l.lat != null) { const k = l.lat.toFixed(7) + ',' + (l.lon ?? 0).toFixed(7); (mesmaPos[k] = mesmaPos[k] || new Set()).add(l.aluno_id) }
+    })
+    Object.values(mesmaPos).filter(ids => ids.size > 1).forEach(ids => ids.forEach(id => {
+      const l = linhas.find(x => x.aluno_id === id && ehChamada(x)); if (l) add(l, `mesma posição de outro aluno (${ids.size} alunos)`)
+    }))
+    return out
+  })()
 
   return (
     <div className="panel">
@@ -747,8 +811,9 @@ function ColetaTurma({ userId, tid, turmas, online, showToast }) {
           {qr && <img className="cb-qr" src={qr} alt="" />}
           <div className="cb-link">{linkAluno}</div>
         </div>
-        <div className="count-strip" style={{ marginTop: 12 }}>
-          <div className="c ok"><div className="n">{presentesColeta}</div><div className="l">presentes pela coleta</div></div>
+        <p className="hint" style={{ margin: '12px 0 0' }}>Leituras de <b>hoje, {new Date().toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: '2-digit' })}</b>{linhas.length ? '' : ' — nenhuma ainda'}.</p>
+        <div className="count-strip" style={{ marginTop: 8 }}>
+          <div className="c ok"><div className="n">{presentesColeta}</div><div className="l">presentes hoje pela coleta</div></div>
           <div className="c"><div className="n">{alunosDistintos}</div><div className="l">alunos</div></div>
           <div className="c"><div className="n">{linhas.length}</div><div className="l">leituras</div></div>
         </div>
@@ -774,9 +839,23 @@ function ColetaTurma({ userId, tid, turmas, online, showToast }) {
           Um mesmo celular registrou chamada de mais de um aluno hoje: {[...new Set(linhas.filter(mesmoAparelho).map(l => l.alunos?.nome).filter(Boolean))].join(', ')}.
           Nenhum deles ficou com presença automática — confira quem estava na sala.
         </p>}
-        <div className="btnrow"><button className="btn ghost" onClick={fechar}>Encerrar sessão</button></div>
+        <p className="note" style={{ marginTop: 10 }}>
+          Presença na sala (sem QR): a até <b>{sessao.raio_m || 50} m</b> de {sessao.ref_lat != null ? <b>onde você abriu a sessão</b> : <b>o marco M0452</b>}.
+          {' '}Só você vê isso — para o aluno é "na sala". Fora do raio fica <b>a conferir</b>.
+        </p>
+        <div className="btnrow">
+          <button className="btn ghost" onClick={refazerReferencia} disabled={busy}>📍 Usar minha posição agora</button>
+          <button className="btn ghost" onClick={fechar}>Encerrar sessão</button>
+        </div>
       </>}
 
+      {suspeitos.length > 0 && <div className="flash dup" style={{ textAlign: 'left', marginTop: 14 }}>
+        <b>Casos suspeitos · confira antes de fechar a chamada ({suspeitos.length})</b>
+        <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
+          {suspeitos.map(({ l, motivo }, i) => <li key={l.id + i}><b>{l.alunos?.nome || '—'}</b> · {motivo} · {new Date(l.capturado_em || l.criado_em).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</li>)}
+        </ul>
+        <p className="note" style={{ margin: '6px 0 0' }}>Nenhum destes vira falta sozinho: presença "a conferir" só entra se você marcar na chamada.</p>
+      </div>}
       {linhas.length > 0 && <div className="scrollx" style={{ marginTop: 14 }}>
         <table className="matrix"><thead><tr>
           <th className="nm">Aluno</th><th>Onde</th><th>± horiz.</th><th>± vert.</th><th>até PERC</th><th>Capturada</th><th>Presença</th>
@@ -790,7 +869,7 @@ function ColetaTurma({ userId, tid, turmas, online, showToast }) {
               {l.dist_perc_m == null ? '—' : l.dist_perc_m > 2000 ? metros(l.dist_perc_m / 1000, 1) + ' km' : metros(l.dist_perc_m, 0) + ' m'}{foraDoCampus(l) ? ' ⚠' : ''}
             </td>
             <td title={atrasada(l) ? 'subiu da fila em ' + new Date(l.criado_em).toLocaleString('pt-BR') : ''}>
-              {new Date(l.capturado_em || l.criado_em).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}{atrasada(l) ? ' ⏳' : ''}
+              {new Date(l.capturado_em || l.criado_em).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}{atrasada(l) ? ' ⏳' : ''}
             </td>
             <td className={!ehChamada(l) ? '' : l.presenca_marcada ? 'P' : 'F'} title={mesmoAparelho(l) && l.extra?.aparelho_com ? 'mesmo celular de: ' + l.extra.aparelho_com.join(', ') : ''}>
               {!ehChamada(l) ? '—' : statusChamada(l)}
@@ -822,7 +901,7 @@ function AuxiliarDoDia({ tid, turmas, online, showToast }) {
   useEffect(() => { setQuem(''); setAberto(false) }, [tid])
 
   const linkAux = `${location.origin}/auxiliar`
-  const pessoa = acesso ? (turma?.alunos || []).find(x => x.id === acesso.aluno_id) : null
+  const pessoa = acesso ? [...(turma?.auxiliares || []), ...(turma?.alunos || [])].find(x => x.id === acesso.aluno_id) : null
   const recado = acesso ? [
     `Oi, ${pessoa?.nome || ''}! Você está com a caderneta de hoje da turma ${turma?.nome || ''}.`,
     ``,
@@ -865,7 +944,10 @@ function AuxiliarDoDia({ tid, turmas, online, showToast }) {
         <label className="fld">Quem vai substituir (precisa estar no cadastro desta turma)</label>
         <select value={quem} onChange={e => setQuem(e.target.value)}>
           <option value="">— escolha —</option>
-          {(turma.alunos || []).map(a => <option key={a.id} value={a.id}>{a.nome}{a.matricula ? ` · ${a.matricula}` : ' · sem matrícula'}</option>)}
+          {(turma.auxiliares || []).length > 0 && <optgroup label="Auxiliares da turma">
+            {turma.auxiliares.map(a => <option key={a.id} value={a.id}>{a.nome}{a.matricula ? ` · ${a.matricula}` : ' · sem matrícula'}</option>)}</optgroup>}
+          <optgroup label="Alunos">
+            {(turma.alunos || []).map(a => <option key={a.id} value={a.id}>{a.nome}{a.matricula ? ` · ${a.matricula}` : ' · sem matrícula'}</option>)}</optgroup>
         </select>
         <p className="note">Sem matrícula no cadastro ela não consegue entrar — inclua a matrícula em <b>Turmas &amp; Fotos</b> antes.</p>
         <div className="btnrow">
@@ -897,8 +979,12 @@ function AuxiliarDoDia({ tid, turmas, online, showToast }) {
 
 /* ---------- PINS E POLIGONAIS DA TURMA ---------- */
 /* ---------- CHAMADA ---------- */
-function Chamada({ userId, tid, turmas, online, setPending, showToast, goConferir }) {
-  const [data, setData] = useState(todayISO())
+function Chamada({ userId, tid, turmas, online, setPending, showToast, goAulas, dataInicial }) {
+  const [soFaltantes, setSoFaltantes] = useState(false)
+  const [fechada, setFechada] = useState(false)   // chamada salva: a lista recolhe (pedido dela, 18/09); reabre para editar   // o antigo "Conferir faltantes" (18/09: virou o final da Chamada)
+  const [data, setData] = useState(dataInicial || todayISO())
+  const [semAula, setSemAula] = useState(false)
+  const [criada, setCriada] = useState(0)   // recarrega depois de registrar a aula
   const [chamadaId, setChamadaId] = useState(null)
   const [present, setPresent] = useState({})
   const [busy, setBusy] = useState(false)
@@ -924,16 +1010,19 @@ function Chamada({ userId, tid, turmas, online, setPending, showToast, goConferi
      é marcada pelo próprio aluno, ao ler o QR da aula, e aparece aqui sozinha. */
   useEffect(() => {
     let alive = true, it = null
-    setChamadaId(null); setPresent({})
+    setChamadaId(null); setPresent({}); setSemAula(false)
     if (!tid || !online) return
     setBusy(true)
     const puxa = async ch => { const p = await store.getPresentes(ch.id); if (!alive) return; const m = {}; p.forEach(id => m[id] = true); setPresent(m); setAtualizado(new Date()) }
-    store.ensureChamada(userId, tid, data)
-      .then(async ch => { if (!alive) return; setChamadaId(ch.id); await puxa(ch); it = setInterval(() => puxa(ch).catch(() => {}), 5000) })
+    store.chamadaAuto(userId, turmas.find(x => x.id === tid), data)
+      .then(async ch => { if (!alive) return; if (!ch) { setSemAula(true); return } setChamadaId(ch.id); setFechada(!!ch.confirmada); await puxa(ch); it = setInterval(() => puxa(ch).catch(() => {}), 5000) })
       .catch(() => showToast('Erro ao abrir chamada'))
       .finally(() => alive && setBusy(false))
     return () => { alive = false; if (it) clearInterval(it) }
-  }, [tid, data, online, userId, showToast])
+  }, [tid, data, online, userId, showToast, criada])
+  async function registrarAula() {
+    try { await store.criarAula(userId, tid, data, ''); showToast('Aula registrada'); setCriada(n => n + 1) } catch (e) { showToast('Erro: ' + e.message) }
+  }
 
   const counts = (() => { const tot = t ? t.alunos.length : 0; let p = 0; if (t) t.alunos.forEach(a => { if (present[a.id]) p++ }); return { tot, p, f: tot - p } })()
 
@@ -950,7 +1039,11 @@ function Chamada({ userId, tid, turmas, online, setPending, showToast, goConferi
   }
   const toggle = alunoId => present[alunoId] ? unmark(alunoId) : mark(alunoId)
 
-  const rows = t ? t.alunos.filter(a => !q || a.nome.toLowerCase().includes(q.toLowerCase()) || (a.matricula || '').includes(q)) : []
+  const rows = t ? t.alunos.filter(a => (!soFaltantes || !present[a.id]) && (!q || a.nome.toLowerCase().includes(q.toLowerCase()) || (a.matricula || '').includes(q))) : []
+  async function salvarChamada() {
+    if (chamadaId && online) { try { await store.confirmarChamada(chamadaId); showToast('Chamada salva'); setFechada(true); setSoFaltantes(false); window.scrollTo({ top: 0, behavior: 'smooth' }) } catch (e) { showToast('Erro ao salvar') } }
+    else if (chamadaId) { store.queueOp({ type: 'confirm', chamadaId }); setPending(store.outboxCount()); showToast('Salvo offline — sincroniza depois'); setFechada(true); setSoFaltantes(false) }
+  }
 
   return (
     <div className="panel">
@@ -961,6 +1054,9 @@ function Chamada({ userId, tid, turmas, online, setPending, showToast, goConferi
         <div><label className="fld">&nbsp;</label><div className="note" style={{ margin: 0 }}>{atualizado ? 'atualizada ' + atualizado.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : online ? '…' : 'offline — a lista não atualiza'}</div></div>
       </div>
 
+      {semAula && <div className="flash dup" style={{ textAlign: 'left' }}>
+        Não há aula registrada em {fmtDate(data)}{!store.ehDiaDeAula(t, data) ? ' (não é o dia desta turma)' : ''}. Nada é marcado até você registrar.
+        <div className="btnrow"><button className="btn mini" onClick={registrarAula}>Registrar aula neste dia</button><button className="btn ghost mini" onClick={goAulas}>📅 Ver calendário</button></div></div>}
       <label className="fld" style={{ marginTop: 12 }}>Conteúdo da aula {conteudo !== conteudoSalvo && <span className="badge off" style={{ marginLeft: 6 }}>não salvo</span>}</label>
       <textarea value={conteudo} onChange={e => setConteudo(e.target.value)} onBlur={gravarConteudo} rows={3} disabled={!chamadaId || !online}
         placeholder="O que foi dado hoje — vai para o diário e para a exportação. Salva ao sair do campo." />
@@ -971,6 +1067,15 @@ function Chamada({ userId, tid, turmas, online, setPending, showToast, goConferi
         <div className="c"><div className="n">{counts.tot}</div><div className="l">Turma</div></div>
       </div>
 
+      {fechada && chamadaId ? <div className="flash ok" style={{ textAlign: 'left', marginTop: 12 }}>
+        ✓ <b>Chamada salva</b>: {counts.p} presente(s) e {counts.f} falta(s). Presença pelo GPS que chegar agora ainda entra sozinha.
+        <div className="btnrow"><button className="btn ghost mini" onClick={() => setFechada(false)}>Reabrir a lista para corrigir</button></div>
+      </div> : <>
+      <div className="btnrow">
+        <button className={'btn mini' + (soFaltantes ? ' ghost' : '')} onClick={() => setSoFaltantes(false)}>Todos</button>
+        <button className={'btn mini' + (soFaltantes ? '' : ' ghost')} onClick={() => setSoFaltantes(true)}>Só faltantes ({counts.f})</button>
+      </div>
+      {soFaltantes && <p className="note">Chame os nomes. Quem estava presente: toque no nome e ele vira Presente.</p>}
       <input type="text" value={q} onChange={e => setQ(e.target.value)} placeholder="Buscar aluno…" style={{ marginTop: 12 }} />
       <ul className="people">
         {busy ? <li className="empty">Abrindo chamada…</li> :
@@ -980,7 +1085,12 @@ function Chamada({ userId, tid, turmas, online, setPending, showToast, goConferi
               <span className={'tag ' + (isP ? 'P' : 'F')}>{isP ? 'Presente' : 'Falta'}</span>
             </li>) })}
       </ul>
-      <div className="btnrow"><button className="btn" onClick={goConferir}>Encerrar e conferir faltantes ▸</button></div>
+      {soFaltantes && !busy && chamadaId && rows.length === 0 && <p className="empty">Todos presentes 🎉</p>}
+      <div className="btnrow">
+        {!soFaltantes && <button className="btn ghost" onClick={() => { setSoFaltantes(true); window.scrollTo({ top: 0, behavior: 'smooth' }) }}>Conferir faltantes ▸</button>}
+        <button className="btn" onClick={salvarChamada} disabled={!chamadaId}>Salvar chamada do dia</button>
+      </div>
+      </>}
     </div>
   )
 }
@@ -996,12 +1106,12 @@ function Conferir({ userId, tid, turmas, online, setPending, showToast }) {
   const load = useCallback(async () => {
     if (!tid || !online) return
     setBusy(true)
-    try { const ch = await store.ensureChamada(userId, tid, data); setChamadaId(ch.id); const p = await store.getPresentes(ch.id); const m = {}; p.forEach(id => m[id] = true); setPresent(m) }
+    try { const ch = await store.chamadaAuto(userId, turmas.find(x => x.id === tid), data); setChamadaId(ch ? ch.id : null); if (!ch) { setPresent({}); return } const p = await store.getPresentes(ch.id); const m = {}; p.forEach(id => m[id] = true); setPresent(m) }
     catch (e) { showToast('Erro ao carregar') } finally { setBusy(false) }
-  }, [tid, data, online, userId, showToast])
+  }, [tid, data, online, userId, showToast, turmas])
   useEffect(() => { load() }, [load])
 
-  const faltantes = t ? t.alunos.filter(a => !present[a.id]) : []
+  const faltantes = chamadaId && t ? t.alunos.filter(a => !present[a.id]) : []
   async function marcar(alunoId, origem = 'manual') {
     setPresent(p => ({ ...p, [alunoId]: true }))
     if (chamadaId && online) { try { await store.marcarPresente(userId, chamadaId, alunoId, origem) } catch (e) { store.queueOp({ type: 'present', chamadaId, alunoId, origem }); setPending(store.outboxCount()) } }
@@ -1020,6 +1130,7 @@ function Conferir({ userId, tid, turmas, online, setPending, showToast }) {
         <div><label className="fld">Data</label><input type="date" value={data} onChange={e => setData(e.target.value)} /></div>
       </div>
       {!online && <p className="note" style={{ color: 'var(--miss)' }}>Offline — a conferência precisa de internet para carregar a chamada.</p>}
+      {online && !busy && !chamadaId && <p className="note" style={{ color: 'var(--miss)' }}>Não há aula registrada em {fmtDate(data)}. Registre na aba 📅 Aulas.</p>}
       <div className="count-strip" style={{ marginTop: 12 }}>
         <div className="c miss"><div className="n">{faltantes.length}</div><div className="l">Faltantes</div></div>
         <div className="c ok"><div className="n">{t ? t.alunos.length - faltantes.length : 0}</div><div className="l">Presentes</div></div>
@@ -1053,14 +1164,17 @@ function Resumo({ tid, turmas, showToast }) {
   const presSet = {}; if (dados) dados.presencas.forEach(p => { presSet[p.chamada_id + '|' + p.aluno_id] = { origem: p.origem || 'manual', hora: p.created_at } })
   const ORIGEM = { manual: 'manual', qr_professora: 'QR lido pela professora', chamada_aluno: 'QR do dia lido pelo aluno' }
   const sigla = o => ({ manual: 'M', qr_professora: 'Q', chamada_aluno: 'A' })[o] || 'M'
-  const dates = dados ? dados.chamadas : []
+  // só aulas dadas (até hoje); as planejadas não contam falta. Cada falta vale os tempos da aula.
+  const dates = dados ? dados.chamadas.filter(c => c.data <= todayISO()) : []
+  const tempos = t?.tempos_por_aula || 1
 
   function exportCSV() {
     if (!t || !dados) return
     const sep = ';'
-    const head = ['Matricula', 'Nome', ...dates.map(c => fmtDate(c.data)), 'Faltas']
+    const head = ['Matricula', 'Nome', ...dates.map(c => fmtDate(c.data)), 'Aulas com falta', 'Faltas (h-a)', 'Presencas (h-a)']
     const lines = [head.join(sep)]
-    t.alunos.forEach(a => { let f = 0; const cols = dates.map(c => { const pr = presSet[c.id + '|' + a.id]; if (!pr) f++; return pr ? 'P' : 'F' }); lines.push([a.matricula || '', '"' + a.nome.replace(/"/g, '""') + '"', ...cols, String(f)].join(sep)) })
+    t.alunos.forEach(a => { let f = 0; const cols = dates.map(c => { const pr = presSet[c.id + '|' + a.id]; if (!pr) f++; return pr ? 'P' : 'F' }); lines.push([a.matricula || '', '"' + a.nome.replace(/"/g, '""') + '"', ...cols, String(f), String(f * tempos), String((dates.length - f) * tempos)].join(sep)) })
+    lines.push(['', '"Aulas dadas: ' + dates.length + ' x ' + tempos + ' h-a = ' + dates.length * tempos + ' h-a"'].join(sep))
     baixar(lines, 'frequencia_')
   }
   // uma linha por aluno por aula: como e quando a presenca foi registrada
@@ -1077,6 +1191,16 @@ function Resumo({ tid, turmas, showToast }) {
     }))
     baixar(lines, 'frequencia_detalhada_')
   }
+  // diário: uma linha por aula, com o conteúdo
+  function exportConteudos() {
+    if (!t || !dados) return
+    const sep = ';', asp = v => '"' + String(v || '').replace(/"/g, '""') + '"'
+    const DS = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado']
+    const lines = [['Aula', 'Data', 'Dia', 'h-a', 'Presentes', 'Faltantes', 'Conteudo'].join(sep)]
+    dates.forEach((c, i) => { const [y, m, d] = c.data.split('-').map(Number); const n = t.alunos.filter(a => presSet[c.id + '|' + a.id]).length
+      lines.push([i + 1, fmtDate(c.data) + '/' + y, DS[new Date(y, m - 1, d).getDay()], tempos, n, t.alunos.length - n, asp(c.conteudo)].join(sep)) })
+    baixar(lines, 'conteudos_')
+  }
   function baixar(lines, prefixo) {
     const csv = '\ufeff' + lines.join('\r\n')
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' }); const url = URL.createObjectURL(blob)
@@ -1090,15 +1214,17 @@ function Resumo({ tid, turmas, showToast }) {
       <div className="btnrow">
         <button className="btn" onClick={exportCSV} disabled={!dados || !dates.length}>Exportar ata (P/F)</button>
         <button className="btn ghost" onClick={exportDetalhado} disabled={!dados || !dates.length}>Exportar detalhado (hora e origem)</button>
+        <button className="btn ghost" onClick={exportConteudos} disabled={!dados || !dates.length}>Exportar conteúdos (diário)</button>
       </div>
-      <p className="note">Na tabela: <b>M</b> manual · <b>Q</b> QR lido por você · <b>A</b> QR do dia lido pelo aluno. Toque na célula para ver a hora. A coluna “Faltas” conta os dias sem presença.</p>
+      <p className="note">{dates.length} aula(s) dada(s) × {tempos} h-a = <b>{dates.length * tempos} h-a</b>. Cada falta vale {tempos} h-a. Aulas planejadas (depois de hoje) não entram. Para corrigir dias, use o calendário acima.</p>
+      <p className="note">Na tabela: <b>M</b> manual · <b>Q</b> QR lido por você · <b>A</b> QR do dia lido pelo aluno. Toque na célula para ver a hora. A coluna “Faltas” está em h-a.</p>
       {!navigator.onLine ? <p className="note" style={{ color: 'var(--miss)' }}>Offline — o resumo precisa de internet.</p> :
         busy ? <div className="spin">Carregando…</div> :
           !dates.length ? <p className="empty">Sem chamadas registradas para esta turma.</p> :
-            <div className="scrollx"><table className="matrix"><thead><tr><th className="nm">Aluno</th>{dates.map(c => <th key={c.id}>{fmtDate(c.data)}</th>)}<th>Faltas</th></tr></thead>
+            <div className="scrollx"><table className="matrix"><thead><tr><th className="nm">Aluno</th>{dates.map(c => <th key={c.id}>{fmtDate(c.data)}</th>)}<th>Faltas (h-a)</th></tr></thead>
               <tbody>{t.alunos.map(a => { let f = 0; const tds = dates.map(c => { const pr = presSet[c.id + '|' + a.id]; if (!pr) f++
                 return <td key={c.id} className={pr ? 'P' : 'F'} title={pr ? (ORIGEM[pr.origem] || pr.origem) + ' · ' + new Date(pr.hora).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : 'falta'}>{pr ? 'P' + sigla(pr.origem) : 'F'}</td> })
-                return <tr key={a.id}><td className="nm">{a.nome}</td>{tds}<td><b>{f}</b></td></tr> })}</tbody>
+                return <tr key={a.id}><td className="nm">{a.nome}</td>{tds}<td><b>{f * tempos}</b></td></tr> })}</tbody>
             </table></div>}
     </div>
   )

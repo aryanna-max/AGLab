@@ -1,0 +1,353 @@
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { escolhaDeEquipe, entrarEmEquipe, salvarCaderneta } from './lib/alunoApi'
+import { caderVazia, calcularCaderneta, lerHz, lerNumero, nomeChave, fmtM, fmtCm, marcosOficiais, partesHz, juntarHz, DH_MAX, sugerirVirgula, marcoAntigoDo, gabarito, TOL_CALCULO } from './lib/caderneta'
+import Avatar from './Avatar.jsx'
+
+/* Missão com caderneta de estação total (Transporte de Coordenadas) e equipes que os
+   próprios alunos formam entre os presentes. O cálculo é à mão: o app não mostra
+   coordenada calculada ao aluno — ele só recebe as coordenadas OFICIAIS dos marcos que
+   ocupou ou usou como ré, que são o dado de partida da conta. */
+
+
+/* ================= ESCOLHA DE EQUIPE ================= */
+export function EscolherEquipe({ m, ident, online, recarregar, jaNaEquipe }) {
+  const [dados, setDados] = useState(null)
+  const [erro, setErro] = useState(null)
+  const [equipe, setEquipe] = useState('')
+  const [colegas, setColegas] = useState([])
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState(null)
+  const [aberto, setAberto] = useState(!jaNaEquipe)
+  const carregar = useCallback(() => {
+    if (!online) return
+    escolhaDeEquipe(ident, m.lancamento_id).then(d => { setDados(d); setErro(null) }).catch(e => setErro(e.message))
+  }, [ident, m.lancamento_id, online])
+  useEffect(() => { if (aberto) carregar() }, [carregar, aberto])
+  // a lista muda enquanto os colegas escolhem: confere a cada 15 s com a tela aberta
+  useEffect(() => { if (!aberto || !online) return; const it = setInterval(carregar, 15000); return () => clearInterval(it) }, [aberto, online, carregar])
+
+  if (jaNaEquipe && !aberto) return <div className="btnrow" style={{ marginTop: 6 }}><button className="btn ghost mini" onClick={() => setAberto(true)}>+ Trazer colega para a equipe</button></div>
+
+  async function entrar() {
+    setBusy(true); setMsg(null)
+    try {
+      const r = await entrarEmEquipe(ident, m.lancamento_id, dados?.minha ? null : equipe, colegas)
+      const fora = r.ja_tinham_equipe || []
+      setMsg({ tipo: fora.length ? 'dup' : 'ok', t: `${r.equipe}: ${(r.entraram || []).join(', ') || 'ninguém novo'} ${r.entraram?.length > 1 ? 'entraram' : 'entrou'}.` + (fora.length ? ` Ficaram de fora (já estavam em outra equipe): ${fora.join(', ')}.` : '') })
+      setColegas([]); carregar(); recarregar()
+      if (jaNaEquipe) setAberto(false)
+    } catch (e) { setMsg({ tipo: 'err', t: e.message }); carregar() } finally { setBusy(false) }
+  }
+
+  const corpo = (() => {
+    if (!online) return <p className="note">Sem rede: a escolha de equipe precisa de conexão.</p>
+    if (erro) return <p className="note" style={{ color: 'var(--miss)' }}>{erro}</p>
+    if (!dados) return <p className="note">Carregando equipes…</p>
+    const livres = (dados.presentes || []).filter(p => !p.eu && !p.equipe)
+    const destino = dados.minha || equipe
+    const cheia = eq => eq.enviou
+    return <>
+      {!dados.minha && <>
+        <label className="fld">1. Escolha a equipe</label>
+        <div className="eq-grade">
+          {(dados.equipes || []).map(eq => <button key={eq.nome} type="button" className={'eq-box eq-escolha' + (equipe === eq.nome ? ' on' : '')} disabled={cheia(eq)} onClick={() => setEquipe(eq.nome)}>
+            <b>{eq.nome}</b>{eq.enviou && <span className="tag">já enviou</span>}
+            {eq.membros.length ? <span className="eq-nomes">{eq.membros.map(x => x.nome).join(', ')}</span> : <span className="note" style={{ margin: 0 }}>vazia</span>}
+          </button>)}
+        </div>
+      </>}
+      <label className="fld">{dados.minha ? `Colegas para a ${dados.minha}` : '2. Marque os colegas que estão com você'} <span style={{ fontWeight: 400 }}>· presentes {dados.hoje ? 'hoje' : `na última chamada (${String(dados.dia || '').split('-').reverse().slice(0, 2).join('/')})`}</span></label>
+      {(dados.presentes || []).length === 0 ? <p className="note">A lista aparece depois da chamada.</p> :
+        <ul className="eq-membros escolha">
+          {dados.presentes.map(p => { const travado = p.eu || !!p.equipe; const marcado = colegas.includes(p.id)
+            return <li key={p.id} className={(travado ? 'travado' : '') + (marcado ? ' marcado' : '')}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0, cursor: travado ? 'default' : 'pointer' }}>
+                <input type="checkbox" style={{ width: 'auto' }} disabled={travado} checked={marcado} onChange={e => setColegas(c => e.target.checked ? [...c, p.id] : c.filter(x => x !== p.id))} />
+                <Avatar nome={p.nome} avatar={p.avatar} tam="mini" />
+                <span style={{ flex: 1, minWidth: 0 }}>{p.nome}{p.eu ? ' (você)' : ''}</span>
+              </label>
+              {p.equipe && <span className="fn">🔒 {p.equipe}</span>}
+            </li> })}
+        </ul>}
+      <div className="btnrow">
+        <button className="btn" disabled={busy || (!dados.minha && !equipe) || (dados.minha && !colegas.length)} onClick={entrar}>
+          {busy ? 'Entrando…' : dados.minha ? `Trazer ${colegas.length || ''} colega(s)` : destino ? `Entrar na ${destino}${colegas.length ? ` com ${colegas.length} colega(s)` : ''}` : 'Escolha a equipe'}</button>
+        {jaNaEquipe && <button className="btn ghost" onClick={() => setAberto(false)}>Fechar</button>}
+      </div>
+      {!dados.minha && !equipe && <p className="note">Toque numa equipe para escolher.</p>}
+      <p className="note">🔒 = já está numa equipe. {livres.length} presente(s) ainda sem equipe. Errou? Trocar de equipe é com a professora.</p>
+    </>
+  })()
+
+  return <div className="panel">
+    <h2 style={{ marginTop: 0 }}>{jaNaEquipe ? 'Trazer colega' : 'Missão em equipe: forme a sua'}</h2>
+    {!jaNaEquipe && <p className="hint">São {dados?.n || m.equipes_livres} equipes. Um celular pode montar a equipe inteira: escolha a equipe e marque quem está com você.</p>}
+    {corpo}
+    {msg && <div className={'flash ' + msg.tipo} style={{ textAlign: 'left' }}>{msg.t}</div>}
+  </div>
+}
+
+/* ================= CADERNETA: estado, rascunho no celular e sincronia com a equipe ================= */
+export function useCaderneta(m, ident, online) {
+  const k = 'orbe_cad_' + m.lancamento_id
+  const srv = m.minha?.caderneta || null, srvEm = m.minha?.caderneta_em || null, srvPor = m.minha?.caderneta_por || null
+  const inicial = () => {
+    let local = null; try { local = JSON.parse(localStorage.getItem(k) || 'null') } catch (e) {}
+    // edição não salva neste celular, feita sobre a versão que ainda é a do servidor: continua dela
+    if (local?.sujo && (local.base || null) === srvEm) return { cad: local.cad, base: srvEm, sujo: true }
+    return { cad: srv || caderVazia(), base: srvEm, sujo: false, descartada: !!local?.sujo }
+  }
+  const [st, setSt] = useState(inicial)
+  const [conflito, setConflito] = useState(null)
+  const [salvando, setSalvando] = useState(false)
+  const [msg, setMsg] = useState(st.descartada ? { tipo: 'dup', t: 'Um colega salvou a caderneta enquanto este celular estava fora. Abri a versão da equipe.' } : null)
+  const stRef = useRef(st); stRef.current = st
+  const gravarLocal = s => { try { localStorage.setItem(k, JSON.stringify({ cad: s.cad, base: s.base, sujo: s.sujo })) } catch (e) {} }
+
+  // chegou versão nova da equipe (recarga a cada 30 s): se não há edição pendente aqui, adota
+  useEffect(() => {
+    if (!srvEm || srvEm === stRef.current.base) return
+    if (!stRef.current.sujo) { const s = { cad: srv || caderVazia(), base: srvEm, sujo: false }; setSt(s); gravarLocal(s) }
+  }, [srvEm])   // eslint-disable-line react-hooks/exhaustive-deps
+
+  const setCad = useCallback(f => setSt(s => { const n = { ...s, cad: typeof f === 'function' ? f(s.cad) : f, sujo: true }; gravarLocal(n); return n }), [k])
+
+  const salvar = useCallback(async (baseForcada) => {
+    const s = stRef.current
+    if (!online) { setMsg({ tipo: 'err', t: 'Sem rede: a caderneta ficou guardada neste celular. Ela sobe quando a conexão voltar.' }); return false }
+    setSalvando(true)
+    try {
+      const r = await salvarCaderneta(ident, m.lancamento_id, s.cad, baseForcada !== undefined ? baseForcada : s.base)
+      if (r.conflito) { setConflito(r); return false }
+      const n = { cad: stRef.current.cad, base: r.em, sujo: stRef.current.cad !== s.cad }   // se editou durante o envio, continua sujo
+      setSt(n); gravarLocal(n); setConflito(null); setMsg(null)
+      return true
+    } catch (e) { setMsg({ tipo: 'err', t: e.message }); return false } finally { setSalvando(false) }
+  }, [ident, m.lancamento_id, online])
+
+  // salva sozinho 4 s depois da última anotação (em campo ninguém lembra de tocar em Salvar)
+  useEffect(() => {
+    if (!st.sujo || !online || conflito) return
+    const t = setTimeout(() => salvar(), 4000); return () => clearTimeout(t)
+  }, [st.cad, st.sujo, online, conflito, salvar])
+
+  const usarDaEquipe = () => { const n = { cad: conflito.caderneta || caderVazia(), base: conflito.em, sujo: false }; setSt(n); gravarLocal(n); setConflito(null) }
+  const manterMinha = () => salvar(conflito.em)
+
+  return { cad: st.cad, setCad, sujo: st.sujo, base: st.base, salvar, salvando, conflito, usarDaEquipe, manterMinha, msg, porUltimo: srvPor }
+}
+
+/* ================= CADERNETA: telas ================= */
+const OPC_NOVO = '__novo__'
+
+/* Ângulo em três caixas (° ' "), como no visor da estação. Grava o mesmo texto de antes
+   ("123 45 30"), então o que já foi digitado no campo único abre separado nas caixas.
+   Caixa vazia antes de uma preenchida vira 00 no texto, para "123 _ 30" não ler 123°30'. */
+function CaixasHz({ valor, onChange, disabled, ruim, re }) {
+  const [cx, setCx] = useState(() => partesHz(valor))
+  // versão nova chegou da equipe (ou apagou a linha): as caixas seguem o texto gravado
+  useEffect(() => { if (juntarHz(cx) !== String(valor || '').trim() && juntarHz(partesHz(valor)) !== juntarHz(cx)) setCx(partesHz(valor)) }, [valor])   // eslint-disable-line react-hooks/exhaustive-deps
+  const mudar = (k, v) => { const n = cx.map((x, j) => j === k ? v.replace(/[^\d.,]/g, '') : x); setCx(n); onChange(juntarHz(n)) }
+  const caixa = (k, ph, max, modo) => <input inputMode={modo} maxLength={max} value={cx[k]} disabled={disabled} placeholder={ph} aria-label={['graus', 'minutos', 'segundos'][k]}
+    className={ruim ? 'ruim' : ''} onChange={e => mudar(k, e.target.value)} />
+  return <div className="hz-caixas">
+    {caixa(0, re ? '0' : '°', 3, 'numeric')}<span>°</span>{caixa(1, re ? '00' : "'", 2, 'numeric')}<span>'</span>{caixa(2, re ? '00' : '"', 5, 'decimal')}<span>"</span>
+  </div>
+}
+
+function SeletorPonto({ valor, onChange, opcoes, disabled, placeholder }) {
+  const lista = opcoes.some(o => nomeChave(o) === nomeChave(valor)) || !valor ? opcoes : [...opcoes, valor]
+  return <select value={valor || ''} disabled={disabled} onChange={e => {
+    if (e.target.value !== OPC_NOVO) { onChange(e.target.value); return }
+    const nome = (prompt('Nome do ponto novo (ex.: E1, E2):') || '').trim().slice(0, 20)
+    if (!nome) return
+    const marco = marcosOficiais().find(x => nomeChave(x.nome) === nomeChave(nome))
+    onChange(marco ? marco.nome : nome)
+  }}>
+    <option value="">{placeholder}</option>
+    {lista.map(o => <option key={o} value={o}>{o}</option>)}
+    <option value={OPC_NOVO}>➕ ponto novo…</option>
+  </select>
+}
+
+/* Croqui da caderneta (pedido dela, 25/09): o mesmo desenho em SVG da poligonal, embaixo da
+   caderneta. Mostra a geometria — estações, ré, vantes, pontos novos — e nenhum número: a conta
+   continua sendo à mão. Marco oficial em verde, ré tracejada, vante em azul, alvo em losango. */
+/* camadas: [{ calc, cor, rotulo }] — várias equipes no mesmo desenho (tela da professora).
+   Sem camadas, desenha só a caderneta `calc`, nas cores da legenda (tela do aluno). */
+export function CroquiCaderneta({ calc, marcos, alvo, camadas, media, titulo = 'Croqui da caderneta' }) {
+  const d = useMemo(() => {
+    const cams = camadas || [{ calc, cor: null }]
+    const conh = Object.fromEntries(marcos.map(x => [nomeChave(x.nome), x]))
+    const re = [], vantes = [], usados = new Set(), novosTodos = []
+    let alvoCalc = null
+    cams.forEach(cm => {
+      const novos = Object.fromEntries(cm.calc.pontos.map(p => [nomeChave(p.nome), p]))
+      const pos = k => conh[k] || novos[k] || null
+      cm.calc.linhas.forEach(l => {
+        const kE = nomeChave(l.est), kP = nomeChave(l.pv), E = pos(kE); if (!E) return
+        usados.add(kE)
+        if (l.papel === 're' && conh[kP]) { re.push([E, conh[kP]]); usados.add(kP) }
+        if (l.papel === 'vante' && l.n != null) { vantes.push([E, { n: l.n, e: l.e }, cm.cor]); if (conh[kP]) usados.add(kP) }
+      })
+      cm.calc.pontos.forEach(p => novosTodos.push({ ...p, cor: cm.cor, rotulo: cm.rotulo }))
+      alvoCalc = alvoCalc || novos[nomeChave(alvo)] || null
+    })
+    const marcosUsados = [...usados].map(k => conh[k]).filter(Boolean)
+    // o marco antigo que o alvo substitui (M0451 de 2023): cinza, ligado ao alvo calculado
+    const antigo = marcoAntigoDo(alvo)
+    const pts = [...marcosUsados, ...novosTodos, ...vantes.map(v => v[1]), ...(antigo ? [antigo] : []), ...(media ? [media] : [])]
+    if (pts.length < 2) return null
+    const minN = Math.min(...pts.map(p => p.n)), maxN = Math.max(...pts.map(p => p.n)), minE = Math.min(...pts.map(p => p.e)), maxE = Math.max(...pts.map(p => p.e))
+    const span = Math.max(maxN - minN, maxE - minE, 20), S = 300, pad = 30, k = (S - 2 * pad) / span
+    // centraliza o desenho no quadro
+    const offX = (S - 2 * pad - (maxE - minE) * k) / 2, offY = (S - 2 * pad - (maxN - minN) * k) / 2
+    const X = e => pad + offX + (e - minE) * k, Y = n => S - pad - offY - (n - minN) * k
+    const escala = [5, 10, 20, 50, 100, 200].find(v => v * k >= 40) || 200
+    return { S, X, Y, re, vantes, marcosUsados, novos: novosTodos, escala, k, antigo, alvoCalc, varias: cams.length > 1 }
+  }, [calc, marcos, alvo, camadas, media])
+  if (!d) return <p className="note">O croqui aparece quando houver uma estação e uma ré com marcos conhecidos.</p>
+  const kAlvo = nomeChave(alvo)
+  return <>
+    <label className="fld">{titulo}</label>
+    <svg viewBox={`0 0 ${d.S} ${d.S}`} className="poli-svg cad-croqui" aria-label="croqui das visadas">
+      {d.re.map(([a, b], i) => <line key={'r' + i} x1={d.X(a.e)} y1={d.Y(a.n)} x2={d.X(b.e)} y2={d.Y(b.n)} className="cq-re" />)}
+      {d.vantes.map(([a, b, cor], i) => <line key={'v' + i} x1={d.X(a.e)} y1={d.Y(a.n)} x2={d.X(b.e)} y2={d.Y(b.n)} className="cq-vante" style={cor ? { stroke: cor } : undefined} />)}
+      {d.antigo && <g>
+        {d.alvoCalc && <line x1={d.X(d.antigo.e)} y1={d.Y(d.antigo.n)} x2={d.X(d.alvoCalc.e)} y2={d.Y(d.alvoCalc.n)} className="cq-antigo-lig" />}
+        <circle cx={d.X(d.antigo.e)} cy={d.Y(d.antigo.n)} r="5" className="cq-antigo" /><text x={d.X(d.antigo.e) - 9} y={d.Y(d.antigo.n) - 4} textAnchor="end" className="radar-lab cq-antigo-lab">{d.antigo.nome} (2023)</text></g>}
+      {d.marcosUsados.map(p => <g key={p.nome}><circle cx={d.X(p.e)} cy={d.Y(p.n)} r="5" className="poli-marco" /><text x={d.X(p.e) + 7} y={d.Y(p.n) - 6} className="radar-lab">{p.nome}</text></g>)}
+      {d.novos.map((p, i) => { const x = d.X(p.e), y = d.Y(p.n), eAlvo = nomeChave(p.nome) === kAlvo, st = p.cor ? { fill: p.cor } : undefined
+        // com várias equipes, o nome do alvo sai uma vez só (os losangos quase se sobrepõem)
+        const rotular = !d.varias || !eAlvo || d.novos.findIndex(q => nomeChave(q.nome) === kAlvo) === i
+        return <g key={p.nome + i}>{eAlvo ? <rect x={x - 6} y={y - 6} width="12" height="12" transform={`rotate(45 ${x} ${y})`} className="cq-alvo" style={st} /> : <circle cx={x} cy={y} r="5" className="poli-v" style={st} />}
+          {rotular && <text x={x + 9} y={eAlvo && d.antigo ? y + 5 : y - 7} className="radar-lab">{p.nome}</text>}</g> })}
+      {media && (() => { const x = d.X(media.e), y = d.Y(media.n)
+        return <g className="cq-media"><circle cx={x} cy={y} r="8" /><line x1={x - 11} y1={y} x2={x + 11} y2={y} /><line x1={x} y1={y - 11} x2={x} y2={y + 11} />
+          <text x={x + 12} y={y + 20} className="radar-lab">média</text></g> })()}
+      <text x="8" y="16" className="radar-lab">N ↑</text>
+      <line x1={d.S - 12 - d.escala * d.k} y1={d.S - 12} x2={d.S - 12} y2={d.S - 12} className="cq-escala" />
+      <text x={d.S - 12} y={d.S - 17} textAnchor="end" className="radar-lab">{d.escala} m</text>
+    </svg>
+    {d.varias ? <p className="note">{(camadas || []).map(c => <span key={c.rotulo} style={{ marginRight: 10, whiteSpace: 'nowrap' }}><b style={{ color: c.cor }}>●</b> {c.rotulo}</span>)} · ● verde: marco oficial · ◆ {alvo} · tracejado: ré{d.antigo ? ` · ○ cinza: ${d.antigo.nome} de 2023` : ''}. Na escala do desenho, diferenças de centímetros entre equipes não aparecem; o que salta aos olhos é erro grosseiro.</p>
+      : <p className="note">● verde: marco oficial · ◆ {alvo} · ● azul: ponto novo · tracejado: ré · linha azul: vante.{d.antigo ? ` ○ cinza: ${d.antigo.nome} de 2023, o marco antigo que saiu do lugar na obra.` : ''} O desenho sai das visadas de vocês: se um ponto aparecer fora do lugar, confiram o ângulo e a distância daquela linha.</p>}
+  </>
+}
+
+export function PainelCaderneta({ m, cadHook, podeEditar }) {
+  const { cad, setCad, sujo, salvar, salvando, conflito, usarDaEquipe, manterMinha, msg, porUltimo } = cadHook
+  const alvo = m.caderneta?.alvo || 'ponto novo'
+  // sem memo fixo: os marcos cadastrados (ex.: P1) chegam do servidor depois que a tela abre
+  const marcos = marcosOficiais()
+  const nomesMarcos = marcos.map(x => x.nome)
+  const linhas = cad.linhas?.length ? cad.linhas : caderVazia().linhas
+  const res = cad.resultado || caderVazia().resultado
+  const calc = useMemo(() => calcularCaderneta({ linhas }, marcos), [linhas, marcos])
+
+  // pontos novos: o alvo sempre aparece; os demais, os que a caderneta já usa e não são marcos
+  const novos = [...new Set([alvo, ...linhas.flatMap(l => [l.est, l.pv])].map(s => String(s || '').trim()).filter(s => s && !nomesMarcos.some(n => nomeChave(n) === nomeChave(s))))]
+  const opcoes = [...nomesMarcos, ...novos]
+  const setLinha = (i, campo, v) => setCad(c => ({ ...c, linhas: linhas.map((l, j) => j === i ? { ...l, [campo]: v } : l) }))
+  const novaLinha = () => setCad(c => ({ ...c, linhas: [...linhas, { est: linhas[linhas.length - 1]?.est || '', pv: '', hz: '', dh: '' }] }))
+  const tirarLinha = i => setCad(c => ({ ...c, linhas: linhas.length > 1 ? linhas.filter((_, j) => j !== i) : caderVazia().linhas }))
+  const setRes = (grupo, campo, v) => setCad(c => ({ ...c, resultado: { ...res, [grupo]: { ...(res[grupo] || {}), [campo]: v } } }))
+
+  // coordenadas oficiais de partida: marcos ocupados como estação ou usados como ré
+  const partida = useMemo(() => {
+    const usados = new Set()
+    calc.linhas.forEach(l => { usados.add(nomeChave(l.est)); if (l.papel === 're') usados.add(nomeChave(l.pv)) })
+    return marcos.filter(x => usados.has(nomeChave(x.nome)))
+  }, [calc, marcos])
+  const vantesMarco = [...new Set(calc.linhas.filter(l => l.papel === 'vante' && nomesMarcos.some(n => nomeChave(n) === nomeChave(l.pv))).map(l => l.pv))]
+  const opcoesCtrl = [...vantesMarco, ...nomesMarcos.filter(n => !vantesMarco.includes(n))]
+
+  return <>
+    <div className="panel">
+      <h2 style={{ marginTop: 0 }}>1 · Caderneta de campo</h2>
+      <p className="hint">Uma linha por visada. <b>A primeira visada de cada estação é a ré.</b> Ângulo exatamente como no visor da estação, uma caixa para graus, outra para minutos e outra para segundos (na ré, em branco vale 0° 00' 00": zerada). Nas vantes, anote a leitura do visor, sem conta: o app desconta a ré sozinho. Distância horizontal em metros.</p>
+      {conflito && <div className="devolutiva" style={{ marginBottom: 10 }}>
+        <b>{conflito.por || 'Um colega'} salvou a caderneta às {new Date(conflito.em).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</b>
+        <p>A versão dele e a deste celular são diferentes. Conversem e escolham uma: a outra se perde.</p>
+        <div className="btnrow"><button className="btn mini" onClick={usarDaEquipe}>Usar a de {conflito.por || 'meu colega'}</button><button className="btn ghost mini" onClick={manterMinha}>Manter a deste celular</button></div>
+      </div>}
+      <div className="cad-lista">
+        {linhas.map((l, i) => { const info = calc.linhas.find(x => x.i === i); const hzRuim = String(l.hz || '').trim() && !Number.isFinite(lerHz(l.hz)); const dhRuim = String(l.dh || '').trim() && !Number.isFinite(lerNumero(l.dh)); const dhGrande = lerNumero(l.dh) > DH_MAX; const sugDH = sugerirVirgula(l.dh)
+          return <div key={i} className="cad-linha">
+            <div className="cad-cab"><span className="cad-n">{i + 1}</span>{info?.papel === 're' && <span className="tag re">ré</span>}{info?.papel === 'vante' && <span className="tag">vante</span>}
+              {podeEditar && <button className="btn ghost mini cad-x" title="Apagar esta visada" onClick={() => { if (!(l.est || l.pv || l.hz || l.dh) || confirm(`Apagar a visada ${i + 1}?`)) tirarLinha(i) }}>✕</button>}</div>
+            <div className="cad-grid">
+              <div><label className="fld">Estação</label><SeletorPonto valor={l.est} opcoes={opcoes} disabled={!podeEditar} placeholder="—" onChange={v => setLinha(i, 'est', v)} /></div>
+              <div><label className="fld">Ponto visado</label><SeletorPonto valor={l.pv} opcoes={opcoes} disabled={!podeEditar} placeholder="—" onChange={v => setLinha(i, 'pv', v)} /></div>
+              <div><label className="fld">Âng. horizontal</label><CaixasHz valor={l.hz} re={info?.papel === 're'} disabled={!podeEditar} ruim={hzRuim} onChange={v => setLinha(i, 'hz', v)} /></div>
+              <div><label className="fld">Dist. horizontal (m)</label><input inputMode="decimal" value={l.dh || ''} disabled={!podeEditar} placeholder="0,000" className={dhRuim || dhGrande ? 'ruim' : ''} onChange={e => setLinha(i, 'dh', e.target.value)} /></div>
+            </div>
+            {info?.papel === 're' && !String(l.hz || '').trim() && <p className="note" style={{ margin: '4px 0 0' }}>Ré com ângulo em branco = zerada (0° 00' 00").</p>}
+            {hzRuim && <p className="note cad-aviso">Ângulo inválido: graus inteiros de 0 a 359, minutos de 0 a 59, segundos de 0 a 59 (com vírgula, se tiver décimo). Sem ponto nos graus.</p>}
+            {dhRuim && <p className="note cad-aviso">Distância ilegível: só o número, em metros (12,345).</p>}
+            {dhGrande && <div className="cad-aviso-virgula"><p className="note cad-aviso">Faltou a vírgula? {l.dh} m é mais de 1 km.{sugDH ? <> Deve ser <b>{sugDH} m</b>.</> : ''}</p>
+              {sugDH && podeEditar && <button className="btn mini" onClick={() => setLinha(i, 'dh', sugDH)}>Corrigir para {sugDH}</button>}</div>}
+          </div> })}
+      </div>
+      {podeEditar && <div className="btnrow"><button className="btn ghost" onClick={novaLinha}>+ visada</button></div>}
+      {calc.problemas.length > 0 && <ul className="cad-problemas">{calc.problemas.map((p, i) => <li key={i}>{p}</li>)}</ul>}
+      <p className="note">{salvando ? 'Salvando…' : sujo ? '✎ Alterações ainda não salvas (salva sozinho em alguns segundos).' : cadHook.base ? `✓ Salva para a equipe${porUltimo ? ` · último a salvar: ${porUltimo}` : ''}.` : 'Nada anotado ainda.'} Todos os celulares da equipe veem a mesma caderneta; anotem em um só por vez.</p>
+      {podeEditar && sujo && <div className="btnrow" style={{ marginTop: 0 }}><button className="btn ghost mini" disabled={salvando} onClick={() => salvar()}>💾 Salvar agora</button></div>}
+      {msg && <div className={'flash ' + msg.tipo} style={{ textAlign: 'left' }}>{msg.t}</div>}
+      <CroquiCaderneta calc={calc} marcos={marcos} alvo={alvo} />
+    </div>
+
+    <div className="panel">
+      <h2 style={{ marginTop: 0 }}>2 · Cálculo das coordenadas</h2>
+      <p className="hint">Calculem à mão, a partir das coordenadas oficiais da estação e da ré, e digitem o resultado. O app confere a conta com a caderneta de vocês depois do envio.</p>
+      {partida.length > 0 && <><label className="fld">Coordenadas oficiais de partida (UTM · SIRGAS 2000 · 25 S)</label>
+        <table className="aloc cad-coord"><thead><tr><th>Marco</th><th>N (m)</th><th>E (m)</th></tr></thead>
+          <tbody>{partida.map(x => <tr key={x.nome}><td>{x.nome}</td><td>{fmtM(x.n)}</td><td>{fmtM(x.e)}</td></tr>)}</tbody></table></>}
+      <label className="fld">{alvo}</label>
+      <div className="row">
+        <div><input inputMode="decimal" value={res.alvo?.n || ''} disabled={!podeEditar} placeholder="N (m)" onChange={e => setRes('alvo', 'n', e.target.value)} /></div>
+        <div><input inputMode="decimal" value={res.alvo?.e || ''} disabled={!podeEditar} placeholder="E (m)" onChange={e => setRes('alvo', 'e', e.target.value)} /></div>
+      </div>
+      <label className="fld">Marco de controle (o marco conhecido em que vocês fecharam)</label>
+      <select value={res.controle?.marco || ''} disabled={!podeEditar} onChange={e => setRes('controle', 'marco', e.target.value)}>
+        <option value="">— escolha o marco —</option>
+        {opcoesCtrl.map(n => <option key={n} value={n}>{n}{vantesMarco.includes(n) ? ' · visado na caderneta' : ''}</option>)}
+      </select>
+      <div className="row" style={{ marginTop: 6 }}>
+        <div><input inputMode="decimal" value={res.controle?.n || ''} disabled={!podeEditar} placeholder="N calculado (m)" onChange={e => setRes('controle', 'n', e.target.value)} /></div>
+        <div><input inputMode="decimal" value={res.controle?.e || ''} disabled={!podeEditar} placeholder="E calculado (m)" onChange={e => setRes('controle', 'e', e.target.value)} /></div>
+      </div>
+      <p className="note">No controle vale a coordenada que <b>vocês calcularam</b> pela caderneta, não a oficial: é a diferença entre as duas que mostra se o levantamento fechou.</p>
+    </div>
+  </>
+}
+
+/* Gabarito para a equipe (pedido dela, 25/09: "só para quem já enviou"). Aparece quando a
+   professora libera E a equipe já enviou (e não está em Refazer). É a caderneta da própria
+   equipe refeita pelo app: nada das outras equipes aparece aqui. */
+export function GabaritoAluno({ m }) {
+  const alvo = m.caderneta?.alvo || 'ponto novo'
+  const marcos = marcosOficiais()
+  const g = gabarito(m.minha?.caderneta, marcos, alvo)
+  const lin = (rotulo, a, b, dif, ok) => <tr><td>{rotulo}</td><td>{a ? fmtM(a.n) : '—'}</td><td>{a ? fmtM(a.e) : '—'}</td>
+    <td className={ok == null ? '' : ok ? 'P' : 'F'}>{dif != null ? fmtCm(dif) : ''}</td></tr>
+  return (
+    <div className="panel">
+      <h2 style={{ marginTop: 0 }}>📖 Gabarito da sua equipe</h2>
+      <p className="hint">A professora liberou. É a caderneta de vocês refeita pelo app: compare com o que vocês calcularam à mão. Até {fmtCm(TOL_CALCULO)} de diferença é arredondamento.</p>
+      <div className="scrollx"><table className="aloc cad-coord"><thead><tr><th></th><th>N (m)</th><th>E (m)</th><th>dif.</th></tr></thead><tbody>
+        {lin(`${alvo} · pela caderneta`, g.alvo)}
+        {lin(`${alvo} · vocês digitaram`, g.digAlvo, null, g.contaAlvo?.dist, g.contaAlvo ? g.contaAlvo.dist <= TOL_CALCULO : null)}
+        {g.ctrl && <>
+          {lin(`${g.ctrl.nome} · oficial`, g.ctrl.oficial)}
+          {lin(`${g.ctrl.nome} · pela caderneta`, g.ctrl, null, g.fechamento, g.fechamento <= 0.10)}
+          {lin(`${g.ctrl.nome} · vocês digitaram`, g.digCtrl, null, g.contaCtrl?.dist, g.contaCtrl ? g.contaCtrl.dist <= TOL_CALCULO : null)}
+        </>}
+      </tbody></table></div>
+      {g.ctrl ? <p className="note"><b>Fechamento no {g.ctrl.nome}: {fmtCm(g.fechamento)}</b> (ΔN {fmtCm(g.ctrl.dn)} · ΔE {fmtCm(g.ctrl.de)}). É o erro do campo: onde a caderneta de vocês chegou × a coordenada oficial do marco.</p>
+        : <p className="note"><b>Sem controle:</b> nenhum marco conhecido foi visado como vante, então não há como saber o erro do campo.</p>}
+      <p className="note">A <b>diferença</b> nas linhas "vocês digitaram" é o erro da conta à mão: o que vocês calcularam × o que a caderneta dá.</p>
+      {g.calc.conferenciasRe.length > 0 && <p className="note">Conferência da ré (distância medida × distância pelas coordenadas): {g.calc.conferenciasRe.map(r => `${r.est} → ${r.re}: ${fmtCm(r.dif)}`).join(' · ')}</p>}
+      {g.problemas.length > 0 && <ul className="cad-problemas">{g.problemas.map((p, i) => <li key={i}>{p}</li>)}</ul>}
+    </div>
+  )
+}

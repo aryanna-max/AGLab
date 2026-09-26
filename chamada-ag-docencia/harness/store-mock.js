@@ -1,6 +1,13 @@
 // Mock do store para renderizar a tela da professora sem login.
+import { CAD_EQ1, CAD_EQ2, CAD_EQ3 } from './caderneta-mock.js'
 const T1 = 'turma-edif', T2 = 'turma-f61'
-const alunos = (tid, n) => Array.from({ length: n }, (_, i) => ({ id: tid + '-a' + i, turma_id: tid, nome: 'Aluno ' + (i + 1) + ' Sobrenome', matricula: '2023' + i }))
+// selfie de mentira: a foto do aluno é o avatar em todas as telas, e sem uma foto aqui
+// o harness só exercita as iniciais. Dois em cada três alunos "mandaram a selfie".
+const CORES = ['#1f4e79', '#12804A', '#B01B1B', '#6B4FA0', '#B8860B', '#0E8C9E']
+const caraFalsa = i => 'data:image/svg+xml;utf8,' + encodeURIComponent(
+  `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><rect width="64" height="64" fill="${CORES[i % CORES.length]}"/>` +
+  `<circle cx="32" cy="25" r="11" fill="#fff" opacity=".9"/><ellipse cx="32" cy="56" rx="19" ry="14" fill="#fff" opacity=".9"/></svg>`)
+const alunos = (tid, n) => Array.from({ length: n }, (_, i) => ({ id: tid + '-a' + i, turma_id: tid, nome: 'Aluno ' + (i + 1) + ' Sobrenome', matricula: '2023' + i, foto: i % 3 === 2 ? null : caraFalsa(i) }))
 const turmas = [
   { id: T1, nome: 'Edificações — A32RC (2026.2)', codigo: 'edif_a32rc_2026_2', alunos: alunos(T1, 33) },
   { id: T2, nome: 'Saneamento Integrado — F61RC (2026.2)', codigo: 'san_integ_f61rc_2026_2', alunos: alunos(T2, 19) },
@@ -31,10 +38,15 @@ const especificos = {
   listarMissoes: async () => [{ id: 'm1', titulo: 'Caça ao azimute', frente: 'planimetria', etapas: ['a','b','c'], entrega: 'Distância ao ponto certo', niveis: {}, arquivada: false }],
   lancamentosDaTurma: async () => [{ id: 'l1', missao_id: 'm1', turma_id: T2, prazo_tipo: 'aula', prazo_em: new Date(Date.now()+3600000).toISOString(), mostrar_ranking: true, encerrado: false, missoes: { titulo: 'Caça ao azimute', etapas: ['a','b','c'] } },
     { id: 'l2', missao_id: 'm2', turma_id: T2, prazo_tipo: 'aula', prazo_em: new Date(Date.now()+3600000).toISOString(), mostrar_ranking: true, encerrado: false, em_equipe: true, missoes: { titulo: 'Caderneta de nivelamento', etapas: ['a','b','c','d'], funcoes: ['Operador do nível', 'Porta-mira', 'Anotador', 'Calculista'] } },
+    { id: 'l4', missao_id: 'm3', turma_id: T2, prazo_tipo: 'data', prazo_em: new Date(Date.now()+6*86400000).toISOString(), mostrar_ranking: true, encerrado: false, em_equipe: true, equipes_livres: 3, missoes: { titulo: 'Transporte de Coordenadas', etapas: ['Ocupar', 'Ré', 'Visar M0451A', 'Fechar'], funcoes: [], caderneta: { alvo: 'M0451A' } } },
     { id: 'l3', missao_id: 'm2', turma_id: T2, prazo_tipo: 'aula', prazo_em: new Date(Date.now()+3600000).toISOString(), mostrar_ranking: true, encerrado: false, em_equipe: true, missoes: { titulo: 'Transporte de RN', etapas: ['a'], funcoes: [] } }],
   entregasDaTurma: async () => [{ id: 'e1', lancamento_id: 'l1', aluno_id: T2 + '-a1', etapas_feitas: { 0: 1 }, texto: 'Cheguei a 4 m do ponto.', status: 'enviada', enviada_em: new Date().toISOString(), fora_do_prazo: false, nivel: 'prata', missao_lancamentos: { mostrar_ranking: true } },
-    { id: 'e2', lancamento_id: 'l2', aluno_id: T2 + '-a0', etapas_feitas: { 0: 1, 1: 1 }, texto: 'Erro de fechamento 4 mm.', status: 'enviada', enviada_em: new Date().toISOString(), enviada_por: T2 + '-a2', fora_do_prazo: false, nivel: null, missao_lancamentos: { mostrar_ranking: true } }],
-  equipesDoLancamento: async id => id === 'l2' ? [{ id: 'q1', nome: 'Equipe 1', membros: [{ aluno_id: T2 + '-a0' }, { aluno_id: T2 + '-a1' }, { aluno_id: T2 + '-a2' }] }, { id: 'q2', nome: 'Equipe 2', membros: [{ aluno_id: T2 + '-a3' }, { aluno_id: T2 + '-a4' }] }] : [],
+    { id: 'e2', lancamento_id: 'l2', aluno_id: T2 + '-a0', etapas_feitas: { 0: 1, 1: 1 }, texto: 'Erro de fechamento 4 mm.', status: 'enviada', enviada_em: new Date().toISOString(), enviada_por: T2 + '-a2', fora_do_prazo: false, nivel: null, missao_lancamentos: { mostrar_ranking: true } },
+    { id: 'c1', lancamento_id: 'l4', aluno_id: T2 + '-a0', caderneta: CAD_EQ1, caderneta_em: agora, status: 'enviada', enviada_em: new Date(Date.now()-3600000).toISOString(), enviada_por: T2 + '-a0', texto: 'Caderneta…\nObservações: estação E1 refeita', missao_lancamentos: { mostrar_ranking: true } },
+    { id: 'c2', lancamento_id: 'l4', aluno_id: T2 + '-a3', caderneta: CAD_EQ2, caderneta_em: agora, status: 'enviada', enviada_em: new Date(Date.now()-7200000).toISOString(), enviada_por: T2 + '-a3', texto: 'Caderneta…', missao_lancamentos: { mostrar_ranking: true } },
+    { id: 'c3', lancamento_id: 'l4', aluno_id: T2 + '-a5', caderneta: CAD_EQ3, caderneta_em: agora, status: 'enviada', enviada_em: new Date(Date.now()-9000000).toISOString(), enviada_por: T2 + '-a5', texto: 'Caderneta…', missao_lancamentos: { mostrar_ranking: true } }],
+  equipesDoLancamento: async id => id === 'l4' ? [{ id: 'k1', nome: 'Equipe 1', membros: [{ aluno_id: T2 + '-a0' }, { aluno_id: T2 + '-a1' }, { aluno_id: T2 + '-a2' }] }, { id: 'k2', nome: 'Equipe 2', membros: [{ aluno_id: T2 + '-a3' }, { aluno_id: T2 + '-a4' }] }, { id: 'k3', nome: 'Equipe 3', membros: [{ aluno_id: T2 + '-a5' }, { aluno_id: T2 + '-a6' }] }]
+    : id === 'l2' ? [{ id: 'q1', nome: 'Equipe 1', membros: [{ aluno_id: T2 + '-a0' }, { aluno_id: T2 + '-a1' }, { aluno_id: T2 + '-a2' }] }, { id: 'q2', nome: 'Equipe 2', membros: [{ aluno_id: T2 + '-a3' }, { aluno_id: T2 + '-a4' }] }] : [],
   ultimasEquipesDaTurma: async () => null, presentesDeHoje: async () => [T2 + '-a0', T2 + '-a3', T2 + '-a5', T2 + '-a6'],
   insigniasDaTurma: async () => [
     { id: 'i1', aluno_id: T2 + '-a0', chave: 'presente', dado: 'Primeira presença pelo app em 11/09', origem: 'automatica', concedida_em: agora },
@@ -58,6 +70,7 @@ const especificos = {
       acuracia_m: 5 + i, modo: i === 3 ? 'referencia' : 'gps', visto_em: new Date().toISOString(),
     }))
   },
+  melhorLeituraDe: async () => ({ lat: -8.05882828659363, lon: -34.9513732181457, acuracia_m: 3.52937, criado_em: '2026-09-11T19:24:54Z', capturado_em: '2026-09-11T19:24:54Z' }),
   minhaUltimaLeitura: async () => ({ lat: -8.0587, lon: -34.9512, acuracia_m: 8, rotulo: 'sala', criado_em: agora, capturado_em: agora }),
   leiturasDaTurma: async () => leit, pinsDaTurma: async () => pins, poligonaisDaTurma: async () => polis, sessoesDaTurma: async () => [sess],
   resumoTurma: async () => ({ chamadas: [{ id: 'c1', data: '2026-09-11' }], presencas: [] }), turmasDoSeedFaltando: async () => [],
@@ -109,6 +122,7 @@ export const marcosPublicos = especificos['marcosPublicos'] || (async () => null
 export const acessoAuxiliarHoje = especificos['acessoAuxiliarHoje'] || (async () => null)
 export const liberarAuxiliar = especificos['liberarAuxiliar'] || (async () => null)
 export const revogarAuxiliar = especificos['revogarAuxiliar'] || (async () => null)
+export const melhorLeituraDe = especificos['melhorLeituraDe'] || (async () => null)
 export const minhaUltimaLeitura = especificos['minhaUltimaLeitura'] || (async () => null)
 export const outboxCount = especificos['outboxCount'] || (async () => null)
 export const pinsDaTurma = especificos['pinsDaTurma'] || (async () => null)
@@ -129,3 +143,32 @@ export const sessoesDaTurma = especificos['sessoesDaTurma'] || (async () => null
 export const turmasDoSeedFaltando = especificos['turmasDoSeedFaltando'] || (async () => null)
 export const ultimasEquipesDaTurma = especificos['ultimasEquipesDaTurma'] || (async () => null)
 export const vivos = especificos['vivos'] || (async () => null)
+// acrescentados depois (funções novas do store): stubs neutros para o harness abrir
+export const RAIO_PRESENCA_M = 50
+export const alertasDaTurma = especificos['alertasDaTurma'] || (async () => null)
+export const apagarAula = especificos['apagarAula'] || (async () => null)
+export const apagarAulaDoCardapio = especificos['apagarAulaDoCardapio'] || (async () => null)
+export const apagarLancamentoAula = especificos['apagarLancamentoAula'] || (async () => null)
+export const apagarMaterial = especificos['apagarMaterial'] || (async () => null)
+export const atualizarLancamentoAula = especificos['atualizarLancamentoAula'] || (async () => null)
+export const atualizarTurma = especificos['atualizarTurma'] || (async () => null)
+export const aulaCompleta = especificos['aulaCompleta'] || (async () => null)
+export const aulasDaTurma = especificos['aulasDaTurma'] || (async () => null)
+export const chamadaAuto = especificos['chamadaAuto'] || (async () => null)
+export const chamadaDoDia = especificos['chamadaDoDia'] || (async () => null)
+export const criarAula = especificos['criarAula'] || (async () => null)
+export const decidirPioneiro = especificos['decidirPioneiro'] || (async () => null)
+export const definirReferencia = especificos['definirReferencia'] || (async () => null)
+export const ehDiaDeAula = () => true
+export const lancamentosDeAulasDaTurma = especificos['lancamentosDeAulasDaTurma'] || (async () => null)
+export const lancarAula = especificos['lancarAula'] || (async () => null)
+export const leitoresDaAula = especificos['leitoresDaAula'] || (async () => null)
+export const liberarSelfie = especificos['liberarSelfie'] || (async () => null)
+export const listarAulas = especificos['listarAulas'] || (async () => null)
+export const mudarDataAula = especificos['mudarDataAula'] || (async () => null)
+export const pioneirosDaTurma = especificos['pioneirosDaTurma'] || (async () => null)
+export const raridadeInsignias = especificos['raridadeInsignias'] || (async () => null)
+export const referenciaDeHoje = especificos['referenciaDeHoje'] || (async () => null)
+export const salvarAlerta = especificos['salvarAlerta'] || (async () => null)
+export const salvarAula = especificos['salvarAula'] || (async () => null)
+export const subirMaterial = especificos['subirMaterial'] || (async () => null)

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { tocarConquista, somEscolhido, definirSom, SONS } from './lib/som'
-import { INSIGNIAS, CATEGORIAS, TOTAL, POR_CHAVE, arte } from './lib/insignias'
+import { INSIGNIAS, PIONEIRAS, CATEGORIAS, TOTAL, POR_CHAVE, arte, ehPioneira, raridade, NIVEIS_RAR } from './lib/insignias'
+import Avatar from './Avatar.jsx'
 
 /* Coleção do aluno: o que ele já sabe fazer.
    Bloqueadas aparecem em cinza com a regra à vista — a coleção mostra o caminho.
@@ -12,7 +13,7 @@ export function Vitrine({ minhas, onAbrir }) {
   const ultimas = minhas.slice(-5).reverse()
   return (
     <button className="vitrine" onClick={onAbrir}>
-      <span className="vt-top"><b>Minhas insígnias</b><span className="vt-n">{minhas.length} de {TOTAL} ›</span></span>
+      <span className="vt-top"><b>Minhas insígnias</b><span className="vt-n">{minhas.filter(i => !ehPioneira(i.chave)).length} de {TOTAL} ›</span></span>
       <span className="vt-fila">
         {ultimas.map(i => <img key={i.chave} src={arte(i.chave)} alt={POR_CHAVE[i.chave]?.nome || ''} />)}
         {ultimas.length === 0 && <span className="note" style={{ margin: 0 }}>Nenhuma ainda. Toque para ver as {TOTAL} e o que falta para cada uma.</span>}
@@ -38,16 +39,20 @@ export function CartaoInsignia({ chave, dado, onFechar }) {
   )
 }
 
-export default function InsigniasAluno({ insignias }) {
+export default function InsigniasAluno({ insignias, nome: meuNome, avatar }) {
   const lista = insignias.dados?.insignias || []
   const porChave = Object.fromEntries(lista.map(i => [i.chave, i]))
+  // pioneiro de cada função na turma (o servidor manda o primeiro nome)
+  const donoPio = Object.fromEntries((insignias.dados?.pioneiros || []).filter(p => !p.eu).map(p => [p.base, p.nome]))
+  const rar = insignias.dados?.raridade
   const [aberta, setAberta] = useState(null)
   const [som, setSom] = useState(somEscolhido)
 
   return (
     <>
       <div className="panel">
-        <h2 style={{ marginTop: 0 }}>{lista.length} de {TOTAL}</h2>
+        {/* a coleção é dele: quem aparece aqui é o avatar que ele escolheu, nunca a selfie */}
+        <h2 style={{ marginTop: 0, display: 'flex', alignItems: 'center', gap: 10 }}><Avatar nome={meuNome} avatar={avatar} />{lista.filter(i => !ehPioneira(i.chave)).length} de {TOTAL}</h2>
         <p className="hint">Insígnia é reconhecimento do que você já sabe fazer. Não vale ponto no ranking das missões.</p>
         <label className="fld">🔔 Som ao ganhar uma insígnia</label>
         <div className="btnrow" style={{ marginTop: 0 }}>
@@ -56,7 +61,8 @@ export default function InsigniasAluno({ insignias }) {
         </div>
       </div>
       {CATEGORIAS.map(([cat, nome, cor]) => {
-        const doGrupo = INSIGNIAS.filter(i => i.cat === cat)
+        // todas aparecem; as que ele não tem, em monocromático (pedido dela, 18/09/2026). Pioneiras no fim de Especiais.
+        const doGrupo = [...INSIGNIAS.filter(i => i.cat === cat), ...PIONEIRAS.filter(i => i.cat === cat)]
         return (
           <div className="panel" key={cat}>
             <h2 style={{ marginTop: 0, color: cor }}>{nome}</h2>
@@ -76,7 +82,10 @@ export default function InsigniasAluno({ insignias }) {
               const i = POR_CHAVE[aberta], minha = porChave[aberta]
               return <div className="ins-detalhe">
                 <b>{minha ? '✓ ' : '🔒 '}{i.nome}</b>
-                <p>{minha ? (minha.dado || 'Conquistada.') : i.regra}</p>
+                {(() => { const r = raridade(aberta, rar); if (!r) return null
+                  return <p className="note" style={{ margin: '4px 0' }}><span className="selo-rar" style={{ background: NIVEIS_RAR[r.nivel].cor }}>{NIVEIS_RAR[r.nivel].nome}</span>
+                    {i.pioneiro ? ' Uma por turma.' : i.daProfessora ? ' Só a professora dá.' : r.n === 0 ? ' Ninguém tem ainda.' : ` ${r.n} de ${r.total} alunos do Orbe têm.`}</p> })()}
+                <p>{minha ? (minha.dado || 'Conquistada.') : i.pioneiro && donoPio[i.base] ? `Na sua turma, quem estreou foi ${donoPio[i.base]}.` : i.regra}</p>
                 {minha && <p className="note">Conquistada em {fmt(minha.em)}{minha.origem === 'professora' ? ' · dada pela professora' : ''}</p>}
               </div>
             })()}

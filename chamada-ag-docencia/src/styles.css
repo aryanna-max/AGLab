@@ -77,8 +77,20 @@ ul.people li{display:flex;align-items:center;justify-content:space-between;gap:1
 ul.people li .left{display:flex;align-items:center;gap:11px;min-width:0}
 .who{display:flex;flex-direction:column;min-width:0}
 .who .m{font-size:12px;color:var(--muted)}
-.avatar{width:44px;height:44px;border-radius:10px;object-fit:cover;background:var(--chip);flex:0 0 auto;display:flex;align-items:center;justify-content:center;font-weight:800;color:var(--muted);font-size:15px;overflow:hidden}
+.avatar{width:44px;height:44px;border-radius:10px;object-fit:cover;background:var(--chip);flex:0 0 auto;display:inline-flex;vertical-align:middle;align-items:center;justify-content:center;font-weight:800;color:var(--muted);font-size:15px;overflow:hidden}
 .avatar img{width:100%;height:100%;object-fit:cover;display:block}
+/* a mesma cara em lista e tabela densa: insígnias, missões, equipes, análise */
+.avatar.mini{width:26px;height:26px;border-radius:8px;font-size:11px}
+.aloc .avatar.mini,.matrix .avatar.mini{margin-right:7px}
+.podio-it .avatar.mini{align-self:center;margin-bottom:4px}
+/* o aluno no cabeçalho do próprio app: o avatar escolhido, à direita */
+header.app .avatar.mini{margin-left:2px}
+.eu-avatar{background:none;border:0;padding:0;margin-left:2px;line-height:0;border-radius:9px;cursor:pointer}
+.eu-avatar:focus-visible{outline:2px solid var(--brand2);outline-offset:2px}
+/* escolha do avatar: a mesma grade das insígnias, com o escolhido em destaque */
+.av-grade .ins-it img{border-radius:14px}
+.ins-it.av-on{font-weight:800}
+.ins-it.av-on img{outline:3px solid var(--ok);outline-offset:2px}
 .tag{font-size:12px;font-weight:700;border-radius:999px;padding:3px 9px}
 .tag.P{background:var(--ok-bg);color:var(--ok)}.tag.F{background:var(--miss-bg);color:var(--miss)}
 .confirm{display:flex;align-items:center;gap:16px;margin:12px auto 2px;max-width:420px;border:2px solid var(--ok);background:var(--ok-bg);border-radius:16px;padding:14px 16px;animation:pop .18s ease-out}
@@ -274,6 +286,13 @@ tr.reocup td{opacity:.75;font-style:italic}
 
 /* ---------- selfie do aluno ---------- */
 .selfie-row{display:flex;gap:14px;align-items:flex-start}
+/* as duas caras do aluno: a selfie na bolinha e, embaixo, o avatar que a turma vê */
+.selfie-col{display:flex;flex-direction:column;align-items:center;gap:7px;flex:0 0 auto}
+.selfie-av{background:none;border:0;padding:0;font:inherit;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px}
+.selfie-av[disabled]{cursor:default}
+.selfie-av .avatar{width:52px;height:52px;border-radius:14px}
+.selfie-av span{font-size:11px;line-height:1.15;color:var(--muted);text-align:center;max-width:84px}
+.selfie-av:focus-visible{outline:2px solid var(--brand2);outline-offset:3px;border-radius:14px}
 .selfie-prev{width:84px;height:84px;border-radius:50%;overflow:hidden;flex:0 0 auto;background:var(--line);display:flex;align-items:center;justify-content:center;font-size:32px;font-weight:700;opacity:.9}
 .selfie-prev img{width:100%;height:100%;object-fit:cover}
 .selfie-pedir{border-color:#b8860b;box-shadow:0 0 0 3px rgba(184,134,11,.18)}
@@ -298,6 +317,21 @@ tr.reocup td{opacity:.75;font-style:italic}
 .ir-n{font-size:18px;font-weight:800;fill:#c0392b}.ir-card{font-size:11px;font-weight:600;fill:var(--muted)}
 .ir-ponta{fill:var(--brand2)}.ir-haste{fill:var(--brand2)}.ir-box.chegou .ir-ponta,.ir-box.chegou .ir-haste{fill:var(--ok)}
 .ir-centro{fill:var(--panel);stroke:var(--brand2);stroke-width:2}
+/* bússola como agulha secundária; a seta do azimute é a principal (pedido dela, 18/09) */
+.ir-agulha{stroke:var(--muted);stroke-width:2;stroke-linecap:round;opacity:.75}
+.ir-agulha-pt{fill:var(--muted);opacity:.75}
+.ir-az{font-size:14px;color:var(--muted);margin:0 0 6px}.ir-az b{color:var(--ink,#1a1c1f)}
+/* a instrução é o destaque da tela: grande, colorida por faixa */
+.ir-instr{display:flex;align-items:center;justify-content:center;gap:10px;font-size:26px;font-weight:800;line-height:1.15;
+  padding:12px 10px;border-radius:12px;margin:0 0 8px;background:var(--panel);border:2px solid var(--brand2);color:var(--brand2)}
+.ir-instr b{font-size:30px}
+.ir-pernas{font-size:16px;margin:6px 0 2px;color:var(--ink,#1a1c1f)}
+.ir-instr-ic{font-size:34px;line-height:1}
+.ir-instr.f0,.ir-instr.fok{background:var(--ok-bg);border-color:var(--ok);color:var(--ok)}
+.ir-instr.f1{border-color:#d4a017;color:#9a6b00}
+.ir-instr.f2,.ir-instr.f3{border-color:#c0392b;color:#c0392b}
+.ir-box.alinhado{border-color:var(--ok)}
+.ir-box.alinhado .ir-ponta,.ir-box.alinhado .ir-haste{fill:var(--ok)}
 
 .ana-poli.sel{stroke-width:3;stroke-dasharray:none;fill:rgba(123,79,0,.18)}
 .ana-poli-v{fill:#7B4F00;stroke:#fff;stroke-width:1.5}.ana-poli-vn{font-size:10px;font-weight:800;fill:#fff}
@@ -314,6 +348,8 @@ table.matrix tr.sel-row td{background:rgba(123,79,0,.10)}
 /* ---------- home do aluno: três cards, alerta de missão ---------- */
 .escolha.tres{grid-template-columns:1fr}
 @media(min-width:560px){.escolha.tres{grid-template-columns:repeat(3,1fr);max-width:900px}}
+.escolha.quatro{grid-template-columns:1fr}
+@media(min-width:560px){.escolha.quatro{grid-template-columns:repeat(2,1fr);max-width:640px}}
 .cp-badge{display:inline-block;margin-left:6px;min-width:20px;padding:0 6px;border-radius:999px;background:#c0392b;color:#fff;font-size:12px;line-height:20px;text-align:center;vertical-align:middle}
 .alerta-missao{display:flex;gap:12px;align-items:center;width:100%;text-align:left;border:1px solid var(--line);border-left:5px solid var(--brand2);background:var(--panel);color:inherit;border-radius:12px;padding:12px 14px;margin:0 0 12px;cursor:pointer;font:inherit}
 .alerta-missao.urgente{border-left-color:#d35400}
@@ -411,3 +447,209 @@ table.matrix tr.sel-row td{background:rgba(123,79,0,.10)}
 .ins-linha img{width:44px;height:44px;flex:0 0 auto}
 .ins-chips{display:flex;gap:4px;flex-wrap:wrap}
 .ins-chips img{width:26px;height:26px}
+
+/* ---------- aulas: o material em cartões ---------- */
+/* As portas de uma aula (HQ, assunto, ficha) usam os mesmos cartões da home:
+   é a mesma gramática, e o aluno não precisa aprender duas. */
+.aula-portas{display:grid;gap:10px;margin:12px 0}
+.card-perfil.ficha{border-left:5px solid var(--brand2)}
+
+/* A HQ é uma tira vertical: um quadro por vez, rolando. As imagens carregam
+   sob demanda e ficam no cache do service worker (ver vite.config.js). */
+/* Leitor de HQ: tela cheia, um quadro por vez, sem corte.
+   'contain' faz o mesmo leitor servir arte vertical e horizontal. */
+.hq-leitor{position:fixed;inset:0;z-index:60;background:#0b0f14;display:grid;place-items:center;
+  padding:calc(env(safe-area-inset-top) + 44px) 8px calc(env(safe-area-inset-bottom) + 28px)}
+.hq-leitor > img{max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain;
+  border-radius:8px;display:block}
+.hq-adiante{position:absolute;width:1px;height:1px;overflow:hidden;opacity:0;pointer-events:none}
+
+.hq-meia{position:absolute;top:0;bottom:0;width:45%;border:0;background:transparent;cursor:pointer;padding:0}
+.hq-meia.esq{left:0}
+.hq-meia.dir{right:0;width:55%}
+.hq-meia:disabled{cursor:default}
+
+.hq-barra{position:absolute;top:0;left:0;right:0;display:flex;align-items:center;gap:10px;
+  padding:calc(env(safe-area-inset-top) + 6px) 12px 6px;color:#fff}
+.hq-x{border:0;background:rgba(255,255,255,.14);color:#fff;font-size:18px;line-height:1;
+  width:34px;height:34px;border-radius:999px;cursor:pointer}
+.hq-cont{margin-left:auto;font-size:13px;opacity:.8}
+
+.hq-pontos{position:absolute;left:0;right:0;bottom:calc(env(safe-area-inset-bottom) + 10px);
+  display:flex;gap:6px;justify-content:center}
+.hq-ponto{width:6px;height:6px;border-radius:999px;background:rgba(255,255,255,.3)}
+.hq-ponto.atual{background:#fff;transform:scale(1.3)}
+
+/* O cartão: um conceito por tela. Se precisar rolar, são dois cartões. */
+.cartao-aula{border:1px solid var(--line);border-radius:14px;background:var(--panel);
+  padding:18px 16px;margin:10px 0 14px;min-height:190px;box-shadow:var(--shadow)}
+.cartao-aula h3{margin:0 0 10px;font-size:18px;color:var(--brand)}
+.cartao-aula p{margin:0 0 10px;font-size:16px;line-height:1.5}
+.cartao-aula p:last-child{margin-bottom:0}
+.cartao-aula ul,.cartao-aula ol{margin:0 0 10px;padding-left:20px;font-size:16px;line-height:1.5}
+.cartao-aula li{margin-bottom:5px}
+
+.cartao-pontos{display:flex;gap:7px;justify-content:center;margin:0 0 12px}
+.cp-ponto{width:9px;height:9px;border-radius:999px;background:var(--line);cursor:pointer}
+.cp-ponto.lido{background:var(--brand2);opacity:.45}
+.cp-ponto.atual{background:var(--brand);opacity:1;transform:scale(1.25)}
+/* /instalar: passos numerados */
+.inst-lista { list-style: none; padding: 0; margin: 14px 0; display: grid; gap: 12px; }
+.inst-passo { display: flex; gap: 12px; align-items: flex-start; line-height: 1.45; }
+.inst-n { flex: none; width: 28px; height: 28px; border-radius: 50%; background: var(--brand, #1f4e79); color: #fff; display: grid; place-items: center; font-weight: 700; font-size: 14px; }
+
+/* tela inicial do aluno: a turma do Orbe e os últimos avisos da professora */
+.home-turma{width:min(420px,88vw);height:auto;display:block;margin:4px auto 10px}
+.avisos-home h2{margin:0 0 6px;font-size:16px}
+.av-item{display:flex;flex-direction:column;gap:2px;width:100%;text-align:left;background:none;border:0;border-top:1px solid var(--line);padding:9px 2px;color:inherit;font:inherit;cursor:default}
+.av-item:first-of-type{border-top:0}
+.av-item.clica{cursor:pointer}
+.av-tit{display:flex;justify-content:space-between;gap:10px;align-items:baseline}
+.av-em{font-size:12px;color:var(--muted);white-space:nowrap}
+.av-txt{font-size:13.5px;opacity:.85}
+
+/* Complete o seu Orbe: notificações, selfie e avatar */
+.passos-home h2{margin:0 0 4px;font-size:16px;display:flex;align-items:center;gap:8px}
+.passos-home .ph-n{font-size:12px;font-weight:600;color:var(--muted)}
+.ph-it{display:flex;align-items:center;gap:12px;padding:9px 0;border-top:1px solid var(--line)}
+.ph-it:first-of-type{border-top:0}
+.ph-ico{width:34px;height:34px;flex:none;display:flex;align-items:center;justify-content:center;font-size:22px}
+.ph-it.ok .ph-ico{color:#12804A;font-weight:800}
+.ph-txt{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.ph-txt span{font-size:13px;opacity:.75}
+.ph-it.ok .ph-txt b{color:var(--muted)}
+
+.av-cab{display:flex;align-items:center;gap:10px;width:100%;background:none;border:0;padding:0;color:inherit;font:inherit;cursor:pointer;text-align:left}
+.av-cab>span:first-child{font-weight:800;font-size:16px;display:flex;align-items:center;gap:6px;white-space:nowrap}
+.av-ult{flex:1;min-width:0;font-size:13px;opacity:.7;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.av-seta{margin-left:auto;opacity:.6}
+.avisos-home.aberto .av-cab{margin-bottom:4px}
+
+/* destaque da missão aberta (dourado das missões; vermelho com menos de 1 h) */
+.destaque-missao{display:flex;flex-direction:column;align-items:flex-start;gap:3px;width:100%;text-align:left;font:inherit;cursor:pointer;
+  background:#FAEEDA;border:2px solid #BA7517;color:#633806;border-radius:14px;padding:14px 16px;margin:0 0 12px}
+.destaque-missao .dm-top{font-size:13px;font-weight:700}
+.destaque-missao .dm-tit{font-size:19px;color:#412402;line-height:1.25}
+.destaque-missao .dm-prog{display:block;width:100%;height:7px;background:#FAC775;border-radius:4px;overflow:hidden;margin-top:6px}
+.destaque-missao .dm-prog i{display:block;height:100%;background:#854F0B}
+.destaque-missao .dm-sub,.destaque-missao .dm-mais{font-size:12.5px}
+.destaque-missao .dm-btn{margin-top:8px;background:#854F0B;color:#FFF7E8;border-radius:10px;padding:8px 14px;font-weight:700;font-size:14px}
+.destaque-missao.urgente{background:#FCEBEB;border-color:#A32D2D;color:#791F1F}
+.destaque-missao.urgente .dm-tit{color:#501313}
+.destaque-missao.urgente .dm-prog{background:#F7C1C1}.destaque-missao.urgente .dm-prog i{background:#A32D2D}
+.destaque-missao.urgente .dm-btn{background:#A32D2D}
+
+/* carta especial (aviso com imagem feita no GPT) */
+.carta-especial{background:#0E1633;color:#F4F1E8;border-radius:20px;width:92%;max-width:380px;max-height:92vh;overflow:auto;box-shadow:0 12px 48px rgba(0,0,0,.45);border:2px solid #C9A227}
+.carta-especial img{width:100%;display:block;border-radius:18px 18px 0 0}
+.carta-especial .ce-txt{padding:14px 18px 4px}
+.carta-especial .ce-txt b{font-size:19px;color:#F2CE63;display:block}
+.carta-especial .ce-txt p{font-size:15px;line-height:1.45;margin:8px 0 0}
+.carta-especial .ce-btns{display:flex;gap:8px;padding:12px 18px 18px;flex-wrap:wrap}
+.carta-especial .btn{background:#C9A227;color:#1B1405;border:0}
+.carta-especial .btn.ghost{background:transparent;color:#F4F1E8;border:1px solid rgba(244,241,232,.4)}
+.carta-especial.alta{background:#0A1B55}
+.carta-especial.alta img{height:min(52vh,400px);object-fit:cover;object-position:top}
+.carta-especial.alta .ce-base{margin-top:-28px;position:relative;background:linear-gradient(to bottom,rgba(10,27,85,0),#0A1B55 28px)}
+.carta-especial.alta .ce-txt{padding-top:26px}
+
+/* Mapa dos alunos (Leaflet) */
+.mapa-alunos{height:min(68vh,560px);border-radius:12px;overflow:hidden;border:1px solid var(--line);margin-top:8px;z-index:0}
+.mapa-aluno{background:none;border:0}
+.mapa-aluno .ma-bola{width:40px;height:40px;border-radius:50%;overflow:hidden;border:3px solid #9AA0A6;background:#E8EAED;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;color:#3C4043;box-shadow:0 1px 4px rgba(0,0,0,.4);margin:0 auto}
+.mapa-aluno .ma-bola img{width:100%;height:100%;object-fit:cover}
+.mapa-aluno.aceso .ma-bola{border-color:#2E8B57;animation:ma-pulso 1.6s infinite}
+.mapa-aluno.aux .ma-bola{border-color:#C9A227}
+.mapa-aluno .ma-nome{margin-top:2px;text-align:center;font-size:11px;font-weight:700;color:#fff;text-shadow:0 0 3px #000,0 0 2px #000;white-space:nowrap}
+@keyframes ma-pulso{0%{box-shadow:0 0 0 0 rgba(46,139,87,.6)}70%{box-shadow:0 0 0 10px rgba(46,139,87,0)}100%{box-shadow:0 0 0 0 rgba(46,139,87,0)}}
+
+.selo-rar{display:inline-block;color:#fff;font-size:10.5px;font-weight:700;letter-spacing:.3px;text-transform:uppercase;padding:1px 7px;border-radius:9px;vertical-align:middle}
+
+.campo-resp{margin-bottom:8px}.campo-resp .fld{margin-top:6px}
+
+.caixas{display:flex;flex-direction:column;gap:6px;margin:4px 0 6px}
+
+.cal-cab{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;text-transform:capitalize}
+.cal{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.cal-dow{text-align:center;font-size:11px;font-weight:700;opacity:.6;padding:2px 0}.cal-dow.dia-turma{opacity:1;color:var(--accent,#2749B0)}
+.cal-d{aspect-ratio:1/1;min-height:36px;border:1px solid var(--line);border-radius:8px;background:var(--panel);display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:13px;cursor:pointer;padding:0;color:inherit}
+.cal-d.dia-turma{background:var(--chip,#eaedf1)}
+.cal-d.tem-aula{background:var(--ok-bg);color:var(--ok);font-weight:700;border-color:var(--ok)}
+.cal-d.planejada{border:2px dashed var(--ok)}
+.cal-d.sel{outline:2px solid var(--accent,#2749B0);outline-offset:1px}
+.cal-d.hoje span{text-decoration:underline}
+.cal-d small{font-size:10px;line-height:1}
+
+.cal-d.geral{justify-content:flex-start;gap:2px;padding-top:3px;min-height:52px;aspect-ratio:auto}
+.cal-chip{font-style:normal;font-size:9px;font-weight:700;line-height:1;padding:2px 3px;border-radius:4px;border:1px solid var(--c);color:var(--c)}
+.cal-chip.dada{background:var(--c);color:#fff}.cal-chip.plan{border-style:dashed}.cal-chip.vazia{opacity:.35}
+
+/* ---------- material: lado da professora ---------- */
+.aula-lanc{display:flex;flex-direction:column;gap:4px;border:1px solid var(--line);border-radius:12px;
+  padding:12px 14px;margin:0 0 10px;background:var(--panel)}
+.aula-lanc .al-top{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.aula-lanc .al-tit{font-size:16px}
+.aula-lanc .btnrow{margin-top:8px}
+.quem-leu{margin-top:10px;border-top:1px solid var(--line);padding-top:10px}
+.quem-leu .lista-simples li{display:flex;justify-content:space-between;gap:10px;align-items:baseline}
+
+/* o acervo é agrupado por assunto, não numerado */
+.acervo-grupo{margin:0 0 14px}
+.acervo-assunto{margin:0 0 8px;font-size:13px;font-weight:800;letter-spacing:.04em;
+  text-transform:uppercase;color:var(--muted)}
+
+/* editor de aula: cada peça é um bloco, para reordenar sem se perder */
+.peca-ed{display:flex;flex-direction:column;gap:6px;border:1px solid var(--line);border-radius:12px;
+  padding:10px 12px;margin:0 0 10px;background:var(--panel)}
+.peca-ed .pe-top{display:flex;gap:6px;align-items:center;justify-content:space-between}
+.peca-ed textarea{min-height:96px}
+.peca-ed .pe-mini{max-height:120px;width:auto;align-self:flex-start;border-radius:8px;
+  border:1px solid var(--line);object-fit:contain;background:#000}
+.peca-ed .note.muito{color:var(--miss)}
+
+/* a porta do aprofundamento é um link: some o sublinhado, fica cartão */
+a.card-perfil{text-decoration:none}
+
+/* Caderneta de estação total (missão) e escolha de equipe pelos alunos */
+.cad-lista{display:flex;flex-direction:column;gap:8px}
+.cad-linha{border:1px solid var(--line);border-radius:12px;padding:8px 10px;background:var(--bg)}
+.cad-cab{display:flex;align-items:center;gap:6px}
+.cad-n{font-weight:800;color:var(--muted);min-width:18px}
+.cad-x{margin-left:auto;padding:2px 8px}
+.cad-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 8px}
+.cad-grid label.fld{margin:6px 0 2px;font-size:12px}
+.cad-grid input,.cad-grid select{background:var(--panel);padding:8px 9px}
+.cad-grid input.ruim{border-color:var(--miss)}
+.cad-aviso{color:var(--miss);margin:4px 0 0}
+.tag.re{background:var(--ok-bg);color:var(--ok)}
+.cad-problemas{margin:8px 0 0;padding-left:18px;color:var(--miss);font-size:13px}
+.cad-coord th,.cad-coord td{text-align:left;font-size:13px}
+.eq-escolha{display:flex;flex-direction:column;align-items:flex-start;gap:4px;text-align:left;font:inherit;color:var(--ink);cursor:pointer}
+.eq-escolha.on{border:2px solid var(--brand2);background:var(--chip)}
+.eq-escolha:disabled{opacity:.55;cursor:default}
+.eq-nomes{font-size:13px;color:var(--muted)}
+.eq-membros.escolha li{align-items:center}
+.eq-membros.escolha li.travado{opacity:.55}
+.eq-membros.escolha li.marcado{font-weight:700}
+.gab-tab .m{color:var(--muted);font-weight:400;font-size:11.5px}
+.gab-det{margin-top:6px}
+.gab-det .aloc th{text-align:left;font-size:12px;color:var(--muted);padding:4px 6px;border-bottom:1px solid var(--line)}
+.gab-det .aloc td{font-size:13px;white-space:nowrap}
+@media (max-width:380px){.cad-grid{grid-template-columns:1fr}}
+.hz-caixas{display:flex;align-items:center;gap:2px}
+.hz-caixas input{min-width:0;flex:1 1 0;padding:8px 3px;text-align:center}
+.hz-caixas input:first-child{flex-grow:1.3}
+.hz-caixas span{color:var(--muted);font-weight:700;margin-right:2px}
+.cad-aviso-virgula{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin-top:4px}
+.cad-aviso-virgula .cad-aviso{margin:0}
+/* croqui da caderneta (missão) */
+.cad-croqui .cq-re{stroke:var(--muted);stroke-width:1.5;stroke-dasharray:4 4}
+.cad-croqui .cq-vante{stroke:var(--brand2);stroke-width:2}
+.cad-croqui .cq-alvo{fill:#E8590C;stroke:#fff;stroke-width:1.5}
+.cad-croqui .cq-escala{stroke:var(--ink);stroke-width:3}
+.cad-croqui .cq-antigo{fill:none;stroke:var(--muted);stroke-width:2}
+.cad-croqui .cq-antigo-lig{stroke:var(--muted);stroke-width:1;stroke-dasharray:1 3}
+.cad-croqui .cq-antigo-lab{fill:var(--muted)}
+.cq-equipes{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 -4px}
+.cad-croqui .cq-media circle{fill:none;stroke:var(--ink);stroke-width:2}
+.cad-croqui .cq-media line{stroke:var(--ink);stroke-width:2}

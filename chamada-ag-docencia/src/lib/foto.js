@@ -1,6 +1,6 @@
 /* Reduz uma imagem (arquivo da câmera ou da galeria) a um JPEG pequeno em data URL.
    - selfie do aluno: 160 px, quadrada (recorte central) → ~10 KB
-   - foto do ponto no pin: 640 px no lado maior → ~70–110 KB
+   - foto do ponto no pin: 800 px no lado maior → ~120–160 KB (é prova para o relatório do aluno)
    Usa createImageBitmap com orientação EXIF quando o navegador tem; senão <img>. */
 
 export async function arquivoParaJpeg(file, { lado = 640, quadrado = false, qualidade = 0.72 } = {}) {
@@ -27,4 +27,26 @@ async function carregar(file) {
     im.onerror = () => { URL.revokeObjectURL(url); err(new Error('imagem inválida')) }
     im.src = url
   })
+}
+
+/* Imagem de material de aula (quadro de HQ, figura de cartão) → WebP.
+   WebP com 1280 px de largura é a regra anotada em CLAUDE.md: um quadro de HQ
+   fica em 60–120 KB e nítido em qualquer celular. Não recorta e não deita a
+   arte: o lado maior manda, e quem decide o formato é o arquivo — é isso que
+   faz o mesmo leitor servir HQ vertical e horizontal.
+   Devolve também largura e altura, que vão para o banco: com elas o <img> já
+   nasce com o espaço certo e a tela não pula quando o quadro carrega. */
+export async function arquivoParaWebp(file, { lado = 1280, qualidade = 0.82 } = {}) {
+  const im = await carregar(file)
+  const esc = Math.min(1, lado / Math.max(im.width, im.height))
+  const cw = Math.max(1, Math.round(im.width * esc)), ch = Math.max(1, Math.round(im.height * esc))
+  const cv = document.createElement('canvas'); cv.width = cw; cv.height = ch
+  cv.getContext('2d').drawImage(im, 0, 0, cw, ch)
+  if (im.close) im.close()
+  const blob = await new Promise(ok => cv.toBlob(ok, 'image/webp', qualidade))
+  // navegador sem WebP no canvas devolve PNG ou nada: cai para JPEG
+  if (blob && blob.type === 'image/webp') return { blob, largura: cw, altura: ch }
+  const jpeg = await new Promise(ok => cv.toBlob(ok, 'image/jpeg', qualidade))
+  if (!jpeg) throw new Error('não consegui converter a imagem')
+  return { blob: jpeg, largura: cw, altura: ch }
 }
