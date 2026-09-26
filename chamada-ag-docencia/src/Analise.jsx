@@ -558,7 +558,7 @@ export default function Analise({ tid, turmas, online, showToast }) {
             <tbody>{leituras.slice(0, mostrar).map(l => <tr key={l.id}>
               <td className="nm">{l.alunos?.nome}</td>
               <td><i className="dot" style={{ background: COR[l.rotulo] || COR.outro }} />{NOME[l.rotulo] || l.rotulo}{l.extra?.local_descricao ? ' · ' + l.extra.local_descricao : ''}{l.extra?.pin_nome ? ' · ' + l.extra.pin_nome : ''}</td>
-              <td className={ehChamada(l) ? (l.presenca_marcada ? 'P' : 'F') : ''}>{ehChamada(l) ? (l.presenca_marcada ? 'presença' : 'fora da janela') : '—'}</td>
+              <td className={ehChamada(l) ? (l.presenca_marcada ? 'P' : 'F') : ''}>{ehChamada(l) ? (l.presenca_marcada ? 'presença' : l.extra?.motivo === 'mesmo_aparelho' ? 'a conferir · mesmo celular' : l.extra?.sem_qr ? 'a conferir' : 'fora da janela') : '—'}</td>
               <td>{fmtHora(l.capturado_em || l.criado_em)}</td>
               <td>{l.utm_n != null ? metros(l.utm_n, 1) : '—'}</td><td>{l.utm_e != null ? metros(l.utm_e, 1) : '—'}</td>
               <td>{metros(l.acuracia_m, 1)}</td><td>{l.altitude_m != null ? metros(l.altitude_m, 1) : '—'}</td><td>{l.alt_acuracia_m != null ? metros(l.alt_acuracia_m, 1) : '—'}</td>

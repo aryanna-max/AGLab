@@ -10,7 +10,7 @@ import MissoesAluno from './MissoesAluno.jsx'
 import { useHistoricoPresenca, useMissoes, useInsignias, fmtPrazo, missaoVista, resumoFaltas } from './lib/alunoApi'
 import InsigniasAluno, { Vitrine, CartaoInsignia } from './InsigniasAluno.jsx'
 import { prepararSom, tocarAviso } from './lib/som'
-import { EH_COMPUTADOR } from './lib/aparelho'
+import { EH_COMPUTADOR, aparelhoId } from './lib/aparelho'
 import { resumirOcupacao } from './lib/topo'
 import { estadoAvisos, ativarAvisosAluno, sincronizarAvisosAluno, TEXTO_ESTADO } from './lib/avisos'
 
@@ -69,7 +69,8 @@ function contextoDoAparelho() {
     tipo_conexao: c && c.effectiveType ? c.effectiveType : null,
     downlink_mbps: c && typeof c.downlink === 'number' ? c.downlink : null,
     rtt_ms: c && typeof c.rtt === 'number' ? c.rtt : null,
-    app_versao: typeof __BUILD_ID__ !== 'undefined' ? __BUILD_ID__ : null
+    app_versao: typeof __BUILD_ID__ !== 'undefined' ? __BUILD_ID__ : null,
+    aparelho_id: aparelhoId()
   }
 }
 
@@ -352,6 +353,7 @@ export default function Aluno() {
       if (rotulo === 'chamada') {
         if (data.presenca) fixarPresenca(data, item.codigo, false)
         else if (data.motivo === 'fora_da_janela') fixarPresenca(data, item.codigo, true)
+        else if (data.motivo === 'a_conferir') setErro('Registro recebido, mas a presença ficou a conferir: a professora decide. Confira se o nome no topo é o seu.')
       } else { setAviso('Leitura enviada — ' + (rotulo === 'outro' && descricao ? descricao : nomeLocal(rotulo))); setTimeout(() => setAviso(''), 2500) }
     } catch (e) {
       if (ehErroDeRede(e)) {

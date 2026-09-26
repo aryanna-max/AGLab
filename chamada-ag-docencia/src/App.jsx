@@ -697,6 +697,9 @@ function ColetaTurma({ userId, tid, turmas, online, showToast }) {
   const presentesColeta = new Set(linhas.filter(l => l.presenca_marcada).map(l => l.aluno_id)).size
   const ehChamada = l => !!(l.extra && l.extra.chamada)
   const registrosForaJanela = linhas.filter(l => ehChamada(l) && !l.presenca_marcada)
+  // mesmo celular registrando chamada de dois alunos no dia: os dois ficam a conferir
+  const mesmoAparelho = l => l.extra?.motivo === 'mesmo_aparelho'
+  const statusChamada = l => l.presenca_marcada ? 'marcada' : mesmoAparelho(l) ? 'a conferir · mesmo celular' : l.extra?.sem_qr ? 'a conferir' : 'fora da janela'
   // subiu da fila: capturado bem antes de o servidor receber
   const atrasada = l => l.capturado_em && (new Date(l.criado_em) - new Date(l.capturado_em)) > 3 * 60 * 1000
   // o campus inteiro cabe em ~250 m da PERC; acima disso a leitura veio de fora
@@ -765,7 +768,11 @@ function ColetaTurma({ userId, tid, turmas, online, showToast }) {
           {sessao.chamada_id && <> O registro de cada aluno já marcou presença na chamada de hoje.</>}</p>
 
         {registrosForaJanela.length > 0 && <p className="note" style={{ color: 'var(--miss)' }}>
-          <b>{registrosForaJanela.length}</b> registro(s) chegaram fora da janela e <b>não</b> marcaram presença. Quem decide é você, na aba Chamada.
+          <b>{registrosForaJanela.length}</b> registro(s) <b>não</b> marcaram presença (fora da janela ou a conferir). Quem decide é você, na aba Chamada.
+        </p>}
+        {linhas.some(mesmoAparelho) && <p className="note" style={{ color: 'var(--miss)' }}>
+          Um mesmo celular registrou chamada de mais de um aluno hoje: {[...new Set(linhas.filter(mesmoAparelho).map(l => l.alunos?.nome).filter(Boolean))].join(', ')}.
+          Nenhum deles ficou com presença automática — confira quem estava na sala.
         </p>}
         <div className="btnrow"><button className="btn ghost" onClick={fechar}>Encerrar sessão</button></div>
       </>}
@@ -785,8 +792,8 @@ function ColetaTurma({ userId, tid, turmas, online, showToast }) {
             <td title={atrasada(l) ? 'subiu da fila em ' + new Date(l.criado_em).toLocaleString('pt-BR') : ''}>
               {new Date(l.capturado_em || l.criado_em).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}{atrasada(l) ? ' ⏳' : ''}
             </td>
-            <td className={!ehChamada(l) ? '' : l.presenca_marcada ? 'P' : 'F'}>
-              {!ehChamada(l) ? '—' : l.presenca_marcada ? 'marcada' : 'fora da janela'}
+            <td className={!ehChamada(l) ? '' : l.presenca_marcada ? 'P' : 'F'} title={mesmoAparelho(l) && l.extra?.aparelho_com ? 'mesmo celular de: ' + l.extra.aparelho_com.join(', ') : ''}>
+              {!ehChamada(l) ? '—' : statusChamada(l)}
             </td>
           </tr>)}
         </tbody></table>
